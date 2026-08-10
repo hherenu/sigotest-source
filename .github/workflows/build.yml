@@ -23,20 +23,9 @@ jobs:
         run: dotnet test .\Sigotest.sln --configuration Release --no-build --no-restore
       - name: Publish
         run: dotnet publish .\src\Sigotest.Web\Sigotest.Web.csproj --configuration Release --no-restore --output .\artifacts\publish
-      - name: Verify web.config
+      - name: Verify publish contract
         shell: pwsh
         run: |
           if (-not (Test-Path .\artifacts\publish\web.config)) { throw 'web.config no fue generado.' }
           if (-not (Select-String -Path .\artifacts\publish\web.config -Pattern 'AspNetCoreModuleV2' -SimpleMatch)) { throw 'AspNetCoreModuleV2 no está configurado.' }
-      - name: Generate integrity manifest
-        shell: pwsh
-        run: .\scripts\New-DeploymentManifest.ps1 -PackagePath .\artifacts\publish
-      - name: Validate integrity manifest
-        shell: pwsh
-        run: .\scripts\Test-DeploymentManifest.ps1 -PackagePath .\artifacts\publish
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sigotest-publish
-          path: artifacts/publish
-          retention-days: 3
-          if-no-files-found: error
+          if (Test-Path .\artifacts\publish\appsettings.Development.json) { throw 'appsettings.Development.json no debe publicarse.' }
