@@ -77,9 +77,11 @@ try {
     if (-not $variable) {
         $variable = $variables.CreateElement('add')
         $variable.SetAttributeValue('name', $VariableName)
+        $variable.SetAttributeValue('value', $connectionString)
         $variables.Add($variable)
+    } else {
+        $variable.SetAttributeValue('value', $connectionString)
     }
-    $variable.SetAttributeValue('value', $connectionString)
     $serverManager.CommitChanges()
 
     $state = (Get-WebAppPoolState -Name $PoolName).Value
