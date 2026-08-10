@@ -41,7 +41,7 @@ Negotiate protege todas las páginas mediante una fallback policy. Sólo `GET /h
 
 ## Variables y seguridad
 
-La conexión SQL futura se inyectará como `ConnectionStrings__SigotestDb`. La aplicación muestra únicamente si está configurada; nunca su contenido. Los archivos locales, certificados, secretos y outputs están excluidos de Git.
+La conexión SQL se inyecta como `ConnectionStrings__SigotestDb`. La aplicación muestra únicamente si está configurada; nunca su contenido. La carga o rotación administrativa está documentada en [docs/19-configuracion-sql.md](docs/19-configuracion-sql.md). Los archivos locales, certificados, secretos y outputs están excluidos de Git.
 
 ## Despliegue y pendientes
 
