@@ -56,7 +56,11 @@ try {
     $builder['Connect Timeout'] = 15
     $connectionString = $builder.ConnectionString
 
-    Add-Type -AssemblyName Microsoft.Web.Administration
+    $administrationAssembly = Join-Path $env:windir 'System32\inetsrv\Microsoft.Web.Administration.dll'
+    if (-not (Test-Path -LiteralPath $administrationAssembly -PathType Leaf)) {
+        throw 'No se encontró Microsoft.Web.Administration.dll. Verifique la instalación de IIS Management Scripts and Tools.'
+    }
+    Add-Type -Path $administrationAssembly
     $serverManager = [Microsoft.Web.Administration.ServerManager]::new()
     $configuration = $serverManager.GetApplicationHostConfiguration()
     $section = $configuration.GetSection('system.applicationHost/applicationPools')
