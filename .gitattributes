@@ -1,0 +1,15 @@
+* text=auto
+
+*.cs text eol=crlf
+*.cshtml text eol=crlf
+*.ps1 text eol=crlf
+*.sln text eol=crlf
+*.yml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.csproj text eol=lf
+*.config text eol=lf
+
+*.ico binary
+*.pfx binary
+*.p12 binary

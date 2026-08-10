@@ -1,0 +1,29 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Prueba de infraestructura";
+}
+
+<section class="status-hero">
+    <p class="eyebrow">Estado del servicio</p>
+    <h1>Sigotest — Prueba de infraestructura</h1>
+    <p class="status-ok"><span aria-hidden="true"></span>Aplicación ejecutándose correctamente</p>
+</section>
+
+<section class="diagnostics" aria-labelledby="diagnostics-title">
+    <h2 id="diagnostics-title">Información de ejecución</h2>
+    <dl class="diagnostic-grid">
+        <div><dt>Usuario</dt><dd>@(User.Identity?.Name ?? "No disponible")</dd></div>
+        <div><dt>Autenticado</dt><dd>@(User.Identity?.IsAuthenticated ?? false)</dd></div>
+        <div><dt>Tipo de autenticación</dt><dd>@(User.Identity?.AuthenticationType ?? "No disponible")</dd></div>
+        <div><dt>Servidor</dt><dd>@Model.MachineName</dd></div>
+        <div><dt>Framework</dt><dd>@Model.FrameworkDescription</dd></div>
+        <div><dt>Fecha y hora del servidor</dt><dd>@Model.ServerDateTime.ToString("yyyy-MM-dd HH:mm:ss zzz")</dd></div>
+    </dl>
+</section>
+
+<aside class="database-notice">
+    @(Model.IsConnectionStringConfigured
+        ? "Cadena de conexión configurada."
+        : "Base de datos pendiente de configurar.")
+</aside>
