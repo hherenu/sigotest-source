@@ -2,6 +2,10 @@ using Microsoft.EntityFrameworkCore;
 using SIGO.Data;
 using SIGO.Services;
 
+// Los tests son Windows-only igual que la app (LocalDB + tipos marcados con
+// SupportedOSPlatform en el ensamblado de SIGO): declararlo acalla los CA1416.
+[assembly: System.Runtime.Versioning.SupportedOSPlatform("windows")]
+
 namespace SIGO.Tests;
 
 /// <summary>Usuario de prueba con los roles que se le pasen.</summary>
