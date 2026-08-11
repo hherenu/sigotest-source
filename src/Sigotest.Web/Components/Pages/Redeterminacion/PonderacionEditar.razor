@@ -1,0 +1,320 @@
+@page "/obras/{ObraId:int}/ponderacion"
+@attribute [Authorize(Roles = Roles.Certificaciones)]
+@inject PonderacionService Service
+@inject NavigationManager Nav
+@inject DialogService DialogService
+@inject NotificationService Notifications
+
+<PageTitle>@(vm is null ? "Tabla de Ponderación" : $"Ponderación — {vm.ObraNombre}")</PageTitle>
+
+@if (noEncontrada)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+        No se encontró la obra solicitada.
+    </RadzenAlert>
+}
+else if (vm is null)
+{
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+}
+else
+{
+    <CabeceraPagina Titulo="@($"Tabla de Ponderación{(vm.TieneTabla ? $": {vm.TablaNombre}" : "")}")">
+        <Subtitulo>@vm.ObraNombre — @vm.NumeroLicitacion</Subtitulo>
+        <Acciones>
+            @if (vm.TieneTabla)
+            {
+                <RadzenButton Text="Calcular Redeterminación" Icon="calculate" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                              Click="@(() => Nav.NavigateTo($"redeterminacion/calcular?obraId={ObraId}"))" />
+            }
+            <RadzenButton Text="Volver a Obra" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
+                          Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"obras/{ObraId}"))" />
+        </Acciones>
+    </CabeceraPagina>
+
+    @if (!vm.TieneTabla)
+    {
+        @* ── Alta de la tabla (una sola por obra) ── *@
+        <RadzenCard Variant="Variant.Outlined" style="max-width:640px">
+            <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Esta obra no tiene tabla de ponderación</RadzenText>
+            <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-3">
+                La tabla define los insumos, sus pesos (deben sumar 100%) y el índice INDEC de cada uno.
+                Es la base del cálculo de redeterminaciones de la obra.
+            </RadzenText>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.End" Gap="0.5rem">
+                <RadzenFormField Text="Nombre de la tabla" Variant="Variant.Outlined" style="flex:1">
+                    <RadzenTextBox @bind-Value="nombreNuevaTabla" style="width:100%" />
+                </RadzenFormField>
+                <RadzenButton Text="Crear tabla" Icon="add" ButtonStyle="ButtonStyle.Primary"
+                              IsBusy="@procesando" BusyText="Creando..." Click="@CrearTablaAsync" />
+            </RadzenStack>
+        </RadzenCard>
+    }
+    else
+    {
+        @* ── Ítems de la tabla ── *@
+        <RadzenCard Variant="Variant.Outlined" class="rz-mb-4">
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                         AlignItems="AlignItems.Center" class="rz-mb-3">
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Insumos y pesos</RadzenText>
+                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-0"
+                            style="@($"font-weight:700;color:{(SumaPesos == 100m ? "var(--rz-success)" : "var(--rz-danger)")}")">
+                    Σ Pesos: @SumaPesos.ToString("N2")%
+                </RadzenText>
+            </RadzenStack>
+
+            @if (SumaPesos != 100m && vm.Items.Count > 0)
+            {
+                <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false" class="rz-mb-3">
+                    Los pesos suman @SumaPesos.ToString("N2")% — el cálculo de redeterminación va a rechazar la tabla hasta que sumen exactamente 100%.
+                </RadzenAlert>
+            }
+
+            @if (vm.Items.Count == 0)
+            {
+                <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
+                    No hay insumos cargados. Usá el formulario de abajo para agregar.
+                </RadzenText>
+            }
+            else
+            {
+                <RadzenDataGrid Data="@vm.Items.OrderBy(i => i.Numero)" TItem="ItemPonderacionVM" AllowPaging="false"
+                                AllowSorting="false" AllowFiltering="false" GridLines="DataGridGridLines.Both" Density="Density.Compact">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="ItemPonderacionVM" Property="Numero" Title="N°" Width="52px" TextAlign="TextAlign.Center" />
+                        <RadzenDataGridColumn TItem="ItemPonderacionVM" Property="Insumo" Title="Insumo" Width="220px" />
+                        <RadzenDataGridColumn TItem="ItemPonderacionVM" Title="Peso %" Width="100px" TextAlign="TextAlign.Right">
+                            <Template Context="i">@i.PesoPorcentaje.ToString("N2")%</Template>
+                            <FooterTemplate>
+                                <b style="@($"color:{(SumaPesos == 100m ? "var(--rz-success)" : "var(--rz-danger)")}")">@SumaPesos.ToString("N2")%</b>
+                            </FooterTemplate>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="ItemPonderacionVM" Title="Índice INDEC" Width="240px">
+                            <Template Context="i">@i.IndiceNombre</Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="ItemPonderacionVM" Property="DescripcionINDEC" Title="Descripción INDEC">
+                            <Template Context="i"><span style="font-size:.8rem">@i.DescripcionINDEC</span></Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="ItemPonderacionVM" Title="Acciones" Width="100px" TextAlign="TextAlign.Center">
+                            <Template Context="i">
+                                <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
+                                              title="Editar" Disabled="@procesando" Click="@(() => EditarItem(i))" />
+                                <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
+                                              title="Eliminar" Disabled="@procesando" Click="@(() => EliminarItemAsync(i))" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                    </Columns>
+                </RadzenDataGrid>
+            }
+        </RadzenCard>
+
+        @* ── Formulario agregar / editar insumo ── *@
+        <RadzenCard Variant="Variant.Outlined">
+            <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">
+                @(editando is null ? "Agregar insumo" : $"Editando insumo N° {editando.Numero} — {editando.Insumo}")
+            </RadzenText>
+            <RadzenTemplateForm TItem="ItemPonderacionFormVM" Data="@form" Submit="@GuardarItemAsync">
+                <RadzenRow Gap="1rem" RowGap="1rem" AlignItems="AlignItems.End">
+                    <RadzenColumn Size="12" SizeMD="3">
+                        <div>
+                            <RadzenFormField Text="Insumo *" Variant="Variant.Outlined" style="width:100%">
+                                <RadzenTextBox @bind-Value="form.Insumo" Name="Insumo" Placeholder="Mano de Obra" style="width:100%" />
+                            </RadzenFormField>
+                            <RadzenRequiredValidator Component="Insumo" Text="El insumo es obligatorio" Popup="true" />
+                        </div>
+                    </RadzenColumn>
+                    <RadzenColumn Size="6" SizeMD="2">
+                        <div>
+                            <RadzenFormField Text="Peso % *" Variant="Variant.Outlined" style="width:100%">
+                                <RadzenNumeric @bind-Value="form.Peso" Name="Peso" Min="0.0001m" Max="100" Step="0.01"
+                                               ShowUpDown="false" style="width:100%" />
+                            </RadzenFormField>
+                            <RadzenRequiredValidator Component="Peso" Text="El peso es obligatorio" Popup="true" />
+                        </div>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="3">
+                        <div>
+                            <RadzenFormField Text="Índice INDEC *" Variant="Variant.Outlined" style="width:100%">
+                                <RadzenDropDown @bind-Value="form.IndiceId" Name="Indice" Data="@indices" TValue="int?"
+                                                TextProperty="FamiliaRecurso" ValueProperty="Id" AllowFiltering="true"
+                                                FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" style="width:100%">
+                                    <Template Context="ix">
+                                        @(((IndiceOpcionVM)ix).FamiliaRecurso) <span class="app-muted" style="font-size:.75rem">(@(((IndiceOpcionVM)ix).CodigoIndice))</span>
+                                    </Template>
+                                </RadzenDropDown>
+                            </RadzenFormField>
+                            <RadzenRequiredValidator Component="Indice" Text="Seleccioná el índice INDEC" Popup="true" />
+                        </div>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="2">
+                        <RadzenFormField Text="Descripción INDEC" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenTextBox @bind-Value="form.DescripcionINDEC" Placeholder="Cuadro 5 - inciso..." style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="2">
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                            <RadzenButton ButtonType="ButtonType.Submit" Text="@(editando is null ? "Agregar" : "Guardar")"
+                                          Icon="@(editando is null ? "add" : "save")" ButtonStyle="ButtonStyle.Primary"
+                                          IsBusy="@procesando" BusyText="..." style="flex:1" />
+                            @if (editando is not null)
+                            {
+                                <RadzenButton Text="Cancelar" Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                                              Click="@CancelarEdicion" />
+                            }
+                        </RadzenStack>
+                    </RadzenColumn>
+                </RadzenRow>
+            </RadzenTemplateForm>
+        </RadzenCard>
+    }
+}
+
+@code {
+    [Parameter] public int ObraId { get; set; }
+
+    // La página solo bindea VMs (sin entidades EF ni DbContext): toda la persistencia
+    // vive en PonderacionService y las reglas puras en PonderacionValidator.
+    private PonderacionVM? vm;
+    private bool noEncontrada;
+    private List<IndiceOpcionVM> indices = new();
+    private string nombreNuevaTabla = "Tabla Principal";
+
+    private ItemPonderacionFormVM form = new();
+    private ItemPonderacionVM? editando;   // fila de la grilla (conserva su RowVersion como token)
+    private bool procesando;
+
+    private int obraIdCargada;
+
+    private decimal SumaPesos => vm?.SumaPesos ?? 0m;
+
+    // Catálogo de índices: carga única, no depende del parámetro de ruta.
+    protected override async Task OnInitializedAsync() =>
+        indices = await Service.GetIndicesAsync();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (obraIdCargada == ObraId) return;
+        obraIdCargada = ObraId;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        vm = await Service.BuildVmAsync(ObraId);
+        noEncontrada = vm is null;
+
+        editando = null;
+        form = new ItemPonderacionFormVM();
+    }
+
+    private async Task CrearTablaAsync()
+    {
+        if (procesando) return;
+
+        procesando = true;
+        try
+        {
+            // El índice único sobre ObraId garantiza una sola tabla por obra: si otro
+            // usuario la creó en paralelo, el guardado falla y se recarga la existente.
+            var hecho = await Persistencia.EjecutarAsync(
+                () => Service.CrearTablaAsync(ObraId, nombreNuevaTabla), Notifications);
+
+            if (hecho)
+                Notifications.Notify(NotificationSeverity.Success, "Tabla creada", nombreNuevaTabla, 3000);
+            await CargarAsync();
+        }
+        finally { procesando = false; }
+    }
+
+    private void EditarItem(ItemPonderacionVM item)
+    {
+        editando = item;
+        form = new ItemPonderacionFormVM
+        {
+            Insumo = item.Insumo,
+            Peso = item.PesoPorcentaje,
+            IndiceId = item.IndiceId,
+            DescripcionINDEC = item.DescripcionINDEC
+        };
+    }
+
+    private void CancelarEdicion()
+    {
+        editando = null;
+        form = new ItemPonderacionFormVM();
+    }
+
+    private async Task GuardarItemAsync()
+    {
+        if (procesando || vm?.TablaId is not int tablaId) return;
+        // Misma regla que exige el servicio. Se NOTIFICA en vez de cortar en silencio:
+        // el RequiredValidator de Radzen usa IsNullOrEmpty, así que un insumo de solo
+        // espacios llega hasta acá y el usuario no tendría forma de saber por qué no guarda.
+        if (PonderacionValidator.GuardarItem(form.Insumo, form.Peso, form.IndiceId) is string error)
+        {
+            Notifications.Notify(NotificationSeverity.Warning, "Datos incompletos", error, 5000);
+            return;
+        }
+
+        procesando = true;
+        try
+        {
+            var eraEdicion = editando is not null;
+            var hecho = await Persistencia.EjecutarAsync(
+                eraEdicion
+                    ? () => Service.EditarItemAsync(editando!.Id, form, editando!.RowVersion)
+                    : () => Service.AgregarItemAsync(tablaId, form),
+                Notifications);
+
+            if (!hecho)
+            {
+                // En edición se recarga para refrescar lo que la DB tiene realmente
+                // (p.ej. tras un conflicto de concurrencia) y se restaura el formulario
+                // para poder reintentar sobre la fila actualizada.
+                if (eraEdicion)
+                {
+                    var reintento = form;
+                    var editandoId = editando!.Id;
+                    await CargarAsync();
+                    editando = vm?.Items.FirstOrDefault(i => i.Id == editandoId);
+                    if (editando is not null) form = reintento;
+                }
+                return;
+            }
+            Notifications.Notify(NotificationSeverity.Success,
+                eraEdicion ? "Insumo actualizado" : "Insumo agregado", form.Insumo ?? "", 3000);
+            await CargarAsync();
+            AvisarSiNoSuma100();
+        }
+        finally { procesando = false; }
+    }
+
+    private async Task EliminarItemAsync(ItemPonderacionVM item)
+    {
+        if (procesando) return;
+        // El flag antes del Confirm: un doble click no debe apilar dos diálogos.
+        procesando = true;
+        try
+        {
+            // Si se borró el insumo que estaba abierto en el form, cerrarlo: si no,
+            // "Guardar" apuntaría a una fila inexistente (mismo criterio que /usuarios).
+            var res = await UiAcciones.ConfirmarEliminarYRecargarAsync(DialogService, Notifications,
+                $"¿Eliminar el insumo «{item.Insumo}» ({item.PesoPorcentaje:N2}%)?",
+                () => Service.EliminarItemAsync(item.Id, item.RowVersion),
+                "Insumo eliminado", item.Insumo,
+                "Ya eliminado", $"El insumo «{item.Insumo}» ya había sido eliminado por otro usuario.",
+                CargarAsync,
+                antesDeRecargar: () => { if (editando?.Id == item.Id) CancelarEdicion(); });
+            if (res is ResultadoEliminacion.Eliminado)
+                AvisarSiNoSuma100();
+        }
+        finally { procesando = false; }
+    }
+
+    private void AvisarSiNoSuma100()
+    {
+        if (vm is not null && vm.Items.Count > 0 && SumaPesos != 100m)
+            Notifications.Notify(NotificationSeverity.Warning, "Pesos incompletos",
+                $"La tabla suma {SumaPesos:N2}% — ajustá los pesos hasta llegar a 100%.", 6000);
+    }
+}

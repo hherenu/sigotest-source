@@ -1,0 +1,373 @@
+﻿@page "/redeterminacion/calcular"
+@attribute [Authorize(Roles = Roles.Certificaciones)]
+@inject RedeterminacionService Service
+@inject NavigationManager Nav
+@inject NotificationService Notifications
+@inject DialogService DialogService
+@inject IJSRuntime JS
+
+<PageTitle>Calcular Redeterminación</PageTitle>
+
+<RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" class="rz-mb-4">Calcular Salto de Redeterminación</RadzenText>
+
+<RadzenRow Gap="1rem" RowGap="1rem" class="rz-mb-4">
+    @* ── Selección de obra ── *@
+    <RadzenColumn Size="12" SizeMD="4">
+        <RadzenCard Variant="Variant.Outlined" style="height:100%">
+            <RadzenText TextStyle="TextStyle.Subtitle2" class="app-muted rz-mb-3">Seleccionar Obra</RadzenText>
+            <RadzenDropDown @bind-Value="selectedObraId" Data="@obras" TextProperty="Nombre" ValueProperty="Id"
+                            TValue="int?" AllowClear="true" Placeholder="-- Seleccionar obra --" style="width:100%"
+                            Change="@OnObraChanged" />
+            @if (obra is not null)
+            {
+                <hr style="border-color:var(--rz-border-color);opacity:.4" />
+                <RadzenRow class="rz-mt-1"><RadzenColumn Size="5"><RadzenText TextStyle="TextStyle.Caption" class="app-muted">Licitación</RadzenText></RadzenColumn><RadzenColumn Size="7"><RadzenText TextStyle="TextStyle.Caption">@obra.NumeroLicitacion</RadzenText></RadzenColumn></RadzenRow>
+                <RadzenRow><RadzenColumn Size="5"><RadzenText TextStyle="TextStyle.Caption" class="app-muted">Contratista</RadzenText></RadzenColumn><RadzenColumn Size="7"><RadzenText TextStyle="TextStyle.Caption">@obra.Contratista</RadzenText></RadzenColumn></RadzenRow>
+                <RadzenRow><RadzenColumn Size="5"><RadzenText TextStyle="TextStyle.Caption" class="app-muted">Acta Inicio</RadzenText></RadzenColumn><RadzenColumn Size="7"><RadzenText TextStyle="TextStyle.Caption">@obra.FechaActaInicio?.ToString("dd/MM/yyyy")</RadzenText></RadzenColumn></RadzenRow>
+                <RadzenRow><RadzenColumn Size="5"><RadzenText TextStyle="TextStyle.Caption" class="app-muted">Fin Contrato</RadzenText></RadzenColumn><RadzenColumn Size="7"><RadzenText TextStyle="TextStyle.Caption">@obra.FechaFinalContrato?.ToString("dd/MM/yyyy")</RadzenText>@if (obra.Estado is not null){<RadzenBadge Text="@obra.Estado" IsPill="true" BadgeStyle="@EstadoUi.BadgeObra(obra.Estado)" class="rz-ml-1" />}</RadzenColumn></RadzenRow>
+            }
+        </RadzenCard>
+    </RadzenColumn>
+
+    @* ── Período ── *@
+    @if (obra is not null && tabla is not null)
+    {
+        <RadzenColumn Size="12" SizeMD="4">
+            <RadzenCard Variant="Variant.Outlined" style="height:100%">
+                <RadzenText TextStyle="TextStyle.Subtitle2" class="app-muted rz-mb-3">Período</RadzenText>
+                <RadzenStack Gap="0.75rem">
+                    <RadzenFormField Text="Publicación" Variant="Variant.Outlined" style="width:100%">
+                        <RadzenDropDown @bind-Value="selectedPublicacion" Data="@publicaciones" TValue="string"
+                                        Change="@OnPublicacionChanged" style="width:100%">
+                            <Template Context="p">@(((string)p).Replace("_", " "))</Template>
+                        </RadzenDropDown>
+                    </RadzenFormField>
+                    <RadzenFormField Text="Mes Base (K₀)" Variant="Variant.Outlined" style="width:100%">
+                        <RadzenDropDown @bind-Value="mesBaseStr" Data="@MesesFiltrados" TextProperty="Text" ValueProperty="Value"
+                                        TValue="string" AllowClear="true" Placeholder="-- seleccionar --" style="width:100%" />
+                    </RadzenFormField>
+                    <RadzenFormField Text="Mes Salto (Kᵢ)" Variant="Variant.Outlined" style="width:100%">
+                        <RadzenDropDown @bind-Value="mesSaltoStr" Data="@MesesFiltrados" TextProperty="Text" ValueProperty="Value"
+                                        TValue="string" AllowClear="true" Placeholder="-- seleccionar --" style="width:100%" />
+                    </RadzenFormField>
+                    <RadzenButton Text="Calcular" Icon="calculate" ButtonStyle="ButtonStyle.Primary" style="width:100%"
+                                  Disabled="@(string.IsNullOrEmpty(mesBaseStr) || string.IsNullOrEmpty(mesSaltoStr))"
+                                  IsBusy="@calculando" BusyText="Calculando..." Click="@CalcularClickAsync" />
+                </RadzenStack>
+            </RadzenCard>
+        </RadzenColumn>
+
+        @* ── Resultado ── *@
+        @if (vm is not null && vm.Calculado)
+        {
+            <RadzenColumn Size="12" SizeMD="4">
+                <RadzenCard Variant="Variant.Outlined" style="@($"height:100%;border-color:{ColorSuba}")">
+                    <RadzenText TextStyle="TextStyle.Subtitle2" class="app-muted rz-text-align-center rz-mb-2">Resultado</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body1" class="rz-text-align-center rz-mb-1">
+                        @MesBaseCorto <span class="app-muted">→</span> @MesSaltoCorto
+                    </RadzenText>
+                    @if (vm.TotalKiK0.HasValue)
+                    {
+                        <RadzenText TextStyle="TextStyle.H3" class="rz-text-align-center rz-mb-0"
+                                    style="@($"color:{ColorSuba};font-weight:700")">
+                            @vm.PorcentajeAumento?.ToString("N4")%
+                        </RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-text-align-center">Coeficiente: @vm.TotalKiK0?.ToString("N2")</RadzenText>
+                    }
+                    else
+                    {
+                        <RadzenText TextStyle="TextStyle.Body2" class="rz-text-align-center" style="color:var(--rz-warning)">Faltan valores de índices para algún ítem</RadzenText>
+                    }
+                    <RadzenButton Text="@(editarId.HasValue ? "Actualizar cálculo" : "Guardar cálculo")" Icon="save"
+                                  ButtonStyle="@(EsSuba ? ButtonStyle.Success : ButtonStyle.Danger)" Size="ButtonSize.Small"
+                                  style="width:100%" class="rz-mt-3" IsBusy="@guardando" BusyText="Guardando..."
+                                  Click="@GuardarAsync" />
+                </RadzenCard>
+            </RadzenColumn>
+        }
+    }
+</RadzenRow>
+
+@if (vm is not null && vm.Calculado && vm.Items.Any())
+{
+    <RadzenCard Variant="Variant.Outlined" id="print-section">
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                     AlignItems="AlignItems.Center" Wrap="FlexWrap.Wrap" Gap="0.5rem" class="rz-mb-3">
+            <div>
+                <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-0" style="font-weight:600;display:inline">Tabla de Ponderación — @obra?.Nombre</RadzenText>
+                <RadzenText TextStyle="TextStyle.Caption" class="app-muted" style="display:inline;margin-left:.5rem">@MesBaseCorto → @MesSaltoCorto</RadzenText>
+            </div>
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" class="d-print-none">
+                <RadzenButton Text="Excel" Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat"
+                              Click="@DescargarExcel" />
+                <RadzenButton Text="PDF" Icon="print" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                              Click="@(async () => await JS.InvokeVoidAsync("window.print"))" />
+            </RadzenStack>
+        </RadzenStack>
+        <TablaPonderacionCalculo EtiquetaBase="@MesBaseCorto" EtiquetaSalto="@MesSaltoCorto"
+                                 TotalKiK0="@vm.TotalKiK0" PorcentajeAumento="@vm.PorcentajeAumento"
+                                 Filas="@vm.Items.Select(i => new TablaPonderacionCalculo.FilaPonderacion(
+                                     i.Numero, i.Insumo, i.PesoPorcentaje, i.ValorMesBase, i.ValorMesSalto,
+                                     i.KiK0, i.VariacionPonderada, i.DescripcionINDEC))" />
+    </RadzenCard>
+}
+else if (obra is null)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+        Seleccioná una obra para comenzar.
+    </RadzenAlert>
+}
+
+@code {
+    [Parameter, SupplyParameterFromQuery] public int? ObraId { get; set; }
+    [Parameter, SupplyParameterFromQuery] public int? EditarId { get; set; }
+
+    private List<ObraOpcionVM> obras = new();
+    private int? selectedObraId;
+    private ObraOpcionVM? obra;
+    private TablaOpcionVM? tabla;
+
+    private List<string> publicaciones = new();
+    private string? publicacionDefault;
+    private Dictionary<string, List<string>> pubMesesMap = new();
+    private List<MesOpcion> mesesDisponibles = new();
+
+    private string? selectedPublicacion;
+    private string? mesBaseStr;
+    private string? mesSaltoStr;
+
+    private RedeterminacionVM? vm;
+    private int? editarId;
+    private bool guardando;
+    private bool calculando;
+
+    private bool EsSuba => Redet.EsSuba(vm?.PorcentajeAumento);
+    private string ColorSuba => Redet.ColorSuba(vm?.PorcentajeAumento);
+
+    private IEnumerable<MesOpcion> MesesFiltrados =>
+        selectedPublicacion is null || !pubMesesMap.ContainsKey(selectedPublicacion)
+            ? mesesDisponibles
+            : mesesDisponibles.Where(m => pubMesesMap[selectedPublicacion].Contains(m.Value));
+
+    private bool paramsCargados;
+    private int? obraIdCargado;
+    private int? editarIdCargado;
+
+    // Carga única: catálogo de obras y revistas (no dependen de los query params).
+    protected override async Task OnInitializedAsync()
+    {
+        obras = await Service.GetObrasAsync();
+        await LoadRevistasAsync();
+        selectedPublicacion = publicacionDefault;
+    }
+
+    // Depende de ?obraId= / ?editarId= : se re-ejecuta si cambian.
+    protected override async Task OnParametersSetAsync()
+    {
+        if (paramsCargados && obraIdCargado == ObraId && editarIdCargado == EditarId) return;
+        paramsCargados = true;
+        obraIdCargado = ObraId;
+        editarIdCargado = EditarId;
+
+        editarId = EditarId;
+
+        if (EditarId.HasValue)
+        {
+            var r = await Service.GetDisparoParaRecalcularAsync(EditarId.Value);
+            if (r is not null)
+            {
+                selectedObraId = r.ObraId;
+                await LoadObraAsync(r.ObraId);
+                selectedPublicacion = r.IdPublicacionBase ?? publicacionDefault;
+                mesBaseStr = $"{r.AnioBase}-{r.MesBase}";
+                mesSaltoStr = $"{r.AnioSalto}-{r.MesSalto}";
+                await CalcularAsync();
+            }
+        }
+        else if (ObraId.HasValue)
+        {
+            selectedObraId = ObraId;
+            await LoadObraAsync(ObraId.Value);
+        }
+        else
+        {
+            // Navegación a la página "limpia" (menú Calcular sin query params): sin este
+            // reset quedaban la obra y el resultado del cálculo anterior en pantalla.
+            selectedObraId = null;
+            obra = null;
+            tabla = null;
+            vm = null;
+            mesBaseStr = null;
+            mesSaltoStr = null;
+        }
+    }
+
+    private async Task LoadRevistasAsync()
+    {
+        var revistas = await Service.GetRevistasDisponiblesAsync();
+        mesesDisponibles = revistas
+            .GroupBy(r => new { r.Anio, r.Mes })
+            .Select(g => g.Key)
+            .OrderBy(x => x.Anio).ThenBy(x => x.Mes)
+            .Select(x => new MesOpcion($"{x.Anio}-{x.Mes}", $"{Fmt.MesNombre(x.Mes)} {x.Anio}"))
+            .ToList();
+        // Orden CRONOLÓGICO, no alfabético: el sufijo del id es "MM_AA" (mes antes que
+        // año), así que ordenar por texto pondría INDEC_INFORMA_12_26 después de
+        // INDEC_INFORMA_01_27 y preseleccionaría la revista del año viejo.
+        publicaciones = revistas.Select(r => r.IdPublicacion).Distinct()
+            .OrderBy(PublicacionIndec.Orden).ToList();
+        publicacionDefault = publicaciones.LastOrDefault();
+        pubMesesMap = revistas
+            .GroupBy(r => r.IdPublicacion)
+            .ToDictionary(g => g.Key, g => g.Select(r => $"{r.Anio}-{r.Mes}").ToList());
+    }
+
+    // La obra sale del catálogo ya cargado (mismo origen que el dropdown); la tabla
+    // se pide al servicio: el cálculo en sí no la necesita acá (CalcularAsync la
+    // recarga con sus items), solo hace falta su Id.
+    private async Task LoadObraAsync(int id)
+    {
+        obra = obras.FirstOrDefault(o => o.Id == id);
+        tabla = obra is null ? null : (await Service.GetTablasAsync(id)).FirstOrDefault();
+    }
+
+    private async Task OnObraChanged()
+    {
+        vm = null;
+        editarId = null;
+        if (selectedObraId.HasValue) await LoadObraAsync(selectedObraId.Value);
+        else { obra = null; tabla = null; }
+    }
+
+    private void OnPublicacionChanged()
+    {
+        var validas = MesesFiltrados.Select(m => m.Value).ToHashSet();
+        if (mesBaseStr is not null && !validas.Contains(mesBaseStr)) mesBaseStr = null;
+        if (mesSaltoStr is not null && !validas.Contains(mesSaltoStr)) mesSaltoStr = null;
+    }
+
+    private async Task CalcularClickAsync()
+    {
+        if (calculando) return;
+        calculando = true;
+        try { await CalcularAsync(); }
+        finally { calculando = false; }
+    }
+
+    private async Task CalcularAsync()
+    {
+        if (obra is null || tabla is null) return;
+        if (!Periodo.TryParse(mesBaseStr, out var anioBase, out var mesBase) ||
+            !Periodo.TryParse(mesSaltoStr, out var anioSalto, out var mesSalto)) return;
+
+        // Persistencia traduce los rechazos del servicio (ej. pesos que no suman 100%)
+        // en una notificación en vez de tumbar el circuito.
+        // Las publicaciones con las que se calculó quedan en el VM (IdPublicacionBase/
+        // Salto): el Excel exporta eso, no el dropdown, que puede cambiar sin recalcular.
+        await Persistencia.EjecutarAsync(async () =>
+        {
+            vm = await Service.CalcularAsync(obra.Id, tabla.Id,
+                anioBase, mesBase, selectedPublicacion,
+                anioSalto, mesSalto, selectedPublicacion);
+        }, Notifications);
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (vm is null || obra is null || tabla is null || guardando) return;
+
+        guardando = true;
+        try
+        {
+            // Un cálculo con índices faltantes no tiene coeficiente total: guardarlo
+            // consumiría un NroDisparo y entraría a la cadena de variación acumulada
+            // con un valor nulo que los guardados posteriores saltean en silencio.
+            if (!vm.TotalKiK0.HasValue)
+            {
+                Notifications.Notify(NotificationSeverity.Warning, "Cálculo incompleto",
+                    "Faltan valores de índice para algunos insumos: el cálculo no tiene coeficiente total y no puede guardarse como disparo.", 8000);
+                return;
+            }
+
+            // Continuidad de la cadena (solo disparos nuevos): la VariacionAcumulada
+            // multiplica los coeficientes, y eso solo representa la variación real si
+            // cada tramo arranca donde saltó el anterior. Un tramo superpuesto cuenta
+            // meses dos veces (ej. olvidar mover el mes base); uno salteado los pierde.
+            // Se puede guardar igual (carga de historia, correcciones), pero nunca por
+            // accidente — decisión 2026-07-31: aviso, no regla dura.
+            if (!editarId.HasValue)
+            {
+                var ultimoSalto = await Service.UltimoSaltoAsync(obra.Id);
+                if (ultimoSalto is { } u && (vm.AnioBase, vm.MesBase) != (u.Anio, u.Mes))
+                {
+                    var okCadena = await DialogService.Confirm(
+                        $"El último disparo de la obra saltó a {Fmt.MesNombre(u.Mes)} {u.Anio} y este cálculo arranca en {Fmt.MesNombre(vm.MesBase)} {vm.AnioBase}: los tramos no quedan encadenados y la variación acumulada puede contar meses dos veces o saltearlos. ¿Guardar igual?",
+                        "Tramos no encadenados",
+                        new ConfirmOptions { OkButtonText = "Guardar igual", CancelButtonText = "Cancelar" });
+                    if (okCadena != true) return;
+                }
+            }
+
+            // Bajo el salto mínimo no dispara redeterminación: se puede guardar,
+            // pero nunca por accidente.
+            if (Math.Abs(vm.PorcentajeAumento ?? 0) < Redet.SaltoMinimo)
+            {
+                var ok = await DialogService.Confirm(
+                    $"La variación de referencia ({vm.PorcentajeAumento?.ToString("N4")}%) no alcanza el salto mínimo del {Redet.SaltoMinimo:N0}% y no habilita redeterminación. ¿Guardar igual?",
+                    "Variación bajo el salto mínimo",
+                    new ConfirmOptions { OkButtonText = "Guardar igual", CancelButtonText = "Cancelar" });
+                if (ok != true) return;
+            }
+
+            if (editarId.HasValue) await ActualizarAsync(editarId.Value);
+            else await GuardarNuevoAsync();
+        }
+        finally { guardando = false; }
+    }
+
+    // El guardado y el recálculo viven en RedeterminacionService (transacción
+    // Serializable, Max+1, cadena de VariacionAcumulada): la página solo notifica
+    // y navega. Persistencia traduce los rechazos del servicio en notificaciones.
+    private async Task GuardarNuevoAsync()
+    {
+        var hecho = await Persistencia.EjecutarAsync(
+            () => Service.GuardarDisparoAsync(obra!.Id, tabla!.Id, vm!), Notifications);
+
+        if (!hecho) return;
+        Notifications.Notify(NotificationSeverity.Success, "Guardado", "Cálculo guardado correctamente.", 3000);
+        Nav.NavigateTo($"redeterminacion/historial?obraId={obra!.Id}");
+    }
+
+    private async Task ActualizarAsync(int id)
+    {
+        int obraIdDestino = 0;
+        var hecho = await Persistencia.EjecutarAsync(async () =>
+        {
+            obraIdDestino = await Service.RecalcularDisparoAsync(id, obra!.Id, tabla!.Id, vm!);
+        }, Notifications);
+
+        if (!hecho) return;
+        Notifications.Notify(NotificationSeverity.Success, "Actualizado", "Cálculo actualizado correctamente.", 3000);
+        Nav.NavigateTo($"redeterminacion/historial?obraId={obraIdDestino}");
+    }
+
+    private void DescargarExcel()
+    {
+        if (obra is null || tabla is null || vm is null) return;
+        // El Excel exporta el cálculo mostrado (el VM con las publicaciones con las que
+        // se calculó), no los dropdowns actuales, que pueden haber cambiado sin recalcular.
+        var pubBase  = Uri.EscapeDataString(vm.IdPublicacionBase ?? "");
+        var pubSalto = Uri.EscapeDataString(vm.IdPublicacionSalto ?? "");
+        var url = $"/Redeterminacion/DescargarExcel?obraId={obra.Id}&tablaPonderacionId={tabla.Id}" +
+                  $"&mesBaseStr={vm.AnioBase}-{vm.MesBase}&mesSaltoStr={vm.AnioSalto}-{vm.MesSalto}" +
+                  $"&idPublicacionBase={pubBase}&idPublicacionSalto={pubSalto}";
+        Nav.NavigateTo(url, forceLoad: true);
+    }
+
+    // Resultado y tabla rotulan por MES comparado (base → salto), no por revista de publicación:
+    // ambos índices suelen salir en la misma revista y quedaba "Rev.X → Rev.X".
+    private string MesBaseCorto => $"{Fmt.MesCorto(vm!.MesBase)} {vm.AnioBase}";
+    private string MesSaltoCorto => $"{Fmt.MesCorto(vm!.MesSalto)} {vm.AnioSalto}";
+
+    public record MesOpcion(string Value, string Text);
+}

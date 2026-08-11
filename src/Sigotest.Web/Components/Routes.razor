@@ -1,0 +1,35 @@
+<Router AppAssembly="@typeof(Program).Assembly">
+    <Found Context="routeData">
+        @* AuthorizeRouteView: hace efectivos los [Authorize(Roles=...)] de cada página. *@
+        <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+            <NotAuthorized>
+                <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false" class="rz-my-4">
+                    <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-1">Sin permisos para esta sección</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0">
+                        Tu usuario no tiene un rol habilitado para esta página. Si creés que deberías tener acceso,
+                        pedile a un administrador que te asigne el rol correspondiente en Usuarios.
+                    </RadzenText>
+                </RadzenAlert>
+            </NotAuthorized>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="@typeof(MainLayout)">
+            @* Link plano (no botón con Click): este fragmento puede renderizarse sin
+               interactividad en una carga directa de una URL inexistente. *@
+            <RadzenStack AlignItems="AlignItems.Center" class="rz-mt-8">
+                <RadzenCard Variant="Variant.Outlined" style="max-width:560px">
+                    <RadzenStack Gap="0.75rem" AlignItems="AlignItems.Center">
+                        <RadzenIcon Icon="search_off" style="font-size:3rem;color:var(--rz-warning)" />
+                        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Página no encontrada</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-text-align-center rz-mb-0">
+                            La dirección no existe o fue movida. Revisá la URL o volvé al inicio.
+                        </RadzenText>
+                        <RadzenLink Path="">Ir al inicio</RadzenLink>
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenStack>
+        </LayoutView>
+    </NotFound>
+</Router>

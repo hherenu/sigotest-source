@@ -1,0 +1,230 @@
+﻿@page "/certificados/{Id:int}"
+@attribute [Authorize(Roles = Roles.Certificaciones)]
+@inject CertificadoService Service
+@inject NavigationManager Nav
+@inject DialogService DialogService
+@inject NotificationService Notifications
+
+<PageTitle>@(vm is null ? "Certificado" : $"Certificado N° {vm.Numero}")</PageTitle>
+
+@if (noEncontrado)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+        No se encontró el certificado solicitado.
+    </RadzenAlert>
+}
+else if (vm is null)
+{
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+}
+else
+{
+    <CabeceraPagina Titulo="@($"Certificado N° {vm.Numero} — {Fmt.MesNombre(vm.Mes)} {vm.Anio}")">
+        <Badges>
+            <RadzenBadge Text="@vm.Estado.ToString()" IsPill="true" BadgeStyle="@EstadoUi.Badge(vm.Estado)" />
+        </Badges>
+        <Subtitulo>@vm.ObraNombre</Subtitulo>
+        <Acciones>
+            @if (vm.Estado == EstadoCertificado.Borrador)
+            {
+                <RadzenButton Text="Editar carga" Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Flat"
+                              Click="@(() => Nav.NavigateTo($"certificados/{Id}/cargar"))" />
+                <RadzenButton Text="Cerrar" Icon="lock" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success"
+                              IsBusy="@procesando" BusyText="Cerrando..." Click="@CerrarAsync" />
+            }
+            else if (vm.Estado == EstadoCertificado.Cerrado)
+            {
+                <RadzenButton Text="Reabrir" Icon="lock_open" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Flat"
+                              Disabled="@procesando" Click="@ReabrirAsync" />
+                <RadzenButton Text="Aprobar" Icon="check" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                              Disabled="@procesando" Click="@AprobarAsync" />
+            }
+            else if (vm.Estado == EstadoCertificado.Aprobado)
+            {
+                <RadzenButton Text="Volver a Cerrado" Icon="undo" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Flat"
+                              Disabled="@procesando" Click="@DesaprobarAsync" />
+            }
+            <RadzenButton Text="Excel" Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat"
+                          Click="@(() => Nav.NavigateTo($"/Certificado/DescargarExcel/{Id}", true))" />
+            <RadzenButton Text="Volver" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                          Click="@(() => Nav.NavigateTo($"obras/{vm.ObraId}/certificados"))" />
+        </Acciones>
+    </CabeceraPagina>
+
+    @* ── Resumen ── *@
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.75rem" Wrap="FlexWrap.Wrap" class="rz-mb-3">
+        @ResumenCard("Monto Contrato", "$ " + Fmt.N2(vm.TotalMontoContrato), false)
+        @ResumenCard("Ejecutado Anterior", "$ " + Fmt.N2(vm.TotalMontoAnterior), false)
+        @ResumenCard("Este Mes", "$ " + Fmt.N2(vm.TotalMontoMes), true)
+        @ResumenCard("Acumulado", "$ " + Fmt.N2(vm.TotalMontoAcumulado), false)
+        @ResumenCard("% Avance", Fmt.N2(vm.PorcentajeAvance) + "%", false)
+    </RadzenStack>
+
+    @if (vm.Observaciones is not null)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Secondary" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false" class="rz-mb-3">
+            <b>Obs.:</b> @vm.Observaciones
+        </RadzenAlert>
+    }
+
+    @foreach (var bloque in vm.Bloques.OrderBy(b => b.Orden))
+    {
+        <RadzenCard @key="bloque.CertificadoEstructuraId" Variant="Variant.Outlined" class="rz-mb-3">
+            <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-2" style="font-weight:600">@bloque.Titulo</RadzenText>
+            <div class="cert-scroll">
+                <table class="cert-grid">
+                    <thead>
+                        <tr>
+                            <th style="text-align:left">Cód.</th>
+                            <th style="text-align:left;min-width:200px">Descripción</th>
+                            <th>Unid.</th>
+                            <th>Cant. Contrato</th>
+                            <th>PU Básico</th>
+                            <th>Monto Contrato</th>
+                            <th class="col-warning" colspan="2">ANTERIOR</th>
+                            <th class="col-primary" colspan="2">MES</th>
+                            <th class="col-info" colspan="3">ACUMULADO</th>
+                        </tr>
+                        <tr>
+                            <th colspan="6"></th>
+                            <th class="col-warning">Cant.</th>
+                            <th class="col-warning">Monto</th>
+                            <th class="col-primary">Cant.</th>
+                            <th class="col-primary">Monto</th>
+                            <th class="col-info">Cant.</th>
+                            <th class="col-info">Monto</th>
+                            <th class="col-info">%</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var (item, nivel) in filasPorBloque[bloque.CertificadoEstructuraId])
+                        {
+                            var pad = nivel * 16 + 8;
+                            if (item.EsAgrupador)
+                            {
+                                <tr @key="item.ItemEstructuraId" class="@(nivel == 0 ? "agrup-0" : "agrup-1")">
+                                    <td></td>
+                                    <td style="padding-left:@(pad)px">@item.Descripcion</td>
+                                    <td></td><td></td><td></td>
+                                    <td class="num">@Fmt.Money(item.MontoContrato ?? 0)</td>
+                                    <td class="col-warning"></td>
+                                    <td class="num col-warning">@Fmt.Money(item.MontoAnterior)</td>
+                                    <td class="col-primary"></td>
+                                    <td class="num col-primary">@Fmt.Money(item.MontoMes)</td>
+                                    <td class="col-info"></td>
+                                    <td class="num col-info">@Fmt.Money(item.MontoAcumulado)</td>
+                                    <td class="col-info"></td>
+                                </tr>
+                            }
+                            else
+                            {
+                                <tr @key="item.ItemEstructuraId">
+                                    <td class="cell-mono" style="padding-left:@(pad)px">@item.Codigo</td>
+                                    <td>@item.Descripcion</td>
+                                    <td style="text-align:center">@item.Unidad</td>
+                                    <td class="num">@item.CantidadContrato?.ToString("N2")</td>
+                                    <td class="num">@(item.PUBasico.HasValue ? "$ " + item.PUBasico.Value.ToString("N2") : "")</td>
+                                    <td class="num">@Fmt.Money(item.MontoContrato ?? 0)</td>
+                                    <td class="num col-warning">@Fmt.Qty(item.CantidadAnterior)</td>
+                                    <td class="num col-warning">@Fmt.Money(item.MontoAnterior)</td>
+                                    <td class="num col-primary">@Fmt.Qty(item.CantidadMes)</td>
+                                    <td class="num col-primary">@Fmt.Money(item.MontoMes)</td>
+                                    <td class="num col-info">@Fmt.Qty(item.CantidadAcumulada)</td>
+                                    <td class="num col-info">@Fmt.Money(item.MontoAcumulado)</td>
+                                    <td class="num col-info">@(item.PorcentajeAcumulado.HasValue ? item.PorcentajeAcumulado.Value.ToString("N2") + "%" : "")</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="5" class="num">Subtotal @bloque.Titulo</td>
+                            <td class="num">$ @Fmt.N2(bloque.TotalMontoContrato)</td>
+                            <td></td>
+                            <td class="num">$ @Fmt.N2(bloque.TotalMontoAnterior)</td>
+                            <td></td>
+                            <td class="num">$ @Fmt.N2(bloque.TotalMontoMes)</td>
+                            <td></td>
+                            <td class="num">$ @Fmt.N2(bloque.TotalMontoAcumulado)</td>
+                            <td class="num">@Fmt.N2(bloque.PorcentajeAvance)%</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </RadzenCard>
+    }
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private CertificadoVM? vm;
+    private bool noEncontrado;
+    private bool procesando;
+    // bloqueId → árbol aplanado (se calcula una vez por carga, no por render)
+    private Dictionary<int, List<(ItemCertificadoVM Item, int Nivel)>> filasPorBloque = new();
+
+    private int idCargado;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (idCargado == Id) return;
+        idCargado = Id;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        vm = await Service.BuildVmAsync(Id);
+        if (vm is null) { noEncontrado = true; return; }
+        noEncontrado = false;
+
+        // El árbol se aplana una vez por carga, no en cada render.
+        filasPorBloque = vm.Bloques.ToDictionary(
+            b => b.CertificadoEstructuraId,
+            b => Arbol.Aplanar(b.Items, i => i.AgrupadorPadreId, i => i.ItemEstructuraId, i => i.Orden, i => i.EsAgrupador));
+    }
+
+
+    private RenderFragment ResumenCard(string label, string value, bool primary) =>@<RadzenCard Variant="@(primary ? Variant.Filled : Variant.Outlined)"
+                                                                                                  style="@(primary ? "background:var(--rz-primary);color:var(--rz-on-primary)" : "")" class="rz-text-align-center rz-px-4 rz-py-2">
+        <RadzenText TextStyle="TextStyle.Caption" class="rz-mb-1" style="@(primary ? "color:var(--rz-on-primary)" : "")">@label</RadzenText>
+        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">@value</RadzenText>
+    </RadzenCard>;
+
+    private Task CerrarAsync() => TransicionAsync(
+        "Cerrar el certificado congela los valores. ¿Continuar?", "Cerrar certificado", "Cerrar",
+        () => Service.CerrarAsync(Id), "Cerrado", "Certificado cerrado.");
+
+    private Task ReabrirAsync() => TransicionAsync(
+        "Reabrir vuelve a borrador y descongela el snapshot. ¿Continuar?", "Reabrir certificado", "Reabrir",
+        () => Service.ReabrirAsync(Id), "Reabierto", "Certificado reabierto a borrador.");
+
+    private Task AprobarAsync() => TransicionAsync(
+        "Aprobar da por definitivo el certificado. ¿Continuar?", "Aprobar certificado", "Aprobar",
+        () => Service.AprobarAsync(Id), "Aprobado", $"Certificado N° {vm?.Numero}");
+
+    private Task DesaprobarAsync() => TransicionAsync(
+        "El certificado vuelve a Cerrado (el snapshot se conserva). ¿Continuar?", "Volver a Cerrado", "Volver a Cerrado",
+        () => Service.DesaprobarAsync(Id), "Cerrado", $"Certificado N° {vm?.Numero} volvió a Cerrado.");
+
+    /// <summary>
+    /// Las 4 transiciones de estado con el patrón estándar de la app (UiAcciones).
+    /// La recarga es incondicional: tras un conflicto de concurrencia muestra el
+    /// estado real, y tras cancelar es inocua (página de solo lectura).
+    /// </summary>
+    private async Task TransicionAsync(string pregunta, string titulo, string textoOk,
+        Func<Task> accion, string tituloExito, string detalleExito)
+    {
+        if (procesando) return;
+        // El flag antes del Confirm: un doble click no debe apilar dos diálogos.
+        procesando = true;
+        try
+        {
+            await UiAcciones.ConfirmarYEjecutarAsync(DialogService, Notifications,
+                pregunta, titulo, textoOk, accion, tituloExito, detalleExito);
+            await CargarAsync();
+        }
+        finally { procesando = false; }
+    }
+}

@@ -1,0 +1,134 @@
+﻿@inherits LayoutComponentBase
+@implements IDisposable
+@inject ICurrentUser CurrentUser
+@inject NavigationManager Nav
+@inject ThemeService Tema
+@* Registrarlo en Program.cs NO alcanza: es scoped y RadzenTheme no lo resuelve —
+   este inject es lo que lo construye en cada circuito. Al construirse lee la cookie
+   SIGOTheme (restaura la elección tras F5) y se suscribe para escribirla en cada
+   cambio de tema. Sin esto el toggle no persistía. *@
+@inject CookieThemeService PersistenciaTema
+
+@* La clase tema-claro habilita los overrides de contraste de app-blazor.css
+   (alertas Lighter y toasts, ilegibles con la paleta humanistic sobre fondo
+   claro). Envuelve también a RadzenComponents: los toasts renderizan ahí,
+   FUERA de RadzenLayout, y sin el wrapper no heredarían los tokens. *@
+<div class="@(EsTemaClaro ? "tema-claro" : null)">
+<RadzenLayout>
+    <RadzenHeader>
+        @* Sin padding horizontal en la cabecera (como SAF): el toggle queda en la misma
+           columna que los íconos de la sidebar colapsada. *@
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+            <RadzenSidebarToggle Click="@(() => sidebarExpanded = !sidebarExpanded)" />
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem"
+                         style="margin-left:auto" class="rz-pr-3">
+                <RadzenAppearanceToggle />
+                @if (usuario is not null)
+                {
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem"
+                                 title="@usuarioCompleto">
+                        <RadzenIcon Icon="account_circle" />
+                        @* RadzenText trae su propio color de texto (oscuro en tema claro), ilegible
+                           sobre el header primario; se fuerza el color del header. *@
+                        <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0" style="color:var(--rz-header-color)">@usuario</RadzenText>
+                    </RadzenStack>
+                }
+            </RadzenStack>
+        </RadzenStack>
+    </RadzenHeader>
+
+    @* Como en SAF: colapsar no oculta el menú, lo deja en modo solo-íconos
+       (DisplayStyle) con la sidebar angosta al ancho del contenido. *@
+    <RadzenSidebar Responsive="false" Style="width: max-content">
+        <RadzenPanelMenu DisplayStyle="@(sidebarExpanded ? MenuItemDisplayStyle.IconAndText : MenuItemDisplayStyle.Icon)" ShowArrow="false">
+            @* El menú solo muestra los módulos a los que el rol del usuario accede.
+               En modo solo-íconos Radzen suprime el texto y no pone title: sin el
+               tooltip el ícono es la única pista (y el lector de pantalla anuncia la
+               ligadura Material en inglés). Expandido, title=null no emite atributo. *@
+            <RadzenPanelMenuItem Text="Inicio" Icon="home" Path="" Match="NavLinkMatch.All" title="@Tooltip("Inicio")" />
+            <AuthorizeView Roles="@Roles.Certificaciones">
+                <RadzenPanelMenuItem Text="Calcular" Icon="calculate" Path="redeterminacion/calcular" title="@Tooltip("Calcular")" />
+                <RadzenPanelMenuItem Text="Historial" Icon="history" Path="redeterminacion/historial" title="@Tooltip("Historial")" />
+                <RadzenPanelMenuItem Text="Obras" Icon="apartment" Path="obras" title="@Tooltip("Obras")" />
+                <RadzenPanelMenuItem Text="Índices INDEC" Icon="trending_up" Path="indices" title="@Tooltip("Índices INDEC")" />
+            </AuthorizeView>
+            <AuthorizeView Roles="@Roles.Planificacion">
+                <RadzenPanelMenuItem Text="Planificación" Icon="event_note" Path="planificacion" title="@Tooltip("Planificación")" />
+            </AuthorizeView>
+            <AuthorizeView Roles="@Roles.Admin">
+                <RadzenPanelMenuItem Text="Usuarios" Icon="group" Path="usuarios" title="@Tooltip("Usuarios")" />
+            </AuthorizeView>
+        </RadzenPanelMenu>
+    </RadzenSidebar>
+
+    <RadzenBody>
+        <div class="app-content">
+            @* Una excepción no capturada en una página (ej. corte de DB al navegar) se
+               contiene acá en vez de tumbar el circuito completo. *@
+            <ErrorBoundary @ref="errorBoundary">
+                <ChildContent>
+                    @Body
+                </ChildContent>
+                <ErrorContent Context="ex">
+                    <RadzenAlert AlertStyle="AlertStyle.Danger" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false" class="rz-my-4">
+                        <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-1">Ocurrió un error inesperado en esta página.</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-2">@ex.Message</RadzenText>
+                        <RadzenButton Text="Recargar página" Icon="refresh" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger"
+                                      Variant="Variant.Flat" Click="@(() => Nav.NavigateTo(Nav.Uri, forceLoad: true))" />
+                    </RadzenAlert>
+                </ErrorContent>
+            </ErrorBoundary>
+        </div>
+    </RadzenBody>
+</RadzenLayout>
+
+<RadzenComponents />
+
+<div id="blazor-error-ui">
+    Se perdió la conexión con el servidor.
+    <a href="" class="reload">Recargar</a>
+</div>
+</div>
+
+@code {
+    private bool sidebarExpanded = true;
+    private ErrorBoundary? errorBoundary;
+
+    private bool EsTemaClaro => Tema.Theme is { Length: > 0 } t && !t.Contains("dark");
+
+    // El toggle claro/oscuro dispara ThemeChanged; sin este re-render la clase del
+    // wrapper quedaría en el tema anterior hasta la próxima navegación.
+    private void OnTemaCambiado()
+    {
+        // CookieThemeService aplica la cookie CRUDA (la lee por JS DESPUÉS del primer
+        // render — por eso normalizar en OnInitialized no alcanza): una adulterada
+        // dejaría a RadzenTheme apuntando a un CSS inexistente (app sin estilos).
+        // El SetTheme corregido re-dispara este handler y ya no entra al if.
+        if (Tema.Theme != Temas.Normalizar(Tema.Theme))
+        {
+            Tema.SetTheme(Temas.Normalizar(Tema.Theme));
+            return;
+        }
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => Tema.ThemeChanged -= OnTemaCambiado;
+
+    // Tooltip solo en modo solo-íconos: expandido el texto ya se ve al lado del ícono.
+    private string? Tooltip(string texto) => sidebarExpanded ? null : texto;
+
+    // "DOMINIO\usuario" → "usuario" para el header; el completo queda en el tooltip.
+    private string? usuarioCompleto;
+    private string? usuario;
+
+    protected override void OnInitialized()
+    {
+        usuarioCompleto = CurrentUser.UserId;
+        usuario = usuarioCompleto is { } wu ? CuentaWindows.SinDominio(wu) : null;
+        Tema.ThemeChanged += OnTemaCambiado;
+    }
+
+    // Al navegar a otra página, el boundary vuelve a renderizar el contenido normal
+    // (sin esto quedaría clavado en el error hasta un F5).
+    protected override void OnParametersSet() => errorBoundary?.Recover();
+}

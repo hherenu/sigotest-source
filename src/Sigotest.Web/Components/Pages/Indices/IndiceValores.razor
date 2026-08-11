@@ -1,0 +1,185 @@
+@page "/indices/{Id:int}/valores"
+@attribute [Authorize(Roles = Roles.Certificaciones)]
+@inject IndiceService Service
+@inject NavigationManager Nav
+@inject DialogService DialogService
+@inject NotificationService Notifications
+
+<PageTitle>@(indice is null ? "Valores" : $"Valores — {indice.FamiliaRecurso}")</PageTitle>
+
+@if (noEncontrado)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+        No se encontró el índice solicitado.
+    </RadzenAlert>
+}
+else if (indice is null)
+{
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+}
+else
+{
+    <CabeceraPagina Titulo="@indice.FamiliaRecurso" Clase="rz-mb-4">
+        <SubtituloExtra>
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                <RadzenBadge Text="@indice.CodigoIndice" BadgeStyle="BadgeStyle.Secondary" />
+                @if (indice.IndiceNormalizado is not null)
+                {
+                    <RadzenBadge Text="@indice.IndiceNormalizado" BadgeStyle="BadgeStyle.Primary" />
+                }
+            </RadzenStack>
+        </SubtituloExtra>
+        <Acciones>
+            <RadzenButton Text="Volver" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                          Click="@(() => Nav.NavigateTo("indices"))" />
+        </Acciones>
+    </CabeceraPagina>
+
+    <RadzenRow Gap="1rem" RowGap="1rem">
+        <RadzenColumn Size="12" SizeMD="4">
+            <RadzenCard Variant="Variant.Outlined">
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">Agregar valor mensual</RadzenText>
+                <RadzenTemplateForm TItem="NuevoValorVM" Data="@nuevo" Submit="@AgregarAsync">
+                    <RadzenStack Gap="0.75rem">
+                        <RadzenFormField Text="Año" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenNumeric @bind-Value="nuevo.Anio" Min="2000" Max="2100" ShowUpDown="false" style="width:100%" />
+                        </RadzenFormField>
+                        <RadzenFormField Text="Mes" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenDropDown @bind-Value="nuevo.Mes" Data="@(Enumerable.Range(1, 12))" TValue="int" style="width:100%">
+                                <Template Context="m">@Fmt.MesNombre(m)</Template>
+                            </RadzenDropDown>
+                        </RadzenFormField>
+                        <div>
+                            <RadzenFormField Text="Valor" Variant="Variant.Outlined" style="width:100%">
+                                <RadzenNumeric @bind-Value="nuevo.Valor" Name="Valor" Step="0.0001" ShowUpDown="false" style="width:100%" />
+                            </RadzenFormField>
+                            <RadzenRequiredValidator Component="Valor" Text="El valor es obligatorio" Popup="true" />
+                            <RadzenNumericRangeValidator Component="Valor" Min="0.0001" Text="El valor debe ser mayor que cero" Popup="true" />
+                        </div>
+                        <RadzenFormField Text="ID Publicación" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenTextBox @bind-Value="nuevo.IdPublicacion" Placeholder="Ej: INDEC_INFORMA_04_26" style="width:100%" />
+                        </RadzenFormField>
+                        <RadzenButton ButtonType="ButtonType.Submit" Text="Agregar" Icon="add" ButtonStyle="ButtonStyle.Primary"
+                                      Style="width:100%" IsBusy="@procesando" BusyText="Agregando..." />
+                    </RadzenStack>
+                </RadzenTemplateForm>
+            </RadzenCard>
+        </RadzenColumn>
+
+        <RadzenColumn Size="12" SizeMD="8">
+            <RadzenCard Variant="Variant.Outlined">
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">Valores cargados</RadzenText>
+                @if (valores.Count == 0)
+                {
+                    <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">Sin valores cargados aún.</RadzenText>
+                }
+                else
+                {
+                    <RadzenDataGrid Data="@valores" TItem="ValorIndiceVM" Density="Density.Compact"
+                                    AllowFiltering="true" FilterMode="FilterMode.CheckBoxList"
+                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                                    AllowSorting="true" AllowPaging="true" PageSize="12">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="ValorIndiceVM" Title="Período" Width="150px"
+                                                  Property="Anio" SortOrder="SortOrder.Descending">
+                                <Template Context="v">@Fmt.MesNombre(v.Mes) @v.Anio</Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="ValorIndiceVM" Property="Valor" Title="Valor" Width="130px"
+                                                  FormatString="{0:N2}" TextAlign="TextAlign.Right" />
+                            <RadzenDataGridColumn TItem="ValorIndiceVM" Property="IdPublicacion" Title="Publicación" />
+                            <RadzenDataGridColumn TItem="ValorIndiceVM" Title="" Width="60px" Sortable="false" Filterable="false"
+                                                  TextAlign="TextAlign.Center">
+                                <Template Context="v">
+                                    <RadzenButton Icon="close" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger"
+                                                  Variant="Variant.Text" title="Eliminar" Disabled="@procesando"
+                                                  Click="@(() => EliminarAsync(v))" />
+                                </Template>
+                            </RadzenDataGridColumn>
+                        </Columns>
+                    </RadzenDataGrid>
+                }
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private IndiceVM? indice;
+    private List<ValorIndiceVM> valores = new();
+    private bool noEncontrado;
+    private NuevoValorVM nuevo = new();
+    private bool procesando;
+
+    private int idCargado;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (idCargado == Id) return;
+        idCargado = Id;
+
+        indice = await Service.ObtenerAsync(Id);
+        if (indice is null) { noEncontrado = true; return; }
+        noEncontrado = false;
+        nuevo = new NuevoValorVM { Anio = DateTime.Now.Year, Mes = DateTime.Now.Month };
+        await CargarValoresAsync();
+    }
+
+    private async Task CargarValoresAsync()
+    {
+        valores = await Service.ListarValoresAsync(Id);
+    }
+
+    private async Task AgregarAsync()
+    {
+        if (procesando) return;
+        procesando = true;
+        try
+        {
+            var pub = IndiceService.NormalizarPublicacion(nuevo.IdPublicacion);
+            var duplicado = false;
+            var hecho = await Persistencia.EjecutarAsync(async () =>
+            {
+                // La regla de duplicado por publicación vive en el servicio (espeja
+                // los índices únicos de la DB): false = ya existía, no es un error.
+                duplicado = !await Service.AgregarValorAsync(Id, nuevo);
+            }, Notifications);
+
+            if (duplicado)
+            {
+                Notifications.Notify(NotificationSeverity.Warning, "Duplicado",
+                    pub is null
+                        ? $"Ya existe un valor sin publicación para ese índice en {nuevo.Mes}/{nuevo.Anio}."
+                        : $"Ya existe un valor para ese índice en {nuevo.Mes}/{nuevo.Anio} con la publicación {pub}.", 6000);
+                return;
+            }
+            if (!hecho) return;
+
+            Notifications.Notify(NotificationSeverity.Success, "Valor agregado",
+                $"{Fmt.MesNombre(nuevo.Mes)} {nuevo.Anio}", 3000);
+
+            nuevo = new NuevoValorVM { Anio = nuevo.Anio, Mes = nuevo.Mes, IdPublicacion = pub };
+            await CargarValoresAsync();
+        }
+        finally { procesando = false; }
+    }
+
+    private async Task EliminarAsync(ValorIndiceVM v)
+    {
+        if (procesando) return;
+        // El flag antes del Confirm: un doble click no debe apilar dos diálogos.
+        procesando = true;
+        try
+        {
+            // El RowVersion de la grilla viaja como token del DELETE.
+            await UiAcciones.ConfirmarEliminarYRecargarAsync(DialogService, Notifications,
+                $"¿Eliminar el valor de {Fmt.MesNombre(v.Mes)} {v.Anio}?",
+                () => Service.EliminarValorAsync(v.Id, v.RowVersion),
+                "Valor eliminado", $"{Fmt.MesNombre(v.Mes)} {v.Anio}",
+                "Ya eliminado", $"El valor de {Fmt.MesNombre(v.Mes)} {v.Anio} ya había sido eliminado por otro usuario.",
+                CargarValoresAsync);
+        }
+        finally { procesando = false; }
+    }
+}

@@ -1,0 +1,320 @@
+﻿@page "/certificados/{Id:int}/cargar"
+@attribute [Authorize(Roles = Roles.Certificaciones)]
+@inject CertificadoService Service
+@inject NavigationManager Nav
+@inject DialogService DialogService
+@inject NotificationService Notifications
+
+<PageTitle>@(vm is null ? "Carga de certificado" : $"Certificado N° {vm.Numero} — Carga")</PageTitle>
+
+@if (noEncontrado)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+        No se encontró el certificado solicitado.
+    </RadzenAlert>
+}
+else if (vm is null)
+{
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+}
+else
+{
+    <CabeceraPagina Titulo="@($"Certificado N° {vm.Numero} — {Fmt.MesNombre(vm.Mes)} {vm.Anio}")" Clase="rz-mb-2">
+        <Badges>
+            <RadzenBadge Text="Borrador" IsPill="true" BadgeStyle="BadgeStyle.Secondary" />
+        </Badges>
+        <Subtitulo>@vm.ObraNombre</Subtitulo>
+        <Acciones>
+            <RadzenButton Text="Ver Detalle" Icon="visibility" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info"
+                          Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"certificados/{Id}"))" />
+            <RadzenButton Text="Volver" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
+                          Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"obras/{vm.ObraId}/certificados"))" />
+        </Acciones>
+    </CabeceraPagina>
+
+    <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-3">
+        Ingresá el <b>% del mes</b> por ítem. Se admiten valores negativos (BED, economías, descertificaciones).
+    </RadzenText>
+
+    @* ── Agregar bloque ── *@
+    @if (disponibles.Count > 0)
+    {
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.End" Gap="0.5rem" class="rz-mb-3" style="max-width:620px">
+            <RadzenFormField Text="Agregar bloque (estructura)" Variant="Variant.Outlined" style="flex:1">
+                <RadzenDropDown @bind-Value="nuevoBloqueEstructuraId" Data="@disponibles" TextProperty="Nombre" ValueProperty="Id"
+                                TValue="int?" style="width:100%" />
+            </RadzenFormField>
+            <RadzenButton Text="Agregar bloque" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
+                          Variant="Variant.Flat" Disabled="@procesando" Click="@AgregarBloqueAsync" />
+        </RadzenStack>
+    }
+
+    @foreach (var bloque in vm.Bloques.OrderBy(b => b.Orden))
+    {
+        @* @key: sin esto, al quitar un bloque Blazor puede reutilizar los inputs del bloque equivocado. *@
+        <RadzenCard @key="bloque.CertificadoEstructuraId" Variant="Variant.Outlined" class="rz-mb-3">
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                         AlignItems="AlignItems.Center" class="rz-mb-2">
+                <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-0" style="font-weight:600">@bloque.Titulo</RadzenText>
+                @if (vm.Bloques.Count > 1)
+                {
+                    <RadzenButton Text="Quitar bloque" Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger"
+                                  Variant="Variant.Text" Disabled="@procesando" Click="@(() => EliminarBloqueAsync(bloque))" />
+                }
+            </RadzenStack>
+            <div class="cert-scroll">
+                <table class="cert-grid">
+                    <thead>
+                        <tr>
+                            <th style="text-align:left">Cód.</th>
+                            <th style="text-align:left;min-width:200px">Descripción</th>
+                            <th>Unid.</th>
+                            <th>Cant. Contrato</th>
+                            <th>PU Básico</th>
+                            <th>Monto Contrato</th>
+                            <th class="col-warning">% Anterior</th>
+                            <th class="col-warning">Monto Anterior</th>
+                            <th class="col-primary">% Mes</th>
+                            <th class="col-primary">Monto Mes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var (item, nivel) in filasPorBloque[bloque.CertificadoEstructuraId])
+                        {
+                            var pad = nivel * 16 + 8;
+                            if (item.EsAgrupador)
+                            {
+                                <tr @key="item.ItemEstructuraId" class="@(nivel == 0 ? "agrup-0" : "agrup-1")">
+                                    <td></td>
+                                    <td style="padding-left:@(pad)px">@item.Descripcion</td>
+                                    <td></td><td></td><td></td>
+                                    <td class="num">@Fmt.Money(item.MontoContrato ?? 0)</td>
+                                    <td class="col-warning"></td>
+                                    <td class="num col-warning">@Fmt.Money(item.MontoAnterior)</td>
+                                    <td class="col-primary"></td>
+                                    <td class="num col-primary">@Fmt.Money(item.MontoMes)</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                <tr @key="item.ItemEstructuraId">
+                                    <td class="cell-mono" style="padding-left:@(pad)px">@item.Codigo</td>
+                                    <td>@item.Descripcion</td>
+                                    <td style="text-align:center">@item.Unidad</td>
+                                    <td class="num">@item.CantidadContrato?.ToString("N4")</td>
+                                    <td class="num">@(item.PUBasico.HasValue ? "$ " + item.PUBasico.Value.ToString("N4") : "")</td>
+                                    <td class="num">@(item.MontoContrato.HasValue ? "$ " + item.MontoContrato.Value.ToString("N2") : "")</td>
+                                    <td class="num col-warning">@(item.PorcentajeAnterior.HasValue ? item.PorcentajeAnterior.Value.ToString("N2") + "%" : "")</td>
+                                    <td class="num col-warning">@Fmt.Money(item.MontoAnterior)</td>
+                                    <td class="col-primary" style="@(ExcedeAcumulado(bloque.CertificadoEstructuraId, item) ? "outline:2px solid var(--rz-danger);outline-offset:-2px" : "")"
+                                        title="@(ExcedeAcumulado(bloque.CertificadoEstructuraId, item) ? $"El acumulado (anterior {item.PorcentajeAnterior?.ToString("N2") ?? "0"}% + mes) supera el 100%" : null)">
+                                        <RadzenNumeric TValue="decimal?" @bind-Value="pct[bloque.CertificadoEstructuraId][item.ItemEstructuraId]"
+                                                       Step="0.01" ShowUpDown="false" style="width:110px" />
+                                    </td>
+                                    <td class="num col-primary">@Fmt.Money(LiveMonto(bloque.CertificadoEstructuraId, item))</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="5" class="num">Subtotal @bloque.Titulo</td>
+                            <td class="num">$ @bloque.TotalMontoContrato.ToString("N2")</td>
+                            <td colspan="2" class="num">$ @bloque.TotalMontoAnterior.ToString("N2")</td>
+                            <td colspan="2" class="num">$ @bloque.TotalMontoMes.ToString("N2")</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </RadzenCard>
+    }
+
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+        <RadzenButton Text="Guardar certificado" Icon="save" ButtonStyle="ButtonStyle.Primary"
+                      IsBusy="@procesando" BusyText="Guardando..." Click="@GuardarAsync" />
+        <RadzenButton Text="Cancelar" Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                      Click="@(() => Nav.NavigateTo($"obras/{vm.ObraId}/certificados"))" />
+    </RadzenStack>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private CertificadoVM? vm;
+    private bool noEncontrado;
+
+    // bloqueId (CertificadoEstructuraId) → itemEstructuraId → % del mes
+    private Dictionary<int, Dictionary<int, decimal?>> pct = new();
+    // bloqueId → árbol aplanado (se calcula una vez por carga, no por render)
+    private Dictionary<int, List<(ItemCertificadoVM Item, int Nivel)>> filasPorBloque = new();
+    private List<EstructuraOpcionVM> disponibles = new();
+    private int? nuevoBloqueEstructuraId;
+    private bool procesando;
+
+    private int idCargado;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (idCargado == Id) return;
+        idCargado = Id;
+
+        await BuildStateAsync();
+        if (noEncontrado) return;
+
+        if (vm is not null && !vm.EsEditable)
+        {
+            Notifications.Notify(NotificationSeverity.Info, "No editable",
+                "El certificado no está en borrador. Reabrilo para editarlo.", 5000);
+            Nav.NavigateTo($"certificados/{Id}");
+        }
+    }
+
+    private async Task BuildStateAsync()
+    {
+        // El VM se reconstruye completo (incluido su RowVersion): agregar/quitar bloque
+        // actualiza la fila del certificado, y el token de sesión que viaja al guardado
+        // debe ser el último visto.
+        vm = await Service.BuildVmAsync(Id);
+        if (vm is null) { noEncontrado = true; return; }
+        noEncontrado = false;
+
+        // Lo tipeado y no guardado se preserva: agregar/quitar un bloque reconstruye el
+        // estado desde la DB y sin esto pisaba los % del resto de los bloques.
+        var tipeado = pct;
+        pct = new Dictionary<int, Dictionary<int, decimal?>>();
+        filasPorBloque = new Dictionary<int, List<(ItemCertificadoVM Item, int Nivel)>>();
+
+        foreach (var bloque in vm.Bloques)
+        {
+            tipeado.TryGetValue(bloque.CertificadoEstructuraId, out var tipeadoBloque);
+            var dict = new Dictionary<int, decimal?>();
+            foreach (var item in bloque.Items.Where(i => !i.EsAgrupador))
+                dict[item.ItemEstructuraId] =
+                    (tipeadoBloque is not null && tipeadoBloque.TryGetValue(item.ItemEstructuraId, out var v))
+                        ? v
+                        : (item.PorcentajeMes.HasValue && item.PorcentajeMes.Value != 0) ? item.PorcentajeMes : null;
+            pct[bloque.CertificadoEstructuraId] = dict;
+
+            // El árbol se aplana UNA vez acá, no en cada render: al tipear un % el
+            // componente se re-renderiza y volvería a aplanar todos los bloques.
+            filasPorBloque[bloque.CertificadoEstructuraId] = Arbol.Aplanar(
+                bloque.Items, i => i.AgrupadorPadreId, i => i.ItemEstructuraId, i => i.Orden, i => i.EsAgrupador);
+        }
+
+        var usadas = vm.Bloques.Select(b => b.EstructuraCostosId).ToHashSet();
+        disponibles = await Service.EstructurasDisponiblesAsync(vm.ObraId, usadas);
+        nuevoBloqueEstructuraId = disponibles.FirstOrDefault()?.Id;
+    }
+
+    private decimal LiveMonto(int bloqueId, ItemCertificadoVM item)
+    {
+        var p = pct[bloqueId][item.ItemEstructuraId] ?? 0;
+        // Misma implementación que usa GuardarItemsAsync: lo que se muestra en vivo
+        // es exactamente lo que se guarda (antes eran dos copias de la fórmula).
+        return CertificadoService.MovimientoDeMes(item.CantidadContrato, item.PUBasico, item.MontoContrato, p).Monto;
+    }
+
+    private async Task AgregarBloqueAsync()
+    {
+        if (procesando || nuevoBloqueEstructuraId is not int estId) return;
+
+        procesando = true;
+        try
+        {
+            // La persistencia vive en el servicio; la página solo traduce el resultado
+            // a notificaciones. Si el certificado ya no existe (Encontrado=false) no se
+            // notifica: BuildStateAsync lo detecta como "no encontrado".
+            CertificadoService.ResultadoBloque? res = null;
+            var hecho = await Persistencia.EjecutarAsync(
+                async () => res = await Service.AgregarBloqueAsync(Id, estId), Notifications);
+
+            if (hecho && res is not null)
+            {
+                if (res.Rechazo is not null)
+                    NotificarRechazoBloque(res);
+                else if (res.Encontrado)
+                    Notifications.Notify(NotificationSeverity.Success, "Bloque agregado",
+                        disponibles.FirstOrDefault(e => e.Id == estId)?.Nombre ?? "", 3000);
+            }
+            await BuildStateAsync();
+        }
+        finally { procesando = false; }
+    }
+
+    private async Task EliminarBloqueAsync(BloqueCertificadoVM bloque)
+    {
+        if (procesando) return;
+        // El flag antes del Confirm: un doble click no debe apilar dos diálogos.
+        procesando = true;
+        try
+        {
+            var ok = await DialogService.Confirm(
+                $"¿Quitar el bloque {bloque.Titulo}?", "Confirmar",
+                new ConfirmOptions { OkButtonText = "Quitar", CancelButtonText = "Cancelar" });
+            if (ok != true) return;
+
+            CertificadoService.ResultadoBloque? res = null;
+            var hecho = await Persistencia.EjecutarAsync(
+                async () => res = await Service.QuitarBloqueAsync(bloque.CertificadoEstructuraId), Notifications);
+
+            if (hecho && res is not null)
+            {
+                if (res.Rechazo is not null)
+                    NotificarRechazoBloque(res);
+                else if (res.Encontrado)
+                    Notifications.Notify(NotificationSeverity.Success, "Bloque quitado", bloque.Titulo, 3000);
+            }
+            await BuildStateAsync();
+        }
+        finally { procesando = false; }
+    }
+
+    // Título y severidad según el motivo (los mensajes vienen de CertificadoValidator).
+    private void NotificarRechazoBloque(CertificadoService.ResultadoBloque res)
+    {
+        var (severidad, titulo) = res.Motivo switch
+        {
+            CertificadoService.MotivoRechazoBloque.Duplicado => (NotificationSeverity.Warning, "Duplicado"),
+            CertificadoService.MotivoRechazoBloque.EstructuraInvalida => (NotificationSeverity.Error, "Inválida"),
+            _ => (NotificationSeverity.Warning, "No editable")
+        };
+        Notifications.Notify(severidad, titulo, res.Rechazo ?? "", 5000);
+    }
+
+    // La regla (umbral y epsilon) vive en CertificadoValidator; acá solo se resuelve
+    // el % tipeado en la sesión para el ítem.
+    private bool ExcedeAcumulado(int bloqueId, ItemCertificadoVM item) =>
+        !item.EsAgrupador && CertificadoValidator.ExcedeAvanceAcumulado(
+            item.PorcentajeAnterior, pct[bloqueId].GetValueOrDefault(item.ItemEstructuraId) ?? 0);
+
+    private async Task GuardarAsync()
+    {
+        if (procesando) return;
+        procesando = true;
+        try
+        {
+            var excedidos = vm!.Bloques
+                .Sum(b => b.Items.Count(i => ExcedeAcumulado(b.CertificadoEstructuraId, i)));
+            if (excedidos > 0)
+            {
+                var ok = await DialogService.Confirm(
+                    $"{excedidos} ítem(s) superan el 100% de avance acumulado (anterior + mes). ¿Guardar igual?",
+                    "Avance mayor al 100%",
+                    new ConfirmOptions { OkButtonText = "Guardar igual", CancelButtonText = "Revisar" });
+                if (ok != true) return;
+            }
+
+            var porBloque = pct.ToDictionary(
+                kv => kv.Key,
+                kv => kv.Value.ToDictionary(x => x.Key, x => x.Value ?? 0m));
+
+            var hecho = await Persistencia.EjecutarAsync(
+                () => Service.GuardarItemsAsync(Id, porBloque, vm!.RowVersion), Notifications);
+            if (!hecho) return;
+
+            Notifications.Notify(NotificationSeverity.Success, "Guardado", "Certificado guardado.", 4000);
+            Nav.NavigateTo($"certificados/{Id}");
+        }
+        finally { procesando = false; }
+    }
+}

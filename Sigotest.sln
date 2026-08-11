@@ -9,7 +9,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sigotest.Web", "src\Sigotes
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sigotest.Web.Tests", "tests\Sigotest.Web.Tests\Sigotest.Web.Tests.csproj", "{933F3343-D74A-48F7-AFED-9D0BAF9EF3D2}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SIGO.Tests", "tests\SIGO.Tests\SIGO.Tests.csproj", "{933F3343-D74A-48F7-AFED-9D0BAF9EF3D2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -1,0 +1,53 @@
+@page "/indices"
+@attribute [Authorize(Roles = Roles.Certificaciones)]
+@inject IndiceService Service
+@inject NavigationManager Nav
+
+<PageTitle>Índices INDEC</PageTitle>
+
+<CabeceraPagina Titulo="Índices INDEC" Estilo="TextStyle.H4" Clase="rz-mb-4">
+    <Acciones>
+        <RadzenButton Text="Importar publicación" Icon="upload" ButtonStyle="ButtonStyle.Primary"
+                      Click="@(() => Nav.NavigateTo("indices/importar"))" />
+        <RadzenButton Text="Nuevo Índice" Icon="add" ButtonStyle="ButtonStyle.Success"
+                      Click="@(() => Nav.NavigateTo("indices/nuevo"))" />
+    </Acciones>
+</CabeceraPagina>
+
+@if (indices is null)
+{
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+}
+else
+{
+    <RadzenDataGrid Data="@indices" TItem="IndiceVM" AllowFiltering="true"
+                    FilterMode="FilterMode.CheckBoxList" AllowColumnResize="true"
+                    AllowSorting="true" AllowPaging="true" PageSize="20"
+                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                    Density="Density.Compact" class="rz-shadow-1">
+        <Columns>
+            <RadzenDataGridColumn TItem="IndiceVM" Property="CodigoIndice" Title="Código" Width="200px" />
+            <RadzenDataGridColumn TItem="IndiceVM" Property="FamiliaRecurso" Title="Familia de Recurso" />
+            <RadzenDataGridColumn TItem="IndiceVM" Property="IndiceNormalizado" Title="Índice Normalizado" />
+            <RadzenDataGridColumn TItem="IndiceVM" Property="CuadroReferencia" Title="Cuadro" Width="130px" />
+            <RadzenDataGridColumn TItem="IndiceVM" Property="IncisoCode" Title="Inciso" Width="90px" TextAlign="TextAlign.Center" />
+            <RadzenDataGridColumn TItem="IndiceVM" Title="" Width="170px" Sortable="false" Filterable="false"
+                                  TextAlign="TextAlign.Center">
+                <Template Context="indice">
+                    <RadzenButton Text="Valores mensuales" Icon="calendar_month" Size="ButtonSize.Small"
+                                  ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
+                                  Click="@(() => Nav.NavigateTo($"indices/{indice.Id}/valores"))" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+}
+
+@code {
+    private List<IndiceVM>? indices;
+
+    protected override async Task OnInitializedAsync()
+    {
+        indices = await Service.ListarAsync();
+    }
+}
