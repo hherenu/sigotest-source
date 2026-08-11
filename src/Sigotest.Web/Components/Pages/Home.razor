@@ -1,0 +1,92 @@
+@page "/"
+@inject NavigationManager Nav
+
+@* Landing accesible a TODO usuario autenticado (solo FallbackPolicy, sin rol): es el
+   destino del logo y de la raíz, así nadie aterriza en un módulo que su rol no ve
+   (antes "/" era Calcular, solo Certificaciones). Muestra los módulos habilitados. *@
+
+<PageTitle>Inicio</PageTitle>
+
+<CabeceraPagina Titulo="Inicio" Clase="rz-mb-4" Subtitulo="@Saludo()" />
+
+@if (cargado && modulos.Count == 0)
+{
+    @* Recién registrado, sin roles: mismo mensaje que /sin-acceso. *@
+    <RadzenStack AlignItems="AlignItems.Center" class="rz-mt-8">
+        <RadzenCard Variant="Variant.Outlined" style="max-width:560px">
+            <RadzenStack Gap="0.75rem" AlignItems="AlignItems.Center">
+                <RadzenIcon Icon="hourglass_top" style="font-size:3rem;color:var(--rz-warning)" />
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Usuario sin roles asignados</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-text-align-center rz-mb-0">
+                    Tu usuario ya quedó registrado en el sistema, pero todavía no tiene roles
+                    asignados. Pedile a un administrador que te habilite y después recargá la página (F5).
+                </RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+    </RadzenStack>
+}
+else
+{
+    <RadzenRow Gap="1rem" RowGap="1rem">
+        @foreach (var m in modulos)
+        {
+            <RadzenColumn Size="12" SizeSM="6" SizeMD="4">
+                @* Ancla real, no un div con @onclick: el router de Blazor la intercepta
+                   igual (navegación sin recarga) y además queda accesible por teclado,
+                   anunciada como link y abrible en pestaña nueva. *@
+                <a href="@m.Ruta" class="home-card">
+                    <RadzenCard Variant="Variant.Outlined" style="height:100%">
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
+                            <RadzenIcon Icon="@m.Icono" style="font-size:2rem;color:var(--rz-primary)" />
+                            <RadzenStack Gap="0.15rem">
+                                <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-0" style="font-weight:600">@m.Titulo</RadzenText>
+                                <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">@m.Descripcion</RadzenText>
+                            </RadzenStack>
+                        </RadzenStack>
+                    </RadzenCard>
+                </a>
+            </RadzenColumn>
+        }
+    </RadzenRow>
+}
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private record Modulo(string Titulo, string Descripcion, string Icono, string Ruta);
+
+    private readonly List<Modulo> modulos = [];
+    private string? nombre;
+    private bool cargado;
+
+    // null (sin subtítulo) mientras no hay nombre resuelto o el usuario no tiene módulos:
+    // un caption vacío empuja el contenido, y anunciar "módulos habilitados" contradiría
+    // el aviso de usuario sin roles que se muestra abajo.
+    private RenderFragment? Saludo()
+    {
+        if (nombre is null || modulos.Count == 0) return null;
+        return @<text>Hola, @nombre. Estos son los módulos habilitados para tu usuario:</text>;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is null) return;
+        var user = (await AuthState).User;
+        nombre = user.Identity?.Name is { } wu ? CuentaWindows.SinDominio(wu) : null;
+
+        // Mismo criterio que el menú lateral de MainLayout: un módulo por rol.
+        if (Roles.TieneAlguno(user.IsInRole, Roles.Certificaciones))
+        {
+            modulos.Add(new("Obras", "Catálogo de obras, certificados y estructuras de costos", "apartment", "obras"));
+            modulos.Add(new("Calcular Redeterminación", "Cálculo de variación por tabla de ponderación", "calculate", "redeterminacion/calcular"));
+            modulos.Add(new("Historial", "Disparos de redeterminación guardados", "history", "redeterminacion/historial"));
+            modulos.Add(new("Índices INDEC", "Catálogo de índices y carga de publicaciones", "trending_up", "indices"));
+        }
+        if (Roles.TieneAlguno(user.IsInRole, Roles.Planificacion))
+            modulos.Add(new("Planificación", "Curvas de inversión por obra y circuito de aprobación", "event_note", "planificacion"));
+        if (user.IsInRole(Roles.Admin))
+            modulos.Add(new("Usuarios", "Alta de usuarios y asignación de roles", "group", "usuarios"));
+
+        cargado = true;
+    }
+}

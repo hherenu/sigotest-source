@@ -1,0 +1,151 @@
+﻿@page "/redeterminacion/historial"
+@attribute [Authorize(Roles = Roles.Certificaciones)]
+@inject NavigationManager Nav
+@inject DialogService DialogService
+@inject NotificationService Notifications
+@inject RedeterminacionService Service
+
+<PageTitle>Historial de Redeterminaciones</PageTitle>
+
+<CabeceraPagina Titulo="Variaciones de Referencia" Estilo="TextStyle.H4">
+    <Acciones>
+        <RadzenButton Text="Calcular" Icon="calculate" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                      Click="@(() => Nav.NavigateTo("redeterminacion/calcular"))" />
+    </Acciones>
+</CabeceraPagina>
+
+<RadzenDropDown @bind-Value="filterObraId" Data="@obras" TextProperty="Nombre" ValueProperty="Id" TValue="int?"
+                AllowClear="true" Placeholder="-- Todas las obras --" style="width:100%;max-width:420px" class="rz-mb-3"
+                Change="@OnFiltroChanged" />
+
+@if (lista is null)
+{
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+}
+else if (lista.Count == 0)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+        No hay cálculos guardados.
+    </RadzenAlert>
+}
+else
+{
+    @foreach (var grupo in lista.GroupBy(r => r.ObraId))
+    {
+        var obra = grupo.First();
+        var ultimoDisparo = grupo.Max(x => x.NroDisparo);
+        <RadzenCard @key="grupo.Key" Variant="Variant.Outlined" class="rz-mb-4">
+            <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-3" style="font-weight:600">@obra.ObraNumeroLicitacion — @obra.ObraNombre</RadzenText>
+            <div class="cert-scroll">
+                <table class="cert-grid">
+                    <thead>
+                        <tr>
+                            <th>Disparo N°</th>
+                            <th>Mes de Disparo</th>
+                            <th>Variación Ref. %</th>
+                            <th>Coef. (K/K₀)</th>
+                            <th>Var. Acumulada</th>
+                            <th>Publicación</th>
+                            <th>N° Expediente VR</th>
+                            <th>Aprob. CCyR</th>
+                            <th>Aprob. OS</th>
+                            <th>Límite Red. Def.</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in grupo.OrderBy(x => x.NroDisparo))
+                        {
+                            <tr @key="r.Id" style="text-align:center">
+                                <td style="font-weight:700">@r.NroDisparo</td>
+                                <td>@Fmt.MesCorto(r.MesSalto)-@(r.AnioSalto % 100)</td>
+                                <td style="@($"font-weight:700;color:{Redet.ColorSuba(r.PorcentajeAumento)}")">
+                                    @(r.PorcentajeAumento.HasValue ? r.PorcentajeAumento.Value.ToString("N4") + "%" : "—")
+                                </td>
+                                <td>@r.TotalKiK0?.ToString("N2")</td>
+                                <td style="font-weight:600">@r.VariacionAcumulada?.ToString("N2")</td>
+                                <td>@Fmt.PubMayus(r.IdPublicacionSalto ?? r.IdPublicacionBase)</td>
+                                <td style="text-align:left">@(r.NroExpedienteVR ?? "—")</td>
+                                <td>@r.FechaAprobacionCCyR?.ToString("d/M/yyyy")</td>
+                                <td>@r.FechaAprobacionOS?.ToString("d/M/yyyy")</td>
+                                <td>@r.FechaLimitePresentacion?.ToString("d/M/yyyy")</td>
+                                <td style="white-space:nowrap">
+                                    <RadzenButton Icon="visibility" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info" Variant="Variant.Text"
+                                                  title="Ver" Click="@(() => Nav.NavigateTo($"redeterminacion/{r.Id}"))" />
+                                    <RadzenButton Icon="calculate" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text"
+                                                  title="@(EsRecalculable(r) ? "Recalcular" : $"En estado {r.Estado} no admite recálculo")"
+                                                  Disabled="@(!EsRecalculable(r))"
+                                                  Click="@(() => Nav.NavigateTo($"redeterminacion/calcular?editarId={r.Id}"))" />
+                                    <RadzenButton Icon="edit_note" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Text"
+                                                  title="Datos administrativos" Click="@(() => Nav.NavigateTo($"redeterminacion/{r.Id}/admin"))" />
+                                    <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
+                                                  title="@(r.NroDisparo != ultimoDisparo ? "Solo se puede eliminar el último disparo"
+                                                          : !EsRecalculable(r) ? $"En estado {r.Estado} no puede eliminarse" : "Eliminar")"
+                                                  Disabled="@(procesando || r.NroDisparo != ultimoDisparo || !EsRecalculable(r))"
+                                                  Click="@(() => EliminarAsync(r))" />
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </RadzenCard>
+    }
+}
+
+@code {
+    [Parameter, SupplyParameterFromQuery] public int? ObraId { get; set; }
+
+    private List<ObraOpcionVM> obras = new();
+    private int? filterObraId;
+    private List<RedeterminacionHistorialVM>? lista;
+    private bool procesando;
+
+    private bool paramsCargados;
+    private int? obraIdCargada;
+
+    // Carga única (no depende del parámetro).
+    protected override async Task OnInitializedAsync() =>
+        obras = await Service.GetObrasAsync();
+
+    // Depende del query param: se re-ejecuta si cambia ?obraId=
+    protected override async Task OnParametersSetAsync()
+    {
+        if (paramsCargados && obraIdCargada == ObraId) return;
+        paramsCargados = true;
+        obraIdCargada = ObraId;
+
+        filterObraId = ObraId;
+        await CargarAsync();
+    }
+
+    // El filtro vive en la URL (?obraId=): F5 y "atrás" restauran lo que se está viendo.
+    // Navegar dispara OnParametersSetAsync, que recarga con el nuevo filtro.
+    private void OnFiltroChanged() =>
+        Nav.NavigateTo(filterObraId.HasValue
+            ? $"redeterminacion/historial?obraId={filterObraId}"
+            : "redeterminacion/historial", replace: true);
+
+    private async Task CargarAsync() =>
+        lista = await Service.GetHistorialAsync(filterObraId);
+
+    // Espejo UI de RedeterminacionValidator (la regla completa vive en el servicio).
+    private static bool EsRecalculable(RedeterminacionHistorialVM r) =>
+        RedeterminacionValidator.EsRecalculable(r.Estado);
+
+    private async Task EliminarAsync(RedeterminacionHistorialVM r)
+    {
+        if (procesando) return;
+        procesando = true;
+        try
+        {
+            await UiAcciones.ConfirmarEliminarYRecargarAsync(DialogService, Notifications,
+                $"¿Eliminar disparo {r.NroDisparo}?",
+                () => Service.EliminarDisparoAsync(r.Id, r.RowVersion),
+                "Eliminado", $"Disparo {r.NroDisparo}",
+                "Ya eliminado", $"El disparo {r.NroDisparo} ya había sido eliminado por otro usuario.",
+                CargarAsync);
+        }
+        finally { procesando = false; }
+    }
+}

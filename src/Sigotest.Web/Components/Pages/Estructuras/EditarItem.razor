@@ -1,0 +1,128 @@
+@page "/estructuras/item/{Id:int}/editar"
+@attribute [Authorize(Roles = Roles.Certificaciones)]
+@inject EstructuraService Estructuras
+@inject NavigationManager Nav
+@inject NotificationService Notifications
+
+<PageTitle>Editar Ítem</PageTitle>
+
+@if (noEncontrado)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+        No se encontró el ítem solicitado.
+    </RadzenAlert>
+}
+else if (item is null)
+{
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+}
+else
+{
+    <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H1" class="rz-mb-4">Editar Ítem</RadzenText>
+
+    <RadzenTemplateForm TItem="ItemEstructuraVM" Data="@item" Submit="@GuardarAsync">
+        <RadzenStack Gap="1rem" style="max-width: 820px;">
+            @if (!item.EsAgrupador)
+            {
+                <RadzenRow Gap="1rem" RowGap="1rem">
+                    <RadzenColumn Size="12" SizeMD="4">
+                        <RadzenFormField Text="Código" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenTextBox @bind-Value="item.Codigo" Placeholder="P.GEN.1.1" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="8">
+                        <div>
+                            <RadzenFormField Text="Descripción *" Variant="Variant.Outlined" style="width:100%">
+                                <RadzenTextBox @bind-Value="item.Descripcion" Name="Descripcion" style="width:100%" />
+                            </RadzenFormField>
+                            <RadzenRequiredValidator Component="Descripcion" Text="La descripción es obligatoria" Popup="true" />
+                        </div>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="4">
+                        <RadzenFormField Text="Agrupador padre" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenDropDown @bind-Value="item.AgrupadorPadreId" Data="@agrupadores" TextProperty="Descripcion" ValueProperty="Id"
+                                            TValue="int?" AllowClear="true" Placeholder="(ninguno)" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="6" SizeMD="2">
+                        <RadzenFormField Text="Unidad" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenTextBox @bind-Value="item.Unidad" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="6" SizeMD="3">
+                        <RadzenFormField Text="Cantidad" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenNumeric @bind-Value="item.Cantidad" Min="0" Step="0.0001" ShowUpDown="false" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="6" SizeMD="3">
+                        <RadzenFormField Text="PU Básico ($)" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenNumeric @bind-Value="item.PUBasico" Min="0" Step="0.0001" ShowUpDown="false" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                </RadzenRow>
+            }
+            else
+            {
+                <div>
+                    <RadzenFormField Text="Descripción del agrupador *" Variant="Variant.Outlined" style="width:100%">
+                        <RadzenTextBox @bind-Value="item.Descripcion" Name="Descripcion" style="width:100%" />
+                    </RadzenFormField>
+                    <RadzenRequiredValidator Component="Descripcion" Text="La descripción es obligatoria" Popup="true" />
+                </div>
+                <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">
+                    Los agrupadores no tienen código ni valores propios.
+                </RadzenText>
+            }
+
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                <RadzenButton ButtonType="ButtonType.Submit" Text="Guardar cambios" Icon="save" ButtonStyle="ButtonStyle.Primary"
+                              IsBusy="@guardando" BusyText="Guardando..." />
+                <RadzenButton Text="Cancelar" Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                              Click="@(() => Nav.NavigateTo($"estructuras/{item!.EstructuraCostosId}"))" />
+            </RadzenStack>
+        </RadzenStack>
+    </RadzenTemplateForm>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private ItemEstructuraVM? item;
+    private bool noEncontrado;
+    private List<AgrupadorOpcionVM> agrupadores = new();
+    private bool guardando;
+
+    private int idCargado;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (idCargado == Id) return;
+        idCargado = Id;
+
+        var carga = await Estructuras.ObtenerItemAsync(Id);
+        if (carga is null) { noEncontrado = true; return; }
+        noEncontrado = false;
+
+        item = carga.Item;
+        agrupadores = carga.Agrupadores;
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (item is null || guardando) return;
+
+        guardando = true;
+        try
+        {
+            // La normalización vive en EstructuraValidator (vía el servicio); en la
+            // edición AgrupadorPadreId NO se fuerza a null para los agrupadores: los
+            // sub-rubros anidados existen y este form no tiene campo de padre. El
+            // RowVersion de la carga viaja como token del UPDATE.
+            await UiAcciones.GuardarYNavegarAsync(Notifications, Nav,
+                () => Estructuras.ActualizarItemAsync(item),
+                "Ítem actualizado", () => (item.Descripcion ?? string.Empty).Trim(),
+                () => $"estructuras/{item.EstructuraCostosId}");
+        }
+        finally { guardando = false; }
+    }
+}

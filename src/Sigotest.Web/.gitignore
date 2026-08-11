@@ -1,0 +1,17 @@
+# Compilación
+bin/
+obj/
+TestResults/
+
+# Visual Studio / IDEs
+.vs/
+*.user
+*.suo
+*.lscache
+
+# Publicación
+publish/
+*.pubxml
+
+# Locales
+*.log

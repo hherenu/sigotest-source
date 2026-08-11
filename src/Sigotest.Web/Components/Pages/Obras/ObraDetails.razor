@@ -1,0 +1,202 @@
+@page "/obras/{Id:int}"
+@attribute [Authorize(Roles = Roles.Certificaciones)]
+@inject ObraService ObraService
+@inject NavigationManager Nav
+
+<PageTitle>@(obra?.Nombre ?? "Obra")</PageTitle>
+
+@if (noEncontrada)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+        No se encontró la obra solicitada.
+    </RadzenAlert>
+}
+else if (obra is null)
+{
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+}
+else
+{
+    <CabeceraPagina Titulo="@obra.Nombre" Estilo="TextStyle.H4" Clase="rz-mb-4">
+        <Acciones>
+            <RadzenButton Text="Estructuras de Costos" Icon="account_tree" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success"
+                          Click="@(() => Nav.NavigateTo($"obras/{obra.Id}/estructuras"))" />
+            <RadzenButton Text="Editar" Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Flat"
+                          Click="@(() => Nav.NavigateTo($"obras/{obra.Id}/editar"))" />
+            <RadzenButton Text="Volver" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                          Click="@(() => Nav.NavigateTo("obras"))" />
+        </Acciones>
+    </CabeceraPagina>
+
+    <RadzenRow Gap="1rem" RowGap="1rem">
+        <RadzenColumn Size="12" SizeMD="6">
+            <RadzenCard Variant="Variant.Outlined" style="height:100%">
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">Datos del Expediente</RadzenText>
+                @Dato("Licitación", obra.NumeroLicitacion)
+                @Dato("Antecedentes", obra.Antecedentes)
+                @Dato("Contratista", obra.Contratista)
+                @Dato("PUByC", obra.PUByC)
+                @Dato("Director de Obra", obra.DirectorNombre)
+                @Dato("IF Designación", obra.IFDesignacion)
+                <RadzenRow class="rz-mt-1">
+                    <RadzenColumn Size="5">
+                        <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">Estado</RadzenText>
+                    </RadzenColumn>
+                    <RadzenColumn Size="7">
+                        @if (obra.Estado is not null)
+                        {
+                            <RadzenBadge Text="@obra.Estado" IsPill="true"
+                                         BadgeStyle="@EstadoUi.BadgeObra(obra.Estado)" />
+                        }
+                    </RadzenColumn>
+                </RadzenRow>
+            </RadzenCard>
+        </RadzenColumn>
+
+        <RadzenColumn Size="12" SizeMD="6">
+            <RadzenCard Variant="Variant.Outlined" style="height:100%">
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">Fechas</RadzenText>
+                @Dato("Fecha Oferta", obra.FechaOferta?.ToString("dd/MM/yyyy"))
+                @Dato("Oferta Final (IF)", obra.OfertaFinal)
+                @Dato("Fecha Adjudicación", obra.FechaAdjudicacion?.ToString("dd/MM/yyyy"))
+                @Dato("IF Adjudicación", obra.IFAdjudicacion)
+                @Dato("Fecha Contrato", obra.FechaContrato?.ToString("dd/MM/yyyy"))
+                @Dato("IF Contrato", obra.IFContrato)
+                @Dato("Fecha Acta Inicio", obra.FechaActaInicio?.ToString("dd/MM/yyyy"))
+                @Dato("IF Acta Inicio", obra.IFActaInicio)
+                @Dato("Plazo de Obra", obra.PlazoObra)
+                <RadzenRow class="rz-mt-1">
+                    <RadzenColumn Size="5">
+                        <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">Fecha Final Contrato</RadzenText>
+                    </RadzenColumn>
+                    <RadzenColumn Size="7">
+                        <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0" style="font-weight:600;color:var(--rz-danger)">
+                            @obra.FechaFinalContrato?.ToString("dd/MM/yyyy")
+                        </RadzenText>
+                    </RadzenColumn>
+                </RadzenRow>
+            </RadzenCard>
+        </RadzenColumn>
+
+        @* ── Estructuras de Costos ── *@
+        <RadzenColumn Size="12">
+            <RadzenCard Variant="Variant.Outlined">
+                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                             AlignItems="AlignItems.Center" class="rz-mb-2">
+                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">
+                        Estructuras de Costos
+                        <RadzenBadge Text="@obra.EstructurasCostos.Count.ToString()" BadgeStyle="BadgeStyle.Secondary" class="rz-ml-2" />
+                    </RadzenText>
+                    <RadzenButton Text="Ver / Gestionar" Icon="account_tree" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success"
+                                  Click="@(() => Nav.NavigateTo($"obras/{obra.Id}/estructuras"))" />
+                </RadzenStack>
+                @if (!obra.EstructurasCostos.Any())
+                {
+                    <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">Sin estructuras cargadas.</RadzenText>
+                }
+                else
+                {
+                    <ul class="rz-mb-0" style="padding-left:1.1rem;">
+                        @foreach (var est in obra.EstructurasCostos)
+                        {
+                            <li>
+                                <a href="estructuras/@est.Id">@est.Nombre</a>
+                                <span class="app-muted"> (@est.FechaCreacion.ToString("dd/MM/yyyy"))</span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </RadzenCard>
+        </RadzenColumn>
+
+        @* ── Certificados ── *@
+        <RadzenColumn Size="12">
+            <RadzenCard Variant="Variant.Outlined">
+                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                             AlignItems="AlignItems.Center" class="rz-mb-2">
+                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Certificados de Avance</RadzenText>
+                    <RadzenButton Text="Ver / Gestionar" Icon="receipt_long" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                                  Click="@(() => Nav.NavigateTo($"obras/{obra.Id}/certificados"))" />
+                </RadzenStack>
+                <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
+                    Accedé al historial de certificados y cargá la ejecución mensual.
+                </RadzenText>
+            </RadzenCard>
+        </RadzenColumn>
+
+        @* ── Tablas de Ponderación ── *@
+        @if (!obra.TablasPonderacion.Any())
+        {
+            <RadzenColumn Size="12">
+                <RadzenCard Variant="Variant.Outlined">
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                                 AlignItems="AlignItems.Center" class="rz-mb-2">
+                        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Tabla de Ponderación</RadzenText>
+                        <RadzenButton Text="Crear tabla" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success"
+                                      Click="@(() => Nav.NavigateTo($"obras/{obra.Id}/ponderacion"))" />
+                    </RadzenStack>
+                    <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
+                        Sin tabla de ponderación: la obra no puede calcular redeterminaciones hasta cargarla.
+                    </RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+        }
+        @foreach (var tabla in obra.TablasPonderacion)
+        {
+            <RadzenColumn Size="12">
+                <RadzenCard Variant="Variant.Outlined">
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                                 AlignItems="AlignItems.Center" class="rz-mb-3">
+                        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Tabla de Ponderación: @tabla.Nombre</RadzenText>
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                            <RadzenButton Text="Editar Tabla" Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success"
+                                          Click="@(() => Nav.NavigateTo($"obras/{obra.Id}/ponderacion"))" />
+                            <RadzenButton Text="Calcular Redeterminación" Icon="calculate" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                                          Click="@(() => Nav.NavigateTo($"redeterminacion/calcular?obraId={obra.Id}"))" />
+                        </RadzenStack>
+                    </RadzenStack>
+                    <RadzenDataGrid Data="@tabla.Items" TItem="ItemPonderacionObraVM"
+                                    Density="Density.Compact" AllowFiltering="true" FilterMode="FilterMode.CheckBoxList"
+                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" AllowSorting="true">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="ItemPonderacionObraVM" Property="Numero" Title="N°" Width="60px" TextAlign="TextAlign.Center" />
+                            <RadzenDataGridColumn TItem="ItemPonderacionObraVM" Property="Insumo" Title="Insumo" />
+                            <RadzenDataGridColumn TItem="ItemPonderacionObraVM" Property="PesoPorcentaje" Title="Peso %" Width="110px"
+                                                  FormatString="{0:N2}" TextAlign="TextAlign.Center" />
+                            <RadzenDataGridColumn TItem="ItemPonderacionObraVM" Property="DescripcionINDEC" Title="Índice INDEC" />
+                        </Columns>
+                    </RadzenDataGrid>
+                </RadzenCard>
+            </RadzenColumn>
+        }
+    </RadzenRow>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private ObraDetalleVM? obra;
+    private bool noEncontrada;
+    private int idCargado;   // 0 = nada cargado; evita recargar si el parámetro no cambió
+
+    // OnParametersSetAsync (no OnInitializedAsync): Blazor reutiliza el componente
+    // cuando sólo cambia el parámetro de ruta (ej. /obras/1 -> /obras/2).
+    protected override async Task OnParametersSetAsync()
+    {
+        if (idCargado == Id) return;
+        idCargado = Id;
+
+        // El servicio ya devuelve estructuras (por fecha) e ítems (por número) ordenados.
+        obra = await ObraService.ObtenerDetalleAsync(Id);
+        noEncontrada = obra is null;
+    }
+
+    private RenderFragment Dato(string label, string? value) =>@<RadzenRow class="rz-mt-1">
+        <RadzenColumn Size="5">
+            <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">@label</RadzenText>
+        </RadzenColumn>
+        <RadzenColumn Size="7">
+            <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0">@value</RadzenText>
+        </RadzenColumn>
+    </RadzenRow>;
+}

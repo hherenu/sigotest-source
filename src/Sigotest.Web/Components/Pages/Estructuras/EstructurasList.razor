@@ -1,0 +1,112 @@
+@page "/obras/{ObraId:int}/estructuras"
+@attribute [Authorize(Roles = Roles.Certificaciones)]
+@inject EstructuraService Estructuras
+@inject NavigationManager Nav
+@inject DialogService DialogService
+@inject NotificationService Notifications
+
+<PageTitle>@(obra is null ? "Estructuras de Costos" : $"Estructuras — {obra.Nombre}")</PageTitle>
+
+@if (noEncontrada)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+        No se encontró la obra solicitada.
+    </RadzenAlert>
+}
+else if (obra is null)
+{
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+}
+else
+{
+    <CabeceraPagina Titulo="Estructuras de Costos" Clase="rz-mb-4">
+        <Subtitulo>@obra.Nombre — @obra.NumeroLicitacion</Subtitulo>
+        <Acciones>
+            <RadzenButton Text="Nueva Estructura" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                          Click="@(() => Nav.NavigateTo($"obras/{ObraId}/estructuras/nueva"))" />
+            <RadzenButton Text="Volver a Obra" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
+                          Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"obras/{ObraId}"))" />
+        </Acciones>
+    </CabeceraPagina>
+
+    @if (estructuras.Count == 0)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+            No hay estructuras de costos cargadas para esta obra.
+            <RadzenLink Path="@($"obras/{ObraId}/estructuras/nueva")" Text="Crear la primera" />.
+        </RadzenAlert>
+    }
+    else
+    {
+        <RadzenRow Gap="1rem" RowGap="1rem">
+            @foreach (var est in estructuras)
+            {
+                <RadzenColumn @key="est.Id" Size="12" SizeMD="6">
+                    <RadzenCard Variant="Variant.Outlined">
+                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                                     AlignItems="AlignItems.Center" class="rz-mb-2">
+                            <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-0" style="font-weight:600">@est.Nombre</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">
+                                Creada: @est.FechaCreacion.ToString("dd/MM/yyyy")
+                            </RadzenText>
+                        </RadzenStack>
+                        <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-1"><b>Ítems:</b> @est.TotalItems</RadzenText>
+                        @if (est.MontoTotal > 0)
+                        {
+                            <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0"><b>Monto Total:</b> $ @est.MontoTotal.ToString("N2")</RadzenText>
+                        }
+                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" class="rz-mt-3">
+                            <RadzenButton Text="Ver / Editar Ítems" Icon="list_alt" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                                          Click="@(() => Nav.NavigateTo($"estructuras/{est.Id}"))" />
+                            <RadzenButton Text="Eliminar" Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger"
+                                          Variant="Variant.Flat" Disabled="@procesando" Click="@(() => EliminarAsync(est))" />
+                        </RadzenStack>
+                    </RadzenCard>
+                </RadzenColumn>
+            }
+        </RadzenRow>
+    }
+}
+
+@code {
+    [Parameter] public int ObraId { get; set; }
+
+    private ObraResumenVM? obra;
+    private List<EstructuraVM> estructuras = new();
+    private bool noEncontrada;
+    private bool procesando;
+
+    private int obraIdCargada;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (obraIdCargada == ObraId) return;
+        obraIdCargada = ObraId;
+
+        obra = await Estructuras.ObtenerObraAsync(ObraId);
+        if (obra is null) { noEncontrada = true; return; }
+        noEncontrada = false;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync() =>
+        estructuras = await Estructuras.ListarAsync(ObraId);
+
+    private async Task EliminarAsync(EstructuraVM est)
+    {
+        if (procesando) return;
+        // El flag antes del Confirm: un doble click no debe apilar dos diálogos.
+        procesando = true;
+        try
+        {
+            // El RowVersion de la card viaja al DELETE como token de concurrencia.
+            await UiAcciones.ConfirmarEliminarYRecargarAsync(DialogService, Notifications,
+                $"¿Eliminar estructura «{est.Nombre}»? Se eliminarán todos sus ítems.",
+                () => Estructuras.EliminarAsync(est.Id, est.RowVersion),
+                "Estructura eliminada", est.Nombre,
+                "Ya eliminada", $"La estructura «{est.Nombre}» ya había sido eliminada por otro usuario.",
+                CargarAsync);
+        }
+        finally { procesando = false; }
+    }
+}

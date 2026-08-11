@@ -1,0 +1,65 @@
+@page "/sin-acceso"
+@inject NavigationManager Nav
+
+<PageTitle>Sin acceso</PageTitle>
+
+<RadzenStack AlignItems="AlignItems.Center" class="rz-mt-8">
+    <RadzenCard Variant="Variant.Outlined" style="max-width:560px">
+        <RadzenStack Gap="0.75rem" AlignItems="AlignItems.Center">
+            <RadzenIcon Icon="lock" style="font-size:3rem;color:var(--rz-warning)" />
+            <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Sin permisos para esa sección</RadzenText>
+
+            @if (!tieneAlgunRol)
+            {
+                @* Sin ningún rol: recién registrado, a la espera de habilitación. *@
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-text-align-center rz-mb-0">
+                    Tu usuario <b>@nombre</b> ya quedó registrado en el sistema, pero todavía no tiene roles
+                    asignados. Pedile a un administrador que te habilite y después recargá la página (F5).
+                </RadzenText>
+            }
+            else
+            {
+                <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-text-align-center rz-mb-0">
+                    Podés seguir navegando por las secciones habilitadas para tu rol:
+                </RadzenText>
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap" JustifyContent="JustifyContent.Center">
+                    @if (esCertificaciones)
+                    {
+                        <RadzenButton Text="Calcular" Icon="calculate" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                                      Click="@(() => Nav.NavigateTo("redeterminacion/calcular"))" />
+                        <RadzenButton Text="Obras" Icon="apartment" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Flat"
+                                      Click="@(() => Nav.NavigateTo("obras"))" />
+                    }
+                    @if (esPlanificacion)
+                    {
+                        <RadzenButton Text="Planificación" Icon="event_note" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info"
+                                      Click="@(() => Nav.NavigateTo("planificacion"))" />
+                    }
+                    @if (esAdmin)
+                    {
+                        <RadzenButton Text="Usuarios" Icon="group" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                                      Click="@(() => Nav.NavigateTo("usuarios"))" />
+                    }
+                </RadzenStack>
+            }
+        </RadzenStack>
+    </RadzenCard>
+</RadzenStack>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private string? nombre;
+    private bool esCertificaciones, esPlanificacion, esAdmin;
+    private bool tieneAlgunRol => esCertificaciones || esPlanificacion;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is null) return;
+        var user = (await AuthState).User;
+        nombre = user.Identity?.Name;
+        esCertificaciones = Roles.TieneAlguno(user.IsInRole, Roles.Certificaciones);
+        esPlanificacion = Roles.TieneAlguno(user.IsInRole, Roles.Planificacion);
+        esAdmin = user.IsInRole(Roles.Admin);
+    }
+}

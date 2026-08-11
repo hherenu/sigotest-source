@@ -1,0 +1,62 @@
+@* Tabla de la ponderación calculada (Kᵢ/K₀ por insumo y fila de totales), compartida
+   por Calcular y el detalle del cálculo guardado: una sola implementación evita que
+   las dos pantallas deriven. Las páginas proyectan su VM a FilaPonderacion. *@
+<div class="cert-scroll">
+    <table class="cert-grid">
+        <thead>
+            <tr>
+                <th>N°</th>
+                <th style="text-align:left">Insumo</th>
+                <th>Peso %</th>
+                <th>Indicador @EtiquetaBase</th>
+                <th>Indicador @EtiquetaSalto</th>
+                <th>Kᵢ/K₀</th>
+                <th>Variación Ponderada</th>
+                <th style="text-align:left">INDEC</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var f in Filas)
+            {
+                @* Sin @key a propósito: la tabla es de solo lectura y se re-proyecta entera
+                   por render; una clave de negocio (Numero) podría venir duplicada de datos
+                   viejos y un @key duplicado tira la página al ErrorBoundary. *@
+                <tr class="@(f.KiK0.HasValue ? "" : "row-warning")" style="text-align:center">
+                    <td>@f.Numero</td>
+                    <td style="text-align:left">@f.Insumo</td>
+                    <td>@f.PesoPorcentaje.ToString("N2")%</td>
+                    <td>@f.ValorMesBase?.ToString("N2")</td>
+                    <td>@f.ValorMesSalto?.ToString("N2")</td>
+                    <td>@f.KiK0?.ToString("N2")</td>
+                    <td style="font-weight:600">@f.VariacionPonderada?.ToString("N2")</td>
+                    <td class="cell-mono" style="text-align:left">@f.DescripcionINDEC</td>
+                </tr>
+            }
+        </tbody>
+        <tfoot>
+            <tr style="text-align:center">
+                <td colspan="2" class="num">TOTAL</td>
+                <td>100,00%</td>
+                <td colspan="3">TOTAL</td>
+                <td style="color:@Color">@TotalKiK0?.ToString("N2")</td>
+                <td style="color:@Color">@PorcentajeAumento?.ToString("N4")%</td>
+            </tr>
+        </tfoot>
+    </table>
+</div>
+
+@code {
+    /// <summary>Fila común de la tabla; los campos calzan 1:1 con los dos VMs de origen.</summary>
+    public record FilaPonderacion(int Numero, string? Insumo, decimal PesoPorcentaje,
+        decimal? ValorMesBase, decimal? ValorMesSalto, decimal? KiK0, decimal? VariacionPonderada,
+        string? DescripcionINDEC);
+
+    [Parameter, EditorRequired] public IEnumerable<FilaPonderacion> Filas { get; set; } = [];
+    /// <summary>Etiqueta del mes base para el encabezado (ej. "Mar 2026").</summary>
+    [Parameter, EditorRequired] public string EtiquetaBase { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string EtiquetaSalto { get; set; } = string.Empty;
+    [Parameter] public decimal? TotalKiK0 { get; set; }
+    [Parameter] public decimal? PorcentajeAumento { get; set; }
+
+    private string Color => Redet.ColorSuba(PorcentajeAumento);
+}

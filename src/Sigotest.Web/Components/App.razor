@@ -1,0 +1,57 @@
+﻿@*
+    Render mode sin prerender: el componente se inicializa UNA sola vez (en el circuito).
+    Con prerender activo, OnInitialized/OnParametersSet corrían dos veces (SSR + interactivo),
+    duplicando todas las queries y perdiendo los toasts emitidos antes de que exista el circuito.
+*@
+@{
+    var modoRender = new InteractiveServerRenderMode(prerender: false);
+}
+@code {
+    [CascadingParameter] public HttpContext? HttpContext { get; set; }
+
+    private string temaInicial = SIGO.Services.Temas.Oscuro;
+
+    protected override void OnInitialized() =>
+        temaInicial = SIGO.Services.Temas.Normalizar(HttpContext?.Request.Cookies["SIGOTheme"]);
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <link rel="icon" type="image/png" href="img/subte-logo.png" />
+    @* El CSS del tema lo emite RadzenTheme (en vez de un <link> fijo) para que el
+       AppearanceToggle del layout pueda alternar claro/oscuro en caliente. El tema
+       inicial se lee de la cookie SIGOTheme acá (SSR, antes del circuito): si no,
+       el usuario de tema claro veía un flash oscuro en cada carga completa hasta
+       que CookieThemeService permutaba el CSS. La allowlist cubre además una cookie
+       adulterada, que dejaría la app apuntando a un CSS inexistente. *@
+    <RadzenTheme Theme="@temaInicial" @rendermode="modoRender" />
+    <link rel="stylesheet" href="css/app-blazor.css" />
+    <HeadOutlet @rendermode="modoRender" />
+</head>
+<body>
+    @* Splash mientras conecta el circuito; se oculta solo cuando aparece el layout. *@
+    <div id="app-loading"><div class="app-spinner"></div></div>
+
+    <Routes @rendermode="modoRender" />
+    <script src="_framework/blazor.web.js"></script>
+    <script src="_content/Radzen.Blazor/Radzen.Blazor.js"></script>
+    <script>
+        // Quita el splash en cuanto Blazor renderiza el layout. Con red de seguridad:
+        // si algo fallara, igual se retira a los 15s para no dejar la app tapada.
+        (function () {
+            var splash = document.getElementById('app-loading');
+            if (!splash) return;
+            var quitar = function () { splash.remove(); };
+            if (document.querySelector('.rz-layout')) return quitar();
+            var obs = new MutationObserver(function () {
+                if (document.querySelector('.rz-layout')) { obs.disconnect(); quitar(); }
+            });
+            obs.observe(document.body, { childList: true, subtree: true });
+            setTimeout(function () { obs.disconnect(); quitar(); }, 15000);
+        })();
+    </script>
+</body>
+</html>

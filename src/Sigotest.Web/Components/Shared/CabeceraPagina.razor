@@ -1,0 +1,53 @@
+@* Cabecera estándar de las páginas de detalle/edición: título H1 (+badges) y subtítulo
+   a la izquierda, botones de acción a la derecha. Antes estaba copiada con variaciones
+   accidentales en 9 páginas; las diferencias deliberadas entran por parámetros. *@
+<RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+             AlignItems="AlignItems.Center" Wrap="FlexWrap.Wrap" Gap="0.5rem" class="@Clase">
+    <RadzenStack Gap="0.15rem">
+        @if (Badges is null)
+        {
+            <RadzenText TextStyle="@Estilo" TagName="TagName.H1" class="rz-mb-0">@Titulo</RadzenText>
+        }
+        else
+        {
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                <RadzenText TextStyle="@Estilo" TagName="TagName.H1" class="rz-mb-0">@Titulo</RadzenText>
+                @Badges
+            </RadzenStack>
+        }
+        @if (Subtitulo is not null)
+        {
+            <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">@Subtitulo</RadzenText>
+        }
+        @SubtituloExtra
+    </RadzenStack>
+    @if (Acciones is not null)
+    {
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+            @Acciones
+        </RadzenStack>
+    }
+</RadzenStack>
+
+@code {
+    /// <summary>Título de la página (H1 visual en el TextStyle de <see cref="Estilo"/>).</summary>
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+
+    /// <summary>TextStyle del título: H5 en detalle/edición, H4 en los listados raíz.</summary>
+    [Parameter] public TextStyle Estilo { get; set; } = TextStyle.H5;
+
+    /// <summary>Badges a la derecha del título (estado, fechas).</summary>
+    [Parameter] public RenderFragment? Badges { get; set; }
+
+    /// <summary>Subtítulo en el caption estándar (obra — licitación). Admite contenido con estilo.</summary>
+    [Parameter] public RenderFragment? Subtitulo { get; set; }
+
+    /// <summary>Contenido libre debajo del título, fuera del caption (ej. badges del índice).</summary>
+    [Parameter] public RenderFragment? SubtituloExtra { get; set; }
+
+    /// <summary>Botones de la derecha.</summary>
+    [Parameter] public RenderFragment? Acciones { get; set; }
+
+    /// <summary>Clases del contenedor; el margen inferior lo decide la página.</summary>
+    [Parameter] public string Clase { get; set; } = "rz-mb-3";
+}

@@ -1,0 +1,104 @@
+@page "/obras"
+@attribute [Authorize(Roles = Roles.Certificaciones)]
+@inject ObraService ObraService
+@inject NavigationManager Nav
+@inject DialogService DialogService
+@inject NotificationService Notifications
+
+<PageTitle>Obras</PageTitle>
+
+<CabeceraPagina Titulo="Obras" Estilo="TextStyle.H4" Clase="rz-mb-4">
+    <Acciones>
+        <RadzenButton Text="Nueva Obra" Icon="add" ButtonStyle="ButtonStyle.Success"
+                      Click="@(() => Nav.NavigateTo("obras/nueva"))" />
+    </Acciones>
+</CabeceraPagina>
+
+@if (obras is null)
+{
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+}
+else if (obras.Count == 0)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+        No hay obras cargadas.
+    </RadzenAlert>
+}
+else
+{
+    <RadzenDataGrid @ref="grid" Data="@obras" TItem="ObraVM" AllowFiltering="true"
+                    FilterMode="FilterMode.CheckBoxList" AllowColumnResize="true"
+                    AllowSorting="true" AllowPaging="true" PageSize="15"
+                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                    Density="Density.Compact" class="rz-shadow-1">
+        <Columns>
+            <RadzenDataGridColumn TItem="ObraVM" Property="NumeroLicitacion" Title="Licitación" Width="140px" />
+            <RadzenDataGridColumn TItem="ObraVM" Property="Nombre" Title="Nombre" />
+            <RadzenDataGridColumn TItem="ObraVM" Property="Contratista" Title="Contratista" />
+            <RadzenDataGridColumn TItem="ObraVM" Property="FechaActaInicio" Title="Acta Inicio" Width="120px"
+                                  FormatString="{0:dd/MM/yyyy}" TextAlign="TextAlign.Center" />
+            <RadzenDataGridColumn TItem="ObraVM" Property="FechaFinalContrato" Title="Fin Contrato" Width="120px"
+                                  FormatString="{0:dd/MM/yyyy}" TextAlign="TextAlign.Center" />
+            <RadzenDataGridColumn TItem="ObraVM" Title="Estado" Width="130px" Sortable="false" Filterable="false"
+                                  TextAlign="TextAlign.Center">
+                <Template Context="obra">
+                    @if (obra.Estado is not null)
+                    {
+                        <RadzenBadge Text="@obra.Estado" IsPill="true" BadgeStyle="@EstadoUi.BadgeObra(obra.Estado)" />
+                    }
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="ObraVM" Title="Tablas" Width="80px" Sortable="false" Filterable="false"
+                                  TextAlign="TextAlign.Center">
+                <Template Context="obra">
+                    <RadzenBadge Text="@obra.CantidadTablas.ToString()" BadgeStyle="BadgeStyle.Secondary" />
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="ObraVM" Title="" Width="210px" Sortable="false" Filterable="false"
+                                  TextAlign="TextAlign.Center">
+                <Template Context="obra">
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" JustifyContent="JustifyContent.Center">
+                        <RadzenButton Icon="visibility" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info"
+                                      Variant="Variant.Text" title="Ver"
+                                      Click="@(() => Nav.NavigateTo($"obras/{obra.Id}"))" />
+                        <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                                      Variant="Variant.Text" title="Editar"
+                                      Click="@(() => Nav.NavigateTo($"obras/{obra.Id}/editar"))" />
+                        <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger"
+                                      Variant="Variant.Text" title="Eliminar" Disabled="@procesando"
+                                      Click="@(() => EliminarAsync(obra))" />
+                    </RadzenStack>
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+}
+
+@code {
+    private RadzenDataGrid<ObraVM>? grid;
+    private List<ObraVM>? obras;
+    private bool procesando;
+
+    protected override async Task OnInitializedAsync() => await CargarAsync();
+
+    private async Task CargarAsync() => obras = await ObraService.ListarAsync();
+
+    private async Task EliminarAsync(ObraVM obra)
+    {
+        if (procesando) return;
+        // El flag antes del Confirm: un doble click no debe apilar dos diálogos.
+        procesando = true;
+        try
+        {
+            // El servicio chequea dependencias (mensaje específico antes de las FK
+            // Restrict) y lleva el RowVersion de la grilla al DELETE.
+            await UiAcciones.ConfirmarEliminarYRecargarAsync(DialogService, Notifications,
+                $"¿Eliminar la obra \"{obra.Nombre}\"?",
+                () => ObraService.EliminarAsync(obra.Id, obra.RowVersion),
+                "Obra eliminada", obra.Nombre,
+                "Ya eliminada", $"La obra \"{obra.Nombre}\" ya había sido eliminada por otro usuario.",
+                CargarAsync);
+        }
+        finally { procesando = false; }
+    }
+}

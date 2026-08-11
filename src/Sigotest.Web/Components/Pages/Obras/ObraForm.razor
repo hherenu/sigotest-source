@@ -1,0 +1,192 @@
+@page "/obras/nueva"
+@page "/obras/{Id:int}/editar"
+@attribute [Authorize(Roles = Roles.Certificaciones)]
+@inject ObraService ObraService
+@inject NavigationManager Nav
+@inject NotificationService Notifications
+
+<PageTitle>@Titulo</PageTitle>
+
+@if (noEncontrada)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+        No se encontró la obra solicitada.
+    </RadzenAlert>
+}
+else if (obra is null)
+{
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+}
+else
+{
+    <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" class="rz-mb-4">@Titulo</RadzenText>
+
+    <RadzenTemplateForm TItem="ObraVM" Data="@obra" Submit="@GuardarAsync">
+        <RadzenStack Gap="1rem" style="max-width: 960px;">
+
+            <RadzenFieldset Text="Datos Generales">
+                <RadzenRow Gap="1rem" RowGap="1rem">
+                    <RadzenColumn Size="12" SizeMD="8">
+                        <RadzenFormField Text="Nombre" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenTextBox @bind-Value="obra.Nombre" Name="Nombre" style="width:100%" />
+                        </RadzenFormField>
+                        <RadzenRequiredValidator Component="Nombre" Text="El nombre es obligatorio" Popup="true" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="4">
+                        <RadzenFormField Text="N° Licitación" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenTextBox @bind-Value="obra.NumeroLicitacion" Name="NumeroLicitacion" style="width:100%" />
+                        </RadzenFormField>
+                        <RadzenRequiredValidator Component="NumeroLicitacion" Text="La licitación es obligatoria" Popup="true" />
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="6">
+                        <RadzenFormField Text="Contratista" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenTextBox @bind-Value="obra.Contratista" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="6">
+                        <RadzenFormField Text="Antecedentes (EX)" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenTextBox @bind-Value="obra.Antecedentes" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="6">
+                        <RadzenFormField Text="PUByC" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenTextBox @bind-Value="obra.PUByC" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                </RadzenRow>
+            </RadzenFieldset>
+
+            <RadzenFieldset Text="Fechas e IFs">
+                <RadzenRow Gap="1rem" RowGap="1rem">
+                    <RadzenColumn Size="12" SizeMD="4">
+                        <RadzenFormField Text="Fecha Oferta" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenDatePicker @bind-Value="obra.FechaOferta" DateFormat="dd/MM/yyyy" ShowTime="false" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="8">
+                        <RadzenFormField Text="Oferta Final (IF)" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenTextBox @bind-Value="obra.OfertaFinal" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="4">
+                        <RadzenFormField Text="Fecha Adjudicación" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenDatePicker @bind-Value="obra.FechaAdjudicacion" DateFormat="dd/MM/yyyy" ShowTime="false" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="8">
+                        <RadzenFormField Text="IF Adjudicación" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenTextBox @bind-Value="obra.IFAdjudicacion" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="4">
+                        <RadzenFormField Text="Fecha Contrato" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenDatePicker @bind-Value="obra.FechaContrato" DateFormat="dd/MM/yyyy" ShowTime="false" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="8">
+                        <RadzenFormField Text="IF Contrato" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenTextBox @bind-Value="obra.IFContrato" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="4">
+                        <RadzenFormField Text="Fecha Acta Inicio" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenDatePicker @bind-Value="obra.FechaActaInicio" DateFormat="dd/MM/yyyy" ShowTime="false" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="8">
+                        <RadzenFormField Text="IF Acta Inicio" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenTextBox @bind-Value="obra.IFActaInicio" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="4">
+                        <RadzenFormField Text="Fecha Final Contrato" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenDatePicker @bind-Value="obra.FechaFinalContrato" DateFormat="dd/MM/yyyy" ShowTime="false" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="8">
+                        <RadzenFormField Text="Plazo de Obra" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenTextBox @bind-Value="obra.PlazoObra" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="6">
+                        <RadzenFormField Text="Director de Obra (usuario — recibe las notificaciones de planificación)" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenDropDown @bind-Value="obra.DirectorUsuarioId" Data="@directores" TextProperty="Nombre" ValueProperty="Id"
+                                            TValue="int?" AllowClear="true" Placeholder="(sin usuario asignado)" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    @if (obra.DirectorUsuarioId is null)
+                    {
+                        @* Texto libre interino para obras cuyo director no es usuario de la app
+                           (ver Obra.DirectorUsuarioId); con usuario asignado, ese nombre manda. *@
+                        <RadzenColumn Size="12" SizeMD="6">
+                            <RadzenFormField Text="Director (texto libre, sin usuario)" Variant="Variant.Outlined" style="width:100%">
+                                <RadzenTextBox @bind-Value="obra.DirectorObra" style="width:100%" />
+                            </RadzenFormField>
+                        </RadzenColumn>
+                    }
+                    <RadzenColumn Size="12" SizeMD="6">
+                        <RadzenFormField Text="IF Designación" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenTextBox @bind-Value="obra.IFDesignacion" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                </RadzenRow>
+            </RadzenFieldset>
+
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                <RadzenButton ButtonType="ButtonType.Submit" Text="Guardar" Icon="save" ButtonStyle="ButtonStyle.Primary"
+                              IsBusy="@guardando" BusyText="Guardando..." />
+                <RadzenButton Text="Cancelar" Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                              Click="@(() => Nav.NavigateTo("obras"))" />
+            </RadzenStack>
+        </RadzenStack>
+    </RadzenTemplateForm>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private ObraVM? obra;
+    private bool noEncontrada;
+    private bool guardando;
+
+    private string Titulo => Id is null ? "Nueva Obra" : "Editar Obra";
+
+    private bool cargado;
+    private int? idCargado;
+    private List<DirectorCandidatoVM> directores = new();
+
+    // OnParametersSetAsync: el componente se reutiliza si sólo cambia el parámetro de ruta.
+    protected override async Task OnParametersSetAsync()
+    {
+        if (cargado && idCargado == Id) return;
+        cargado = true;
+        idCargado = Id;
+
+        directores = await ObraService.CandidatosDirectorAsync(Id);
+
+        if (Id is null)
+        {
+            obra = new ObraVM();
+            noEncontrada = false;
+        }
+        else
+        {
+            obra = await ObraService.ObtenerAsync(Id.Value);
+            noEncontrada = obra is null;
+        }
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (obra is null || guardando) return;
+
+        guardando = true;
+        try
+        {
+            await UiAcciones.GuardarYNavegarAsync(Notifications, Nav,
+                () => Id is null ? ObraService.CrearAsync(obra) : ObraService.ActualizarAsync(obra),
+                "Obra guardada", () => obra.Nombre, () => "obras");
+        }
+        finally { guardando = false; }
+    }
+}

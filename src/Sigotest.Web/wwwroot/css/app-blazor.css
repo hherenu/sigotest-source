@@ -1,0 +1,146 @@
+/* Ajustes propios sobre el tema Radzen para las páginas Blazor.
+   Todos los colores derivan de variables --rz-* del tema, para que funcionen
+   igual en claro y oscuro (el usuario alterna con el AppearanceToggle).
+   Neutros sutiles: color-mix sobre --rz-text-color da la misma intensidad de
+   contraste en ambos modos (blanco translúcido en oscuro, negro en claro). */
+
+/* Texto atenuado (captions, labels, hints). Radzen no trae clase de utilidad para
+   --rz-text-secondary-color; rz-color-secondary NO sirve para esto (es el color de
+   MARCA secundario, p. ej. celeste saturado en humanistic, ilegible como texto). */
+.app-muted { color: var(--rz-text-secondary-color) !important; }
+
+/* Colores de fila de agrupador — definidos una sola vez; se usan en cert-grid
+   (CSS) y en el RowRender del RadzenDataGrid de Estructuras (inline). */
+:root {
+    --app-agrup-0-bg: var(--rz-success-lighter);
+    --app-agrup-1-bg: var(--rz-warning-lighter);
+    /* humanistic dibuja un divisor vertical al lado del toggle de la sidebar
+       (material usa none); se anula para que el header quede limpio como en SAF. */
+    --rz-sidebar-toggle-border: none;
+}
+
+/* Contraste en TEMA CLARO (clase que pone MainLayout según ThemeService).
+   humanistic define el texto de las alertas Shade.Lighter con el color PLENO de
+   la severidad (turquesa #2cc8c8, amarillo #fac152...) — legible sobre fondo
+   oscuro, 1.5–2.5:1 sobre fondo claro — y los toasts con fondos saturados
+   claros + texto blanco. Valores tomados de humanistic-wcag.css del propio
+   Radzen (que en oscuro NO sirve: oscurecería el texto sobre fondo oscuro);
+   el on-warning-lighter lo deja amarillo incluso ahí, así que es derivado
+   propio (ámbar oscuro, ~5:1). */
+.tema-claro {
+    /* Texto/ícono de las alertas Lighter (patrón estándar de todas las páginas). */
+    --rz-on-info-lighter: #026969;
+    --rz-on-success-lighter: #0f6c23;
+    --rz-on-danger-lighter: #b2242e;
+    --rz-on-secondary-lighter: #005fad;
+    --rz-on-warning-lighter: #7d6222;
+    /* Toasts: fondo oscuro de la severidad para que el texto blanco contraste. */
+    --rz-notification-info-background-color: #026969;
+    --rz-notification-success-background-color: #0f6c23;
+    --rz-notification-error-background-color: #b2242e;
+    /* El toast/sólido warning conserva el amarillo, pero con texto negro (WCAG). */
+    --rz-on-warning: #000000;
+}
+
+/* Tablas de certificados (jerárquicas, encabezados agrupados) sobre tema Radzen. */
+.cert-grid {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .8rem;
+}
+.cert-grid th,
+.cert-grid td {
+    border: 1px solid var(--rz-base-300);
+    padding: .28rem .45rem;
+    white-space: nowrap;
+}
+.cert-grid thead th {
+    background: color-mix(in srgb, var(--rz-text-color) 6%, transparent);
+    text-align: center;
+    font-weight: 600;
+}
+.cert-grid tfoot td {
+    background: color-mix(in srgb, var(--rz-text-color) 10%, transparent);
+    font-weight: 700;
+}
+.cert-grid .num { text-align: right; }
+.cert-grid .col-warning { background: color-mix(in srgb, var(--rz-warning) 10%, transparent); }
+.cert-grid .col-primary { background: color-mix(in srgb, var(--rz-primary) 10%, transparent); }
+.cert-grid .col-info    { background: color-mix(in srgb, var(--rz-info) 10%, transparent); }
+.cert-grid tr.agrup-0 { background: var(--app-agrup-0-bg); font-weight: 600; }
+.cert-grid tr.agrup-1 { background: var(--app-agrup-1-bg); font-weight: 600; }
+.cert-grid .cell-mono { font-family: monospace; font-size: .75rem; opacity: .85; }
+.cert-scroll { overflow-x: auto; }
+
+/* Fila resaltada cuando falta valor de índice (Kᵢ/K₀ null) */
+.cert-grid tr.row-warning { background: var(--rz-warning-lighter); }
+
+/* Impresión / PDF: sólo #print-section (páginas Blazor de redeterminación) */
+@media print {
+    body * { visibility: hidden !important; }
+    #print-section, #print-section * { visibility: visible !important; }
+    #print-section {
+        position: absolute;
+        top: 0; left: 0; width: 100%;
+    }
+    .rz-sidebar, .rz-header, .d-print-none { display: none !important; }
+}
+
+html, body {
+    margin: 0;
+    min-height: 100vh;
+}
+
+/* El contenido principal respira un poco */
+.app-content {
+    padding: 1.25rem 1.5rem 2.5rem;
+}
+
+/* Tarjetas de módulo del inicio: son anclas reales (accesibles por teclado), pero
+   se ven como tarjetas, no como links. */
+.home-card {
+    display: block;
+    height: 100%;
+    text-decoration: none;
+    color: inherit;
+}
+
+.home-card:focus-visible {
+    outline: 2px solid var(--rz-primary);
+    outline-offset: 2px;
+    border-radius: var(--rz-card-border-radius, 4px);
+}
+
+/* Splash mientras conecta el circuito (no hay prerender: la página llega vacía).
+   Se oculta solo en cuanto Blazor renderiza el layout de Radzen. */
+#app-loading {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: var(--rz-base-background-color, #1a1a1a);
+    z-index: 1000;
+}
+.app-spinner {
+    width: 2.5rem;
+    height: 2.5rem;
+    /* Los fallbacks importan: el splash aparece antes de que cargue el CSS del tema. */
+    border: 3px solid color-mix(in srgb, var(--rz-text-color, #fff) 18%, transparent);
+    border-top-color: var(--rz-primary, #3b82f6);
+    border-radius: 50%;
+    animation: app-spin .7s linear infinite;
+}
+@keyframes app-spin { to { transform: rotate(360deg); } }
+/* El splash lo retira un script en App.razor cuando aparece el layout (no depende de :has()). */
+
+/* Overlay de "cargando circuito" desconectado */
+#blazor-error-ui {
+    display: none;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 1050;
+    padding: .75rem 1.25rem;
+    background: var(--rz-danger);
+    color: var(--rz-on-danger, #fff);
+    text-align: center;
+}

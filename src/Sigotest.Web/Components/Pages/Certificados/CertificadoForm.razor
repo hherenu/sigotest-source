@@ -1,0 +1,125 @@
+@page "/obras/{ObraId:int}/certificados/nuevo"
+@attribute [Authorize(Roles = Roles.Certificaciones)]
+@inject CertificadoService Service
+@inject NavigationManager Nav
+@inject NotificationService Notifications
+
+<PageTitle>Nuevo Certificado</PageTitle>
+
+@if (noEncontrada)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+        No se encontró la obra solicitada.
+    </RadzenAlert>
+}
+else if (alta is null)
+{
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+}
+else
+{
+    <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H1" class="rz-mb-1">Nuevo Certificado</RadzenText>
+    <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-4">@alta.ObraNombre — @alta.NumeroLicitacion</RadzenText>
+
+    <RadzenTemplateForm TItem="CertificadoNuevoVM" Data="@alta.Form" Submit="@GuardarAsync">
+        <RadzenStack Gap="1rem" style="max-width: 640px;">
+            <RadzenRow Gap="1rem" RowGap="1rem">
+                <RadzenColumn Size="12" SizeMD="4">
+                    <RadzenFormField Text="N° Certificado" Variant="Variant.Outlined" style="width:100%">
+                        <RadzenNumeric @bind-Value="alta.Form.Numero" Min="1" ShowUpDown="false" style="width:100%" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn Size="12" SizeMD="4">
+                    <RadzenFormField Text="Mes" Variant="Variant.Outlined" style="width:100%">
+                        <RadzenDropDown @bind-Value="alta.Form.Mes" Data="@(Enumerable.Range(1, 12))" TValue="int" style="width:100%">
+                            <Template Context="m">@Fmt.MesNombre(m)</Template>
+                        </RadzenDropDown>
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn Size="12" SizeMD="4">
+                    <RadzenFormField Text="Año" Variant="Variant.Outlined" style="width:100%">
+                        <RadzenNumeric @bind-Value="alta.Form.Anio" Min="2020" Max="2099" ShowUpDown="false" style="width:100%" />
+                    </RadzenFormField>
+                </RadzenColumn>
+            </RadzenRow>
+
+            <RadzenFormField Text="Estructura de Costos" Variant="Variant.Outlined" style="width:100%">
+                <RadzenDropDown @bind-Value="alta.Form.EstructuraCostosId" Data="@alta.Estructuras" TextProperty="Nombre" ValueProperty="Id"
+                                TValue="int" style="width:100%" />
+            </RadzenFormField>
+
+            <RadzenFormField Text="Fecha de Emisión" Variant="Variant.Outlined" style="width:100%">
+                <RadzenDatePicker @bind-Value="alta.Form.FechaEmision" DateFormat="dd/MM/yyyy" ShowTime="false" style="width:100%" />
+            </RadzenFormField>
+
+            <RadzenFormField Text="Observaciones" Variant="Variant.Outlined" style="width:100%">
+                <RadzenTextArea @bind-Value="alta.Form.Observaciones" Rows="2" style="width:100%" />
+            </RadzenFormField>
+
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                <RadzenButton ButtonType="ButtonType.Submit" Text="Crear y cargar ejecución" Icon="save" ButtonStyle="ButtonStyle.Primary"
+                              IsBusy="@guardando" BusyText="Creando..." />
+                <RadzenButton Text="Cancelar" Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                              Click="@(() => Nav.NavigateTo($"obras/{ObraId}/certificados"))" />
+            </RadzenStack>
+        </RadzenStack>
+    </RadzenTemplateForm>
+}
+
+@code {
+    [Parameter] public int ObraId { get; set; }
+
+    // La página bindea el VM de alta (no la entidad Certificado): la creación entera
+    // vive en CertificadoService.CrearAsync.
+    private CertificadoAltaVM? alta;
+    private bool noEncontrada;
+    private bool guardando;
+
+    private int obraIdCargada;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (obraIdCargada == ObraId) return;
+        obraIdCargada = ObraId;
+
+        alta = await Service.BuildAltaVmAsync(ObraId);
+        if (alta is null) { noEncontrada = true; return; }
+        noEncontrada = false;
+
+        if (alta.Estructuras.Count == 0)
+        {
+            Notifications.Notify(NotificationSeverity.Warning, "Sin estructuras",
+                "Primero debe cargar al menos una estructura de costos para la obra.", 6000);
+            Nav.NavigateTo($"obras/{ObraId}/certificados");
+        }
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (guardando || alta is null) return;
+        guardando = true;
+        try
+        {
+            // Patrón `rechazo`: las reglas de negocio del alta vuelven como mensaje (no
+            // como excepción) y se notifican acá; Persistencia cubre el resto de fallos.
+            var form = alta.Form;
+            string? rechazo = null;
+            int? creadoId = null;
+            var hecho = await Persistencia.EjecutarAsync(async () =>
+            {
+                (creadoId, rechazo) = await Service.CrearAsync(ObraId, form);
+            }, Notifications);
+
+            if (rechazo is not null)
+            {
+                Notifications.Notify(NotificationSeverity.Error, "No se pudo crear", rechazo, 6000);
+                return;
+            }
+            if (!hecho || creadoId is null) return;
+
+            Notifications.Notify(NotificationSeverity.Success, "Certificado creado", $"N° {alta.Form.Numero}", 4000);
+            Nav.NavigateTo($"certificados/{creadoId}/cargar");
+        }
+        finally { guardando = false; }
+    }
+}

@@ -1,0 +1,79 @@
+@page "/obras/{ObraId:int}/estructuras/nueva"
+@attribute [Authorize(Roles = Roles.Certificaciones)]
+@inject EstructuraService Estructuras
+@inject NavigationManager Nav
+@inject NotificationService Notifications
+
+<PageTitle>Nueva Estructura de Costos</PageTitle>
+
+@if (noEncontrada)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+        No se encontró la obra solicitada.
+    </RadzenAlert>
+}
+else if (obra is null)
+{
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+}
+else
+{
+    <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H1" class="rz-mb-1">Nueva Estructura de Costos</RadzenText>
+    <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-4">@obra.Nombre — @obra.NumeroLicitacion</RadzenText>
+
+    <RadzenTemplateForm TItem="EstructuraFormVM" Data="@estructura" Submit="@GuardarAsync">
+        <RadzenStack Gap="1rem" style="max-width: 520px;">
+            <div>
+                <RadzenFormField Text="Nombre de la estructura" Variant="Variant.Outlined" style="width:100%">
+                    <RadzenTextBox @bind-Value="estructura.Nombre" Name="Nombre" Placeholder="Ej: Estructura Original, Adicional N°1" style="width:100%" />
+                </RadzenFormField>
+                <RadzenRequiredValidator Component="Nombre" Text="El nombre es obligatorio" Popup="true" />
+            </div>
+            <RadzenFormField Text="Fecha" Variant="Variant.Outlined" style="width:100%">
+                <RadzenDatePicker @bind-Value="estructura.FechaCreacion" DateFormat="dd/MM/yyyy" ShowTime="false" style="width:100%" />
+            </RadzenFormField>
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                <RadzenButton ButtonType="ButtonType.Submit" Text="Crear y cargar ítems" Icon="save" ButtonStyle="ButtonStyle.Primary"
+                              IsBusy="@guardando" BusyText="Creando..." />
+                <RadzenButton Text="Cancelar" Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                              Click="@(() => Nav.NavigateTo($"obras/{ObraId}/estructuras"))" />
+            </RadzenStack>
+        </RadzenStack>
+    </RadzenTemplateForm>
+}
+
+@code {
+    [Parameter] public int ObraId { get; set; }
+
+    private ObraResumenVM? obra;
+    private bool noEncontrada;
+    private EstructuraFormVM estructura = new();
+    private bool guardando;
+
+    private int obraIdCargada;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (obraIdCargada == ObraId) return;
+        obraIdCargada = ObraId;
+
+        obra = await Estructuras.ObtenerObraAsync(ObraId);
+        if (obra is null) { noEncontrada = true; return; }
+        noEncontrada = false;
+        estructura = new EstructuraFormVM();
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (guardando) return;
+        guardando = true;
+        try
+        {
+            var nuevoId = 0;
+            await UiAcciones.GuardarYNavegarAsync(Notifications, Nav,
+                async () => nuevoId = await Estructuras.CrearAsync(ObraId, estructura),
+                "Estructura creada", () => estructura.Nombre ?? "", () => $"estructuras/{nuevoId}");
+        }
+        finally { guardando = false; }
+    }
+}

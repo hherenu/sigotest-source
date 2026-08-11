@@ -1,0 +1,275 @@
+@page "/estructuras/{Id:int}"
+@attribute [Authorize(Roles = Roles.Certificaciones)]
+@inject EstructuraService Estructuras
+@inject NavigationManager Nav
+@inject DialogService DialogService
+@inject NotificationService Notifications
+
+<PageTitle>@(estructura is null ? "Ítems" : $"Ítems — {estructura.Nombre}")</PageTitle>
+
+@if (noEncontrada)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+        No se encontró la estructura solicitada.
+    </RadzenAlert>
+}
+else if (estructura is null)
+{
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+}
+else
+{
+    <CabeceraPagina Titulo="@estructura.Nombre">
+        <Subtitulo>@estructura.ObraNombre — @estructura.ObraNumeroLicitacion</Subtitulo>
+        <Acciones>
+            <RadzenButton Text="Volver a estructuras" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
+                          Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"obras/{estructura.ObraId}/estructuras"))" />
+        </Acciones>
+    </CabeceraPagina>
+
+    @* ── Tabla de ítems ── *@
+    <RadzenCard Variant="Variant.Outlined" class="rz-mb-4">
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                     AlignItems="AlignItems.Center" class="rz-mb-3">
+            <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Ítems de la estructura</RadzenText>
+            @if (montoTotal > 0)
+            {
+                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-0" style="font-weight:700">
+                    Monto Total Contrato: $ @montoTotal.ToString("N2")
+                </RadzenText>
+            }
+        </RadzenStack>
+
+        @if (filas.Count == 0)
+        {
+            <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
+                No hay ítems cargados. Usá el formulario de abajo para agregar.
+            </RadzenText>
+        }
+        else
+        {
+            <RadzenDataGrid Data="@filas" TItem="Fila" AllowPaging="false" AllowSorting="false" AllowFiltering="false"
+                            GridLines="DataGridGridLines.Both" Density="Density.Compact" RowRender="@OnRowRender">
+                <Columns>
+                    <RadzenDataGridColumn TItem="Fila" Title="#" Width="46px" TextAlign="TextAlign.Center">
+                        <Template Context="f">@f.Item.Orden</Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="Fila" Title="Código" Width="140px">
+                        <Template Context="f">
+                            @if (!f.Item.EsAgrupador)
+                            {
+                                <span class="rz-text-truncate" style="padding-left:@(Pad(f))px;font-family:monospace;font-size:.8rem">@f.Item.Codigo</span>
+                            }
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="Fila" Title="Descripción">
+                        <Template Context="f">
+                            <span style="padding-left:@(f.Item.EsAgrupador ? Pad(f) : 0)px">@f.Item.Descripcion</span>
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="Fila" Title="Unidad" Width="70px" TextAlign="TextAlign.Center">
+                        <Template Context="f">@(f.Item.EsAgrupador ? "" : f.Item.Unidad)</Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="Fila" Title="Cantidad" Width="100px" TextAlign="TextAlign.Right">
+                        <Template Context="f">@(f.Item.EsAgrupador ? "" : f.Item.Cantidad?.ToString("N4"))</Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="Fila" Title="PU Básico" Width="120px" TextAlign="TextAlign.Right">
+                        <Template Context="f">@(!f.Item.EsAgrupador && f.Item.PUBasico.HasValue ? "$ " + f.Item.PUBasico.Value.ToString("N4") : "")</Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="Fila" Title="Monto" Width="130px" TextAlign="TextAlign.Right">
+                        <Template Context="f">
+                            @(f.Monto > 0 ? "$ " + f.Monto.ToString("N2") : "")
+                        </Template>
+                        <FooterTemplate>
+                            @if (montoTotal > 0)
+                            {
+                                <b>$ @montoTotal.ToString("N2")</b>
+                            }
+                        </FooterTemplate>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="Fila" Title="% Pond." Width="90px" TextAlign="TextAlign.Right">
+                        <Template Context="f">
+                            @{
+                                var p = Pond(f.Monto);
+                            }
+                            @(p > 0 ? p.ToString("N4") + "%" : "")
+                        </Template>
+                        <FooterTemplate>
+                            @if (montoTotal > 0)
+                            {
+                                <b>100%</b>
+                            }
+                        </FooterTemplate>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="Fila" Title="Acciones" Width="100px" TextAlign="TextAlign.Center">
+                        <Template Context="f">
+                            <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
+                                          title="Editar" Click="@(() => Nav.NavigateTo($"estructuras/item/{f.Item.Id}/editar"))" />
+                            <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
+                                          title="Eliminar" Disabled="@procesando" Click="@(() => EliminarItemAsync(f.Item))" />
+                        </Template>
+                    </RadzenDataGridColumn>
+                </Columns>
+            </RadzenDataGrid>
+        }
+    </RadzenCard>
+
+    @* ── Formulario agregar ítem ── *@
+    <RadzenCard Variant="Variant.Outlined">
+        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">Agregar ítem</RadzenText>
+        <RadzenTemplateForm TItem="ItemEstructuraVM" Data="@nuevo" Submit="@AgregarAsync">
+            <RadzenStack Gap="1rem">
+                <RadzenCheckBox @bind-Value="nuevo.EsAgrupador" Name="EsAgrupador" TValue="bool" />
+                <RadzenLabel Text="Es agrupador / rubro" Component="EsAgrupador" class="rz-ml-2" />
+
+                <RadzenRow Gap="1rem" RowGap="1rem" AlignItems="AlignItems.End">
+                    @if (!nuevo.EsAgrupador)
+                    {
+                        <RadzenColumn Size="12" SizeMD="2">
+                            <RadzenFormField Text="Código" Variant="Variant.Outlined" style="width:100%">
+                                <RadzenTextBox @bind-Value="nuevo.Codigo" Placeholder="P.GEN.1.1" style="width:100%" />
+                            </RadzenFormField>
+                        </RadzenColumn>
+                    }
+                    <RadzenColumn Size="12" SizeMD="@(nuevo.EsAgrupador ? 8 : 3)">
+                        <div>
+                            <RadzenFormField Text="Descripción *" Variant="Variant.Outlined" style="width:100%">
+                                <RadzenTextBox @bind-Value="nuevo.Descripcion" Name="Descripcion" style="width:100%" />
+                            </RadzenFormField>
+                            <RadzenRequiredValidator Component="Descripcion" Text="La descripción es obligatoria" Popup="true" />
+                        </div>
+                    </RadzenColumn>
+                    @if (!nuevo.EsAgrupador)
+                    {
+                        <RadzenColumn Size="12" SizeMD="2">
+                            <RadzenFormField Text="Agrupador padre" Variant="Variant.Outlined" style="width:100%">
+                                <RadzenDropDown @bind-Value="nuevo.AgrupadorPadreId" Data="@Agrupadores" TextProperty="Descripcion" ValueProperty="Id"
+                                                TValue="int?" AllowClear="true" Placeholder="(ninguno)" style="width:100%" />
+                            </RadzenFormField>
+                        </RadzenColumn>
+                        <RadzenColumn Size="6" SizeMD="1">
+                            <RadzenFormField Text="Unidad" Variant="Variant.Outlined" style="width:100%">
+                                <RadzenTextBox @bind-Value="nuevo.Unidad" Placeholder="m2" style="width:100%" />
+                            </RadzenFormField>
+                        </RadzenColumn>
+                        <RadzenColumn Size="6" SizeMD="1">
+                            <RadzenFormField Text="Cantidad" Variant="Variant.Outlined" style="width:100%">
+                                <RadzenNumeric @bind-Value="nuevo.Cantidad" Min="0" Step="0.0001" ShowUpDown="false" style="width:100%" />
+                            </RadzenFormField>
+                        </RadzenColumn>
+                        <RadzenColumn Size="12" SizeMD="2">
+                            <RadzenFormField Text="PU Básico ($)" Variant="Variant.Outlined" style="width:100%">
+                                <RadzenNumeric @bind-Value="nuevo.PUBasico" Min="0" Step="0.0001" ShowUpDown="false" style="width:100%" />
+                            </RadzenFormField>
+                        </RadzenColumn>
+                    }
+                    <RadzenColumn Size="12" SizeMD="1">
+                        <RadzenButton ButtonType="ButtonType.Submit" Text="Agregar" Icon="add" ButtonStyle="ButtonStyle.Primary" style="width:100%"
+                                      IsBusy="@procesando" BusyText="..." />
+                    </RadzenColumn>
+                </RadzenRow>
+            </RadzenStack>
+        </RadzenTemplateForm>
+    </RadzenCard>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private EstructuraVM? estructura;
+    private bool noEncontrada;
+    private decimal montoTotal;
+    private List<Fila> filas = new();
+    private ItemEstructuraVM nuevo = new();
+    private bool procesando;
+
+    private IEnumerable<ItemEstructuraVM> Agrupadores =>
+        estructura?.Items.Where(i => i.EsAgrupador).OrderBy(i => i.Orden) ?? Enumerable.Empty<ItemEstructuraVM>();
+
+    private int idCargado;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (idCargado == Id) return;
+        idCargado = Id;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        estructura = await Estructuras.ObtenerConItemsAsync(Id);
+        if (estructura is null) { noEncontrada = true; return; }
+        Recompute();
+    }
+
+    private void Recompute()
+    {
+        montoTotal = estructura!.MontoTotal;
+        // El monto de cada fila (suma de hojas directas para los agrupadores) se
+        // precalcula UNA vez acá: en los templates corría por fila × columna en cada
+        // render, O(n²) sobre la estructura completa.
+        var montoPorAgrupador = estructura.Items
+            .Where(i => !i.EsAgrupador && i.AgrupadorPadreId.HasValue && i.Monto.HasValue)
+            .GroupBy(i => i.AgrupadorPadreId!.Value)
+            .ToDictionary(g => g.Key, g => g.Sum(i => i.Monto!.Value));
+        filas = Arbol
+            .Aplanar(estructura.Items, i => i.AgrupadorPadreId, i => i.Id, i => i.Orden, i => i.EsAgrupador)
+            .Select(t => new Fila(t.Item, t.Nivel,
+                t.Item.EsAgrupador ? montoPorAgrupador.GetValueOrDefault(t.Item.Id) : t.Item.Monto ?? 0))
+            .ToList();
+    }
+
+    private decimal Pond(decimal monto) => montoTotal > 0 && monto > 0 ? Math.Round(monto * 100 / montoTotal, 4) : 0;
+
+    private static int Pad(Fila f) => f.Nivel * 16 + 8;
+
+    private void OnRowRender(RowRenderEventArgs<Fila> args)
+    {
+        if (args.Data?.Item.EsAgrupador == true)
+        {
+            var bg = args.Data.Nivel == 0 ? "var(--app-agrup-0-bg)" : "var(--app-agrup-1-bg)";
+            args.Attributes.Add("style", $"background:{bg};font-weight:600");
+        }
+    }
+
+    private async Task AgregarAsync()
+    {
+        if (procesando) return;
+
+        procesando = true;
+        try
+        {
+            // La normalización (agrupador sin código/valores, Monto=Cantidad×PU) y el
+            // Orden=Max+1 leído de la DB viven en el servicio/validator.
+            var hecho = await Persistencia.EjecutarAsync(
+                () => Estructuras.AgregarItemAsync(estructura!.Id, nuevo), Notifications);
+
+            if (!hecho) return;
+            Notifications.Notify(NotificationSeverity.Success, "Ítem agregado", (nuevo.Descripcion ?? string.Empty).Trim(), 3000);
+            nuevo = new ItemEstructuraVM();
+            await CargarAsync();
+        }
+        finally { procesando = false; }
+    }
+
+    private async Task EliminarItemAsync(ItemEstructuraVM item)
+    {
+        if (procesando) return;
+        // El flag antes del Confirm: un doble click no debe apilar dos diálogos.
+        procesando = true;
+        try
+        {
+            // El RowVersion de la carga viaja al DELETE; el servicio desasocia los
+            // hijos si es agrupador.
+            await UiAcciones.ConfirmarEliminarYRecargarAsync(DialogService, Notifications,
+                $"¿Eliminar «{item.Descripcion}»?",
+                () => Estructuras.EliminarItemAsync(item.Id, item.RowVersion),
+                "Ítem eliminado", item.Descripcion ?? "",
+                "Ítem ya eliminado", $"«{item.Descripcion}» ya había sido eliminado por otro usuario.",
+                CargarAsync);
+        }
+        finally { procesando = false; }
+    }
+
+    public record Fila(ItemEstructuraVM Item, int Nivel, decimal Monto);
+}
