@@ -6,6 +6,10 @@ using SIGO.Services;
 // SupportedOSPlatform en el ensamblado de SIGO): declararlo acalla los CA1416.
 [assembly: System.Runtime.Versioning.SupportedOSPlatform("windows")]
 
+// Las clases que usan LocalDB se serializan para evitar saturar la instancia
+// compartida de SQL Server durante su inicialización en GitHub Actions.
+[assembly: CollectionBehavior(DisableTestParallelization = true)]
+
 namespace SIGO.Tests;
 
 /// <summary>Usuario de prueba con los roles que se le pasen.</summary>
