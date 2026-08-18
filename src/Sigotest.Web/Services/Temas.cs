@@ -8,8 +8,8 @@ namespace SIGO.Services;
 /// </summary>
 public static class Temas
 {
-    public const string Oscuro = "humanistic-dark";
-    public const string Claro = "humanistic";
+    public const string Oscuro = "material-dark";
+    public const string Claro = "material";
 
     /// <summary>El tema si es válido; si no (cookie ausente o adulterada), el oscuro por defecto.</summary>
     public static string Normalizar(string? tema) =>

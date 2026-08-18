@@ -1,0 +1,79 @@
+@inject IndiceService Service
+@inject DialogService DialogService
+@inject NotificationService Notifications
+
+@* Alta de valor mensual de /indices/{id}/valores en diálogo (antes panel lateral:
+   robaba un tercio del ancho a la grilla para un alta que ocurre una vez al mes).
+   Cierra con true si agregó (el llamador recarga la lista); ante un duplicado
+   avisa y queda abierto para corregir. *@
+
+<RadzenTemplateForm TItem="NuevoValorVM" Data="@nuevo" Submit="@AgregarAsync">
+    <RadzenStack Gap="0.75rem">
+        <RadzenFormField Text="Año" Variant="Variant.Outlined" style="width:100%">
+            <RadzenNumeric @bind-Value="nuevo.Anio" Min="2000" Max="2100" ShowUpDown="false" style="width:100%" />
+        </RadzenFormField>
+        <RadzenFormField Text="Mes" Variant="Variant.Outlined" style="width:100%">
+            <RadzenDropDown @bind-Value="nuevo.Mes" Data="@(Enumerable.Range(1, 12))" TValue="int" style="width:100%">
+                <Template Context="m">@Fmt.MesNombre(m)</Template>
+            </RadzenDropDown>
+        </RadzenFormField>
+        <div>
+            <RadzenFormField Text="Valor" Variant="Variant.Outlined" style="width:100%">
+                <RadzenNumeric @bind-Value="nuevo.Valor" Name="Valor" Step="0.0001" ShowUpDown="false" style="width:100%" />
+            </RadzenFormField>
+            <RadzenRequiredValidator Component="Valor" Text="El valor es obligatorio" Popup="true" />
+            <RadzenNumericRangeValidator Component="Valor" Min="0.0001" Text="El valor debe ser mayor que cero" Popup="true" />
+        </div>
+        <RadzenFormField Text="ID Publicación" Variant="Variant.Outlined" style="width:100%">
+            <RadzenTextBox @bind-Value="nuevo.IdPublicacion" Placeholder="Ej: INDEC_INFORMA_04_26" style="width:100%" />
+        </RadzenFormField>
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+            <RadzenButton Text="Cancelar" Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                          Click="@(() => DialogService.Close(false))" />
+            <RadzenButton ButtonType="ButtonType.Submit" Text="Agregar" Icon="add" ButtonStyle="ButtonStyle.Primary"
+                          IsBusy="@procesando" BusyText="Agregando..." />
+        </RadzenStack>
+    </RadzenStack>
+</RadzenTemplateForm>
+
+@code {
+    [Parameter] public int IndiceId { get; set; }
+
+    private NuevoValorVM nuevo = new();
+    private bool procesando;
+
+    protected override void OnInitialized() =>
+        nuevo = new NuevoValorVM { Anio = DateTime.Now.Year, Mes = DateTime.Now.Month };
+
+    private async Task AgregarAsync()
+    {
+        if (procesando) return;
+        procesando = true;
+        try
+        {
+            var pub = IndiceService.NormalizarPublicacion(nuevo.IdPublicacion);
+            var duplicado = false;
+            var hecho = await Persistencia.EjecutarAsync(async () =>
+            {
+                // La regla de duplicado por publicación vive en el servicio (espeja
+                // los índices únicos de la DB): false = ya existía, no es un error.
+                duplicado = !await Service.AgregarValorAsync(IndiceId, nuevo);
+            }, Notifications);
+
+            if (duplicado)
+            {
+                Notifications.Notify(NotificationSeverity.Warning, "Duplicado",
+                    pub is null
+                        ? $"Ya existe un valor sin publicación para ese índice en {nuevo.Mes}/{nuevo.Anio}."
+                        : $"Ya existe un valor para ese índice en {nuevo.Mes}/{nuevo.Anio} con la publicación {pub}.", 6000);
+                return;
+            }
+            if (!hecho) return;
+
+            Notifications.Notify(NotificationSeverity.Success, "Valor agregado",
+                $"{Fmt.MesNombre(nuevo.Mes)} {nuevo.Anio}", 3000);
+            DialogService.Close(true);
+        }
+        finally { procesando = false; }
+    }
+}

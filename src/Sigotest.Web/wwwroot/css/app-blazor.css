@@ -1,12 +1,14 @@
-/* Ajustes propios sobre el tema Radzen para las páginas Blazor.
-   Todos los colores derivan de variables --rz-* del tema, para que funcionen
+/* Ajustes propios sobre el tema Radzen (material/material-dark) para las páginas
+   Blazor. Los colores derivan de variables --rz-* del tema, para que funcionen
    igual en claro y oscuro (el usuario alterna con el AppearanceToggle).
-   Neutros sutiles: color-mix sobre --rz-text-color da la misma intensidad de
-   contraste en ambos modos (blanco translúcido en oscuro, negro en claro). */
+   Los fixes de contraste de la era humanistic (.tema-claro) se retiraron al pasar
+   a material, que trae su propio manejo; están en el historial de git si algún
+   toast/alerta volviera a quedar ilegible.
+   Los bloques marcados (SAF) están portados del app.css del proyecto SAF. */
 
 /* Texto atenuado (captions, labels, hints). Radzen no trae clase de utilidad para
    --rz-text-secondary-color; rz-color-secondary NO sirve para esto (es el color de
-   MARCA secundario, p. ej. celeste saturado en humanistic, ilegible como texto). */
+   MARCA secundario, ilegible como texto). */
 .app-muted { color: var(--rz-text-secondary-color) !important; }
 
 /* Colores de fila de agrupador — definidos una sola vez; se usan en cert-grid
@@ -14,35 +16,163 @@
 :root {
     --app-agrup-0-bg: var(--rz-success-lighter);
     --app-agrup-1-bg: var(--rz-warning-lighter);
-    /* humanistic dibuja un divisor vertical al lado del toggle de la sidebar
-       (material usa none); se anula para que el header quede limpio como en SAF. */
-    --rz-sidebar-toggle-border: none;
 }
 
-/* Contraste en TEMA CLARO (clase que pone MainLayout según ThemeService).
-   humanistic define el texto de las alertas Shade.Lighter con el color PLENO de
-   la severidad (turquesa #2cc8c8, amarillo #fac152...) — legible sobre fondo
-   oscuro, 1.5–2.5:1 sobre fondo claro — y los toasts con fondos saturados
-   claros + texto blanco. Valores tomados de humanistic-wcag.css del propio
-   Radzen (que en oscuro NO sirve: oscurecería el texto sobre fondo oscuro);
-   el on-warning-lighter lo deja amarillo incluso ahí, así que es derivado
-   propio (ámbar oscuro, ~5:1). */
-.tema-claro {
-    /* Texto/ícono de las alertas Lighter (patrón estándar de todas las páginas). */
-    --rz-on-info-lighter: #026969;
-    --rz-on-success-lighter: #0f6c23;
-    --rz-on-danger-lighter: #b2242e;
-    --rz-on-secondary-lighter: #005fad;
-    --rz-on-warning-lighter: #7d6222;
-    /* Toasts: fondo oscuro de la severidad para que el texto blanco contraste. */
-    --rz-notification-info-background-color: #026969;
-    --rz-notification-success-background-color: #0f6c23;
-    --rz-notification-error-background-color: #b2242e;
-    /* El toast/sólido warning conserva el amarillo, pero con texto negro (WCAG). */
-    --rz-on-warning: #000000;
+/* ===========================================================================
+   (SAF) Helpers de layout: la app ocupa exactamente el viewport y las grillas
+   toman el alto restante con scroll INTERNO (la página nunca scrollea entera).
+   Cadena de altura: html/body → .rz-layout → .rz-body → .app-content → grilla.
+   =========================================================================== */
+html, body {
+    margin: 0;
+    height: 100%;
 }
 
-/* Tablas de certificados (jerárquicas, encabezados agrupados) sobre tema Radzen. */
+/* OJO: no pisar el display de .rz-layout — en esta versión de Radzen es una
+   grilla CSS por áreas (header/sidebar/body); forzar flex apila las tres. Solo
+   se fija la altura al viewport y la grilla reparte el resto sola. */
+.rz-layout {
+    height: 100vh;
+}
+
+.rz-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 0;
+}
+
+/* El padding de contenido vive acá (SIGO envuelve @Body en .app-content). */
+.rz-body > .app-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 0.75rem 1.25rem 1rem;
+}
+
+/* El llenado de altura aplica SOLO a grillas en la cadena del layout (hijas
+   directas de .app-content o de un RadzenStack raíz). Una grilla anidada en
+   una tarjeta/panel queda FUERA: su contenedor tiene altura auto y flex-basis 0
+   la colapsaría a cero (pasó con la grilla de /usuarios). */
+.app-content > .rz-stack:has(> .rz-data-grid) {
+    flex: 1 1 0;
+    min-height: 0;
+    gap: 0.5rem; /* menos aire entre la toolbar y la grilla */
+}
+
+.app-content > .rz-data-grid,
+.app-content > .rz-stack > .rz-data-grid {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-height: 0;
+}
+
+.app-content > .rz-data-grid .rz-data-grid-data,
+.app-content > .rz-stack > .rz-data-grid .rz-data-grid-data {
+    /* Área de datos: toma el alto disponible del grid y scrollea en ambos ejes. */
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: auto;
+}
+
+/* Desplazamiento lateral en TODAS las grillas (también las anidadas en
+   tarjetas): la tabla ancha scrollea dentro de su área de datos. */
+.rz-data-grid .rz-data-grid-data {
+    overflow-x: auto;
+}
+
+/* La tabla nunca es más angosta que el contenedor; la suma de los Width declarados
+   la hace crecer sola (table-layout fixed de Radzen). No usar width max-content:
+   desalinea los offsets sticky de columnas fijas con textos largos. */
+.rz-data-grid .rz-grid-table {
+    width: 100%;
+    min-width: 100%;
+}
+
+/* Encabezado fijo al hacer scroll vertical, para no perder los títulos de columna. */
+.rz-data-grid .rz-grid-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background-color: var(--rz-grid-header-background-color, var(--rz-base-background-color, #fff));
+}
+
+/* Barra de scroll más visible y cómoda para navegar muchos datos. */
+.rz-data-grid .rz-data-grid-data {
+    scrollbar-width: thin;
+}
+
+.rz-data-grid .rz-data-grid-data::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+.rz-data-grid .rz-data-grid-data::-webkit-scrollbar-thumb {
+    background-color: rgba(128, 128, 128, 0.55);
+    border-radius: 6px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+
+.rz-data-grid .rz-data-grid-data::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(128, 128, 128, 0.8);
+}
+
+/* ===========================================================================
+   (SAF) RadzenDataGrid: cabecera notoria y celdas compactas
+   =========================================================================== */
+.rz-data-grid table thead th {
+    font-weight: bold !important;
+    border-bottom: 2px solid gray !important;
+}
+
+.rz-grid-table td {
+    padding: 0.25rem 1rem !important;
+}
+
+/* Encabezados compactos: menos padding vertical para ganar filas visibles
+   sin achicar la letra. */
+.rz-data-grid {
+    --rz-grid-header-cell-padding: 0.25rem 0.5rem;
+}
+
+/* Títulos de columna en varias líneas en vez de elipsis (como en SAF): Radzen
+   los trae con nowrap + ellipsis y los títulos largos quedaban ilegibles. */
+.rz-data-grid .rz-column-title,
+.rz-data-grid .rz-column-title-content {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+/* ===========================================================================
+   (SAF) Diálogos: que no excedan el viewport; scroll interno del contenido
+   =========================================================================== */
+.rz-dialog {
+    height: auto !important;
+    max-height: 90vh !important;
+    overflow: auto !important;
+}
+
+.rz-dialog .rz-dialog-content {
+    max-height: calc(90vh - 4rem) !important;
+    overflow: auto !important;
+    min-height: 0 !important;
+}
+
+/* ===========================================================================
+   (SAF) Notificaciones: respetar saltos de línea (\n) en el detalle
+   =========================================================================== */
+.rz-notification, .rz-notification .rz-notification, .rz-notification .rz-notification-content, .rz-notification .rz-notification-message, .rz-notification .rz-notification-detail {
+    white-space: pre-line !important;
+}
+
+/* ===========================================================================
+   Tablas de certificados (jerárquicas, encabezados agrupados) sobre tema Radzen.
+   No son componentes Radzen: sin esto quedan como HTML crudo.
+   =========================================================================== */
 .cert-grid {
     width: 100%;
     border-collapse: collapse;
@@ -84,31 +214,13 @@
         top: 0; left: 0; width: 100%;
     }
     .rz-sidebar, .rz-header, .d-print-none { display: none !important; }
-}
-
-html, body {
-    margin: 0;
-    min-height: 100vh;
-}
-
-/* El contenido principal respira un poco */
-.app-content {
-    padding: 1.25rem 1.5rem 2.5rem;
-}
-
-/* Tarjetas de módulo del inicio: son anclas reales (accesibles por teclado), pero
-   se ven como tarjetas, no como links. */
-.home-card {
-    display: block;
-    height: 100%;
-    text-decoration: none;
-    color: inherit;
-}
-
-.home-card:focus-visible {
-    outline: 2px solid var(--rz-primary);
-    outline-offset: 2px;
-    border-radius: var(--rz-card-border-radius, 4px);
+    /* El layout de altura fija crearía contextos de scroll que recortan la
+       impresión a una página: se vuelve a flujo normal solo al imprimir. */
+    .rz-layout, .rz-body, .app-content {
+        display: block !important;
+        height: auto !important;
+        overflow: visible !important;
+    }
 }
 
 /* Splash mientras conecta el circuito (no hay prerender: la página llega vacía).

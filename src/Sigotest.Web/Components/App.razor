@@ -9,7 +9,7 @@
 @code {
     [CascadingParameter] public HttpContext? HttpContext { get; set; }
 
-    private string temaInicial = SIGO.Services.Temas.Oscuro;
+    private string temaInicial = SIGO.Services.Temas.Claro;
 
     protected override void OnInitialized() =>
         temaInicial = SIGO.Services.Temas.Normalizar(HttpContext?.Request.Cookies["SIGOTheme"]);

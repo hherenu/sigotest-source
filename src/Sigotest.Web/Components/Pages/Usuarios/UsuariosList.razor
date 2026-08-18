@@ -6,136 +6,76 @@
 
 <PageTitle>Usuarios</PageTitle>
 
-<CabeceraPagina Titulo="Usuarios" Clase="rz-mb-4">
+<CabeceraPagina Titulo="Usuarios" Estilo="TextStyle.H4" Clase="rz-mb-4">
     <Subtitulo>
         La autenticación es Windows y <b>no hay alta manual</b>: quien entra por primera vez se registra solo,
         <b>sin ningún rol</b> (no puede hacer nada hasta que un Admin le tilde roles acá). Un usuario sin roles o inactivo no accede a ningún módulo.
     </Subtitulo>
 </CabeceraPagina>
 
-<RadzenRow Gap="1rem" RowGap="1rem">
-    @* Solo edición del usuario elegido en la grilla: el registro es automático al
-       primer ingreso (RolesClaimsTransformation), acá no se crean usuarios. *@
-    @if (editando is not null)
-    {
-        <RadzenColumn Size="12" SizeMD="4">
-            <RadzenCard Variant="Variant.Outlined">
-                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">Editar — @form.WindowsUser</RadzenText>
-                <RadzenTemplateForm TItem="UsuarioVM" Data="@form" Submit="@GuardarAsync">
-                    <RadzenStack Gap="0.75rem">
-                        <div>
-                            <RadzenFormField Text="Nombre" Variant="Variant.Outlined" style="width:100%">
-                                <RadzenTextBox @bind-Value="form.Nombre" Name="Nombre" style="width:100%" />
-                            </RadzenFormField>
-                            <RadzenRequiredValidator Component="Nombre" Text="El nombre es obligatorio" Popup="true" />
-                        </div>
-                        <div>
-                            <RadzenFormField Text="Email (notificaciones)" Variant="Variant.Outlined" style="width:100%">
-                                <RadzenTextBox Value="@form.Email" ReadOnly="true" Placeholder="(sin email en AD)" style="width:100%" />
-                            </RadzenFormField>
-                            <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mt-1 rz-mb-0">
-                                El email viene de Active Directory (se toma al registrarse el usuario, no se carga a mano).
-                            </RadzenText>
-                        </div>
-                        <div>
-                            <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-1">Roles</RadzenText>
-                            <RadzenCheckBoxList @bind-Value="form.Roles" TValue="RolUsuario" Orientation="Orientation.Vertical" Gap="0.25rem"
-                                                Data="@TodosLosRoles" TextProperty="Texto" ValueProperty="Rol" />
-                        </div>
-                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                            <RadzenSwitch @bind-Value="form.Activo" />
-                            <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0">Activo</RadzenText>
-                        </RadzenStack>
-                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
-                            <RadzenButton ButtonType="ButtonType.Submit" Text="Guardar" Icon="save"
-                                          ButtonStyle="ButtonStyle.Primary" IsBusy="@procesando" BusyText="Guardando..." />
-                            <RadzenButton Text="Cancelar" Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
-                                          Click="@CancelarEdicion" />
-                        </RadzenStack>
+@if (usuarios.Count == 0)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+        Todavía no hay usuarios registrados: cada persona queda registrada automáticamente
+        en su primer ingreso (la primera de todas, como Admin).
+    </RadzenAlert>
+}
+else
+{
+    @* Grilla directa al contenido (sin tarjeta): entra en la cadena de altura del
+       layout — ocupa el alto restante con scroll interno y encabezado fijo. La
+       edición abre en diálogo (el registro es automático al primer ingreso,
+       acá no se crean usuarios). *@
+    <RadzenDataGrid Data="@usuarios" TItem="UsuarioVM" Density="Density.Compact"
+                    AllowFiltering="true" FilterMode="FilterMode.CheckBoxList"
+                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                    AllowSorting="true" AllowPaging="true" PageSize="15">
+        <Columns>
+            <RadzenDataGridColumn TItem="UsuarioVM" Property="WindowsUser" Title="Usuario Windows" Width="180px" />
+            <RadzenDataGridColumn TItem="UsuarioVM" Property="Nombre" Title="Nombre" />
+            <RadzenDataGridColumn TItem="UsuarioVM" Property="Email" Title="Email" />
+            <RadzenDataGridColumn TItem="UsuarioVM" Title="Roles" Sortable="false" Filterable="false">
+                <Template Context="u">
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" Wrap="FlexWrap.Wrap">
+                        @foreach (var r in u.Roles.OrderBy(x => x))
+                        {
+                            <RadzenBadge Text="@r.ToString()" IsPill="true"
+                                         BadgeStyle="@(r == RolUsuario.Admin ? BadgeStyle.Danger : BadgeStyle.Info)" />
+                        }
                     </RadzenStack>
-                </RadzenTemplateForm>
-            </RadzenCard>
-        </RadzenColumn>
-    }
-
-    <RadzenColumn Size="12" SizeMD="@(editando is null ? 12 : 8)">
-        <RadzenCard Variant="Variant.Outlined">
-            <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">Usuarios cargados</RadzenText>
-            @if (usuarios.Count == 0)
-            {
-                <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
-                    Todavía no hay usuarios registrados: cada persona queda registrada automáticamente
-                    en su primer ingreso (la primera de todas, como Admin).
-                </RadzenAlert>
-            }
-            else
-            {
-                <RadzenDataGrid Data="@usuarios" TItem="UsuarioVM" Density="Density.Compact"
-                                AllowFiltering="true" FilterMode="FilterMode.CheckBoxList"
-                                FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
-                                AllowSorting="true" AllowPaging="true" PageSize="15">
-                    <Columns>
-                        <RadzenDataGridColumn TItem="UsuarioVM" Property="WindowsUser" Title="Usuario Windows" Width="180px" />
-                        <RadzenDataGridColumn TItem="UsuarioVM" Property="Nombre" Title="Nombre" />
-                        <RadzenDataGridColumn TItem="UsuarioVM" Property="Email" Title="Email" />
-                        <RadzenDataGridColumn TItem="UsuarioVM" Title="Roles" Sortable="false" Filterable="false">
-                            <Template Context="u">
-                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" Wrap="FlexWrap.Wrap">
-                                    @foreach (var r in u.Roles.OrderBy(x => x))
-                                    {
-                                        <RadzenBadge Text="@r.ToString()" IsPill="true"
-                                                     BadgeStyle="@(r == RolUsuario.Admin ? BadgeStyle.Danger : BadgeStyle.Info)" />
-                                    }
-                                </RadzenStack>
-                            </Template>
-                        </RadzenDataGridColumn>
-                        <RadzenDataGridColumn TItem="UsuarioVM" Property="Activo" Title="Activo" Width="80px" TextAlign="TextAlign.Center">
-                            <Template Context="u">
-                                <RadzenIcon Icon="@(u.Activo ? "check_circle" : "cancel")"
-                                            IconColor="@(u.Activo ? "var(--rz-success)" : "var(--rz-danger)")" />
-                            </Template>
-                        </RadzenDataGridColumn>
-                        <RadzenDataGridColumn TItem="UsuarioVM" Title="" Width="90px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
-                            <Template Context="u">
-                                <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Text"
-                                              title="Editar" Disabled="@procesando" Click="@(() => EditarUsuario(u))" />
-                                <RadzenButton Icon="close" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
-                                              title="Eliminar" Disabled="@procesando" Click="@(() => EliminarAsync(u))" />
-                            </Template>
-                        </RadzenDataGridColumn>
-                    </Columns>
-                </RadzenDataGrid>
-            }
-        </RadzenCard>
-    </RadzenColumn>
-</RadzenRow>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="UsuarioVM" Property="Activo" Title="Activo" Width="80px" TextAlign="TextAlign.Center">
+                <Template Context="u">
+                    <RadzenIcon Icon="@(u.Activo ? "check_circle" : "cancel")"
+                                IconColor="@(u.Activo ? "var(--rz-success)" : "var(--rz-danger)")" />
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="UsuarioVM" Title="" Width="90px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                <Template Context="u">
+                    <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Text"
+                                  title="Editar" Disabled="@procesando" Click="@(() => EditarAsync(u))" />
+                    <RadzenButton Icon="close" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
+                                  title="Eliminar" Disabled="@procesando" Click="@(() => EliminarAsync(u))" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+}
 
 @code {
     private List<UsuarioVM> usuarios = new();
-    private UsuarioVM? editando;
-    private UsuarioVM form = new();
     private bool procesando;
-
-    private record OpcionRol(RolUsuario Rol, string Texto);
-    private static readonly OpcionRol[] TodosLosRoles =
-    [
-        new(RolUsuario.Admin, "Admin — todo + manejo de usuarios"),
-        new(RolUsuario.CCyR, "CCyR — certificaciones y redeterminaciones"),
-        new(RolUsuario.Director, "Director — carga la planificación"),
-        new(RolUsuario.Gerente, "Gerente — controla/aprueba la planificación"),
-        new(RolUsuario.Presupuesto, "Presupuesto — planificación solo lectura"),
-    ];
 
     protected override async Task OnInitializedAsync() => await CargarAsync();
 
     private async Task CargarAsync() => usuarios = await Service.ListarAsync();
 
-    private void EditarUsuario(UsuarioVM u)
+    private async Task EditarAsync(UsuarioVM u)
     {
-        editando = u;
-        // Copia editable: el form no bindea la fila de la grilla; el RowVersion de la
-        // fila listada acompaña como token del UPDATE.
-        form = new UsuarioVM
+        // Copia editable: el diálogo no bindea la fila de la grilla; el RowVersion de
+        // la fila listada acompaña como token del UPDATE.
+        var copia = new UsuarioVM
         {
             Id = u.Id,
             WindowsUser = u.WindowsUser,
@@ -145,32 +85,14 @@
             Roles = u.Roles.ToList(),
             RowVersion = u.RowVersion
         };
-    }
 
-    private void CancelarEdicion()
-    {
-        editando = null;
-        form = new UsuarioVM();
-    }
+        var resultado = await DialogService.OpenAsync<UsuarioEditarDialog>(
+            $"Editar — {u.WindowsUser}",
+            new Dictionary<string, object?> { [nameof(UsuarioEditarDialog.Usuario)] = copia },
+            new DialogOptions { Width = "480px" });
 
-    private async Task GuardarAsync()
-    {
-        if (procesando) return;
-        procesando = true;
-        try
-        {
-            // Los rechazos de negocio llegan como InvalidOperationException del servicio:
-            // Persistencia los traduce a una notificación con el mensaje.
-            var hecho = await Persistencia.EjecutarAsync(() => Service.ActualizarAsync(form), Notifications);
-            if (!hecho) return;
-
-            Notifications.Notify(NotificationSeverity.Success, "Usuario actualizado", form.Nombre ?? "", 4000);
-            Notifications.Notify(NotificationSeverity.Info, "Roles",
-                "Los cambios de rol aplican cuando el usuario recargue la página (F5).", 6000);
-            CancelarEdicion();
+        if (resultado is true)
             await CargarAsync();
-        }
-        finally { procesando = false; }
     }
 
     private async Task EliminarAsync(UsuarioVM u)
@@ -185,8 +107,7 @@
                 () => Service.EliminarAsync(u.Id, u.RowVersion),
                 "Usuario eliminado", u.Nombre ?? "",
                 "Ya eliminado", $"El usuario «{u.Nombre}» ya había sido eliminado por otro administrador.",
-                CargarAsync,
-                antesDeRecargar: () => { if (editando?.Id == u.Id) CancelarEdicion(); });
+                CargarAsync);
         }
         finally { procesando = false; }
     }
