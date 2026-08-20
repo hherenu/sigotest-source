@@ -1,0 +1,61 @@
+@* Banner de resultado de una redeterminación, compartido por Calcular y el detalle
+   del cálculo guardado (misma razón que TablaPonderacionCalculo: una sola
+   implementación evita que las dos pantallas deriven). Verde/rojo según el umbral
+   de suba; amarillo cuando el cálculo no tiene coeficiente total. Las acciones
+   (guardar/exportar) las pone cada página y van con d-print-none. *@
+@if (Porcentaje.HasValue)
+{
+    <div class="rz-mb-4" style="@($"display:flex;align-items:center;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;border:1px solid {Color};border-radius:var(--rz-border-radius);background:color-mix(in srgb, {Color} 14%, transparent);padding:0.75rem 1.125rem")">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1.5rem">
+            <div>
+                <RadzenText TextStyle="TextStyle.Overline" class="rz-mt-0 rz-mb-0" style="@($"color:{Color}")">Resultado</RadzenText>
+                <RadzenText TextStyle="TextStyle.H4" class="rz-mb-0" style="@($"color:{Color};font-weight:700;line-height:1.1")">@Porcentaje.Value.ToString("N4")%</RadzenText>
+            </div>
+            <div style="@($"width:1px;height:2.75rem;background:color-mix(in srgb, {Color} 35%, transparent)")"></div>
+            <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0" style="line-height:1.7">
+                Coeficiente: <b style="color:var(--rz-text-color)">@Coeficiente?.ToString("N2")</b><br />
+                @Periodo
+            </RadzenText>
+        </RadzenStack>
+        @if (Acciones is not null)
+        {
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" class="d-print-none">
+                @Acciones
+            </RadzenStack>
+        }
+    </div>
+}
+else
+{
+    <div class="rz-mb-4" style="display:flex;align-items:center;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;border:1px solid var(--rz-warning);border-radius:var(--rz-border-radius);background:color-mix(in srgb, var(--rz-warning) 14%, transparent);padding:0.75rem 1.125rem">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
+            <RadzenIcon Icon="warning" style="color:var(--rz-warning)" />
+            <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0">@MensajeSinCoeficiente</RadzenText>
+        </RadzenStack>
+        @if (Acciones is not null)
+        {
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" class="d-print-none">
+                @Acciones
+            </RadzenStack>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>Variación de referencia; null cuando el cálculo no tiene coeficiente total (banner amarillo).</summary>
+    [Parameter] public decimal? Porcentaje { get; set; }
+
+    /// <summary>Coeficiente total Kᵢ/K₀.</summary>
+    [Parameter] public decimal? Coeficiente { get; set; }
+
+    /// <summary>Texto del período bajo el coeficiente (ej. "Oct 2015 → Jul 2025").</summary>
+    [Parameter] public string Periodo { get; set; } = string.Empty;
+
+    /// <summary>Mensaje del banner amarillo cuando <see cref="Porcentaje"/> es null.</summary>
+    [Parameter] public string MensajeSinCoeficiente { get; set; } = "Faltan valores de índices para algún ítem: el cálculo no tiene coeficiente total.";
+
+    /// <summary>Botones de la derecha (guardar/exportar); cada página pone los suyos.</summary>
+    [Parameter] public RenderFragment? Acciones { get; set; }
+
+    private string Color => Redet.ColorSuba(Porcentaje);
+}

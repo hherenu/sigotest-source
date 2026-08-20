@@ -10,112 +10,94 @@
 
 <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" class="rz-mb-4">Calcular Salto de Redeterminación</RadzenText>
 
-<RadzenRow Gap="1rem" RowGap="1rem" class="rz-mb-4">
-    @* ── Selección de obra ── *@
-    <RadzenColumn Size="12" SizeMD="4">
-        <RadzenCard Variant="Variant.Outlined" style="height:100%">
-            <RadzenText TextStyle="TextStyle.Subtitle2" class="app-muted rz-mb-3">Seleccionar Obra</RadzenText>
-            <RadzenDropDown @bind-Value="selectedObraId" Data="@obras" TextProperty="Nombre" ValueProperty="Id"
-                            TValue="int?" AllowClear="true" Placeholder="-- Seleccionar obra --" style="width:100%"
-                            Change="@OnObraChanged" />
+@* ── Configuración: obra + período en una sola tarjeta ── *@
+<RadzenCard Variant="Variant.Outlined" class="rz-mb-4">
+    <RadzenRow Gap="1.5rem" RowGap="1rem">
+        <RadzenColumn Size="12" SizeMD="5">
+            <RadzenFormField Text="Obra" Variant="Variant.Outlined" style="width:100%">
+                <RadzenDropDown @bind-Value="selectedObraId" Data="@obras" TextProperty="Nombre" ValueProperty="Id"
+                                TValue="int?" AllowClear="true" Placeholder="-- Seleccionar obra --" style="width:100%"
+                                Change="@OnObraChanged" />
+            </RadzenFormField>
             @if (obra is not null)
             {
-                <hr style="border-color:var(--rz-border-color);opacity:.4" />
-                <RadzenRow class="rz-mt-1"><RadzenColumn Size="5"><RadzenText TextStyle="TextStyle.Caption" class="app-muted">Licitación</RadzenText></RadzenColumn><RadzenColumn Size="7"><RadzenText TextStyle="TextStyle.Caption">@obra.NumeroLicitacion</RadzenText></RadzenColumn></RadzenRow>
-                <RadzenRow><RadzenColumn Size="5"><RadzenText TextStyle="TextStyle.Caption" class="app-muted">Contratista</RadzenText></RadzenColumn><RadzenColumn Size="7"><RadzenText TextStyle="TextStyle.Caption">@obra.Contratista</RadzenText></RadzenColumn></RadzenRow>
-                <RadzenRow><RadzenColumn Size="5"><RadzenText TextStyle="TextStyle.Caption" class="app-muted">Acta Inicio</RadzenText></RadzenColumn><RadzenColumn Size="7"><RadzenText TextStyle="TextStyle.Caption">@obra.FechaActaInicio?.ToString("dd/MM/yyyy")</RadzenText></RadzenColumn></RadzenRow>
-                <RadzenRow><RadzenColumn Size="5"><RadzenText TextStyle="TextStyle.Caption" class="app-muted">Fin Contrato</RadzenText></RadzenColumn><RadzenColumn Size="7"><RadzenText TextStyle="TextStyle.Caption">@obra.FechaFinalContrato?.ToString("dd/MM/yyyy")</RadzenText>@if (obra.Estado is not null){<RadzenBadge Text="@obra.Estado" IsPill="true" BadgeStyle="@EstadoUi.BadgeObra(obra.Estado)" class="rz-ml-1" />}</RadzenColumn></RadzenRow>
+                <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mt-2 rz-mb-0" style="line-height:1.6">
+                    @obra.NumeroLicitacion &nbsp;·&nbsp; @obra.Contratista &nbsp;·&nbsp;
+                    Acta inicio @obra.FechaActaInicio?.ToString("dd/MM/yyyy") &nbsp;·&nbsp;
+                    Fin contrato @obra.FechaFinalContrato?.ToString("dd/MM/yyyy")
+                    @if (obra.Estado is not null){<RadzenBadge Text="@obra.Estado" IsPill="true" BadgeStyle="@EstadoUi.BadgeObra(obra.Estado)" class="rz-ml-1" />}
+                </RadzenText>
             }
-        </RadzenCard>
-    </RadzenColumn>
-
-    @* ── Período ── *@
-    @if (obra is not null && tabla is not null)
-    {
-        <RadzenColumn Size="12" SizeMD="4">
-            <RadzenCard Variant="Variant.Outlined" style="height:100%">
-                <RadzenText TextStyle="TextStyle.Subtitle2" class="app-muted rz-mb-3">Período</RadzenText>
-                <RadzenStack Gap="0.75rem">
-                    <RadzenFormField Text="Publicación" Variant="Variant.Outlined" style="width:100%">
-                        <RadzenDropDown @bind-Value="selectedPublicacion" Data="@publicaciones" TValue="string"
-                                        Change="@OnPublicacionChanged" style="width:100%">
-                            <Template Context="p">@(((string)p).Replace("_", " "))</Template>
-                        </RadzenDropDown>
-                    </RadzenFormField>
-                    <RadzenFormField Text="Mes Base (K₀)" Variant="Variant.Outlined" style="width:100%">
-                        <RadzenDropDown @bind-Value="mesBaseStr" Data="@MesesFiltrados" TextProperty="Text" ValueProperty="Value"
-                                        TValue="string" AllowClear="true" Placeholder="-- seleccionar --" style="width:100%" />
-                    </RadzenFormField>
-                    <RadzenFormField Text="Mes Salto (Kᵢ)" Variant="Variant.Outlined" style="width:100%">
-                        <RadzenDropDown @bind-Value="mesSaltoStr" Data="@MesesFiltrados" TextProperty="Text" ValueProperty="Value"
-                                        TValue="string" AllowClear="true" Placeholder="-- seleccionar --" style="width:100%" />
-                    </RadzenFormField>
-                    <RadzenButton Text="Calcular" Icon="calculate" ButtonStyle="ButtonStyle.Primary" style="width:100%"
-                                  Disabled="@(string.IsNullOrEmpty(mesBaseStr) || string.IsNullOrEmpty(mesSaltoStr))"
-                                  IsBusy="@calculando" BusyText="Calculando..." Click="@CalcularClickAsync" />
-                </RadzenStack>
-            </RadzenCard>
         </RadzenColumn>
 
-        @* ── Resultado ── *@
-        @if (vm is not null && vm.Calculado)
-        {
-            <RadzenColumn Size="12" SizeMD="4">
-                <RadzenCard Variant="Variant.Outlined" style="@($"height:100%;border-color:{ColorSuba}")">
-                    <RadzenText TextStyle="TextStyle.Subtitle2" class="app-muted rz-text-align-center rz-mb-2">Resultado</RadzenText>
-                    <RadzenText TextStyle="TextStyle.Body1" class="rz-text-align-center rz-mb-1">
-                        @MesBaseCorto <span class="app-muted">→</span> @MesSaltoCorto
-                    </RadzenText>
-                    @if (vm.TotalKiK0.HasValue)
-                    {
-                        <RadzenText TextStyle="TextStyle.H3" class="rz-text-align-center rz-mb-0"
-                                    style="@($"color:{ColorSuba};font-weight:700")">
-                            @vm.PorcentajeAumento?.ToString("N4")%
-                        </RadzenText>
-                        <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-text-align-center">Coeficiente: @vm.TotalKiK0?.ToString("N2")</RadzenText>
-                    }
-                    else
-                    {
-                        <RadzenText TextStyle="TextStyle.Body2" class="rz-text-align-center" style="color:var(--rz-warning)">Faltan valores de índices para algún ítem</RadzenText>
-                    }
-                    <RadzenButton Text="@(editarId.HasValue ? "Actualizar cálculo" : "Guardar cálculo")" Icon="save"
-                                  ButtonStyle="@(EsSuba ? ButtonStyle.Success : ButtonStyle.Danger)" Size="ButtonSize.Small"
-                                  style="width:100%" class="rz-mt-3" IsBusy="@guardando" BusyText="Guardando..."
-                                  Click="@GuardarAsync" />
-                </RadzenCard>
-            </RadzenColumn>
-        }
-    }
-</RadzenRow>
+        <RadzenColumn Size="12" SizeMD="7">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem" Wrap="FlexWrap.Wrap">
+                <RadzenFormField Text="Publicación" Variant="Variant.Outlined" style="flex:1.25 1 0;min-width:11rem">
+                    <RadzenDropDown @bind-Value="selectedPublicacion" Data="@publicaciones" TValue="string"
+                                    AllowClear="true" Placeholder="-- seleccionar --"
+                                    Change="@OnPublicacionChanged" style="width:100%">
+                        <Template Context="p">@(((string)p).Replace("_", " "))</Template>
+                    </RadzenDropDown>
+                </RadzenFormField>
+                <RadzenFormField Text="Mes Base (K₀)" Variant="Variant.Outlined" style="flex:1 1 0;min-width:9rem">
+                    <RadzenDropDown @bind-Value="mesBaseStr" Data="@MesesFiltrados" TextProperty="Text" ValueProperty="Value"
+                                    TValue="string" AllowClear="true" Placeholder="-- seleccionar --" style="width:100%" />
+                </RadzenFormField>
+                <RadzenFormField Text="Mes Salto (Kᵢ)" Variant="Variant.Outlined" style="flex:1 1 0;min-width:9rem">
+                    <RadzenDropDown @bind-Value="mesSaltoStr" Data="@MesesFiltrados" TextProperty="Text" ValueProperty="Value"
+                                    TValue="string" AllowClear="true" Placeholder="-- seleccionar --" style="width:100%" />
+                </RadzenFormField>
+                <RadzenButton Text="Calcular" Icon="calculate" ButtonStyle="ButtonStyle.Primary"
+                              Disabled="@(obra is null || tabla is null || string.IsNullOrEmpty(selectedPublicacion) || string.IsNullOrEmpty(mesBaseStr) || string.IsNullOrEmpty(mesSaltoStr))"
+                              IsBusy="@calculando" BusyText="Calculando..." Click="@CalcularClickAsync" />
+            </RadzenStack>
+        </RadzenColumn>
+    </RadzenRow>
+</RadzenCard>
 
-@if (vm is not null && vm.Calculado && vm.Items.Any())
+@if (obra is not null && tabla is null)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+        La obra no tiene tabla de ponderación cargada: no se puede calcular.
+    </RadzenAlert>
+}
+
+@if (vm is not null && vm.Calculado)
 {
     <RadzenCard Variant="Variant.Outlined" id="print-section">
-        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
-                     AlignItems="AlignItems.Center" Wrap="FlexWrap.Wrap" Gap="0.5rem" class="rz-mb-3">
-            <div>
-                <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-0" style="font-weight:600;display:inline">Tabla de Ponderación — @obra?.Nombre</RadzenText>
-                <RadzenText TextStyle="TextStyle.Caption" class="app-muted" style="display:inline;margin-left:.5rem">@MesBaseCorto → @MesSaltoCorto</RadzenText>
-            </div>
-            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" class="d-print-none">
+        @* Sin coeficiente total el banner es amarillo y no hay nada que guardar
+           (GuardarAsync también lo rechaza); Excel/PDF quedan para exportar la
+           tabla con las filas en advertencia. *@
+        <BannerResultado Porcentaje="@vm.PorcentajeAumento" Coeficiente="@vm.TotalKiK0"
+                         Periodo="@($"{MesBaseCorto} → {MesSaltoCorto}")"
+                         MensajeSinCoeficiente="@($"Faltan valores de índices para algún ítem: el cálculo no tiene coeficiente total ({MesBaseCorto} → {MesSaltoCorto}).")">
+            <Acciones>
+                @if (vm.TotalKiK0.HasValue)
+                {
+                    <RadzenButton Text="@(editarId.HasValue ? "Actualizar cálculo" : "Guardar cálculo")" Icon="save"
+                                  ButtonStyle="@(EsSuba ? ButtonStyle.Success : ButtonStyle.Danger)"
+                                  IsBusy="@guardando" BusyText="Guardando..." Click="@GuardarAsync" />
+                }
                 <RadzenButton Text="Excel" Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat"
                               Click="@DescargarExcel" />
                 <RadzenButton Text="PDF" Icon="print" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                               Click="@(async () => await JS.InvokeVoidAsync("window.print"))" />
-            </RadzenStack>
-        </RadzenStack>
-        <TablaPonderacionCalculo EtiquetaBase="@MesBaseCorto" EtiquetaSalto="@MesSaltoCorto"
-                                 TotalKiK0="@vm.TotalKiK0" PorcentajeAumento="@vm.PorcentajeAumento"
-                                 Filas="@vm.Items.Select(i => new TablaPonderacionCalculo.FilaPonderacion(
-                                     i.Numero, i.Insumo, i.PesoPorcentaje, i.ValorMesBase, i.ValorMesSalto,
-                                     i.KiK0, i.VariacionPonderada, i.DescripcionINDEC))" />
+            </Acciones>
+        </BannerResultado>
+
+        @if (vm.Items.Any())
+        {
+            <div class="rz-mb-3">
+                <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-0" style="font-weight:600;display:inline">Tabla de Ponderación — @obra?.Nombre</RadzenText>
+                <RadzenText TextStyle="TextStyle.Caption" class="app-muted" style="display:inline;margin-left:.5rem">@MesBaseCorto → @MesSaltoCorto</RadzenText>
+            </div>
+            <TablaPonderacionCalculo EtiquetaBase="@MesBaseCorto" EtiquetaSalto="@MesSaltoCorto"
+                                     TotalKiK0="@vm.TotalKiK0" PorcentajeAumento="@vm.PorcentajeAumento"
+                                     Filas="@vm.Items.Select(i => new TablaPonderacionCalculo.FilaPonderacion(
+                                         i.Numero, i.Insumo, i.PesoPorcentaje, i.ValorMesBase, i.ValorMesSalto,
+                                         i.KiK0, i.VariacionPonderada, i.DescripcionINDEC))" />
+        }
     </RadzenCard>
-}
-else if (obra is null)
-{
-    <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
-        Seleccioná una obra para comenzar.
-    </RadzenAlert>
 }
 
 @code {
@@ -142,7 +124,6 @@ else if (obra is null)
     private bool calculando;
 
     private bool EsSuba => Redet.EsSuba(vm?.PorcentajeAumento);
-    private string ColorSuba => Redet.ColorSuba(vm?.PorcentajeAumento);
 
     private IEnumerable<MesOpcion> MesesFiltrados =>
         selectedPublicacion is null || !pubMesesMap.ContainsKey(selectedPublicacion)
@@ -154,11 +135,12 @@ else if (obra is null)
     private int? editarIdCargado;
 
     // Carga única: catálogo de obras y revistas (no dependen de los query params).
+    // La publicación arranca sin selección (como los demás dropdowns): el usuario
+    // elige explícitamente; publicacionDefault queda solo como fallback del recálculo.
     protected override async Task OnInitializedAsync()
     {
         obras = await Service.GetObrasAsync();
         await LoadRevistasAsync();
-        selectedPublicacion = publicacionDefault;
     }
 
     // Depende de ?obraId= / ?editarId= : se re-ejecuta si cambian.
@@ -197,6 +179,7 @@ else if (obra is null)
             obra = null;
             tabla = null;
             vm = null;
+            selectedPublicacion = null;
             mesBaseStr = null;
             mesSaltoStr = null;
         }
@@ -227,8 +210,11 @@ else if (obra is null)
     // recarga con sus items), solo hace falta su Id.
     private async Task LoadObraAsync(int id)
     {
-        obra = obras.FirstOrDefault(o => o.Id == id);
-        tabla = obra is null ? null : (await Service.GetTablasAsync(id)).FirstOrDefault();
+        // obra se asigna al final: asignarla antes del await mostraba por un instante
+        // la advertencia "sin tabla de ponderación" mientras la tabla aún cargaba.
+        var seleccionada = obras.FirstOrDefault(o => o.Id == id);
+        tabla = seleccionada is null ? null : (await Service.GetTablasAsync(id)).FirstOrDefault();
+        obra = seleccionada;
     }
 
     private async Task OnObraChanged()

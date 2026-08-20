@@ -18,60 +18,33 @@ else if (r is null)
 }
 else
 {
-    <CabeceraPagina Titulo="Cálculo guardado" Estilo="TextStyle.H4">
+    <CabeceraPagina Titulo="@($"Cálculo guardado — {r.ObraNombre}")" Estilo="TextStyle.H4">
+        <Subtitulo>
+            @r.ObraNumeroLicitacion · Guardado @r.FechaGuardado.ToString("dd/MM/yyyy HH:mm")
+        </Subtitulo>
         <Acciones>
             <RadzenButton Text="Historial" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                           Click="@(() => Nav.NavigateTo($"redeterminacion/historial?obraId={r.ObraId}"))" />
         </Acciones>
     </CabeceraPagina>
 
-    <RadzenRow Gap="1rem" RowGap="1rem" class="rz-mb-4">
-        <RadzenColumn Size="12" SizeMD="4">
-            <RadzenCard Variant="Variant.Outlined" style="height:100%">
-                <RadzenText TextStyle="TextStyle.Subtitle2" class="app-muted rz-mb-2">Obra</RadzenText>
-                <RadzenText TextStyle="TextStyle.Body1" class="rz-mb-1" style="font-weight:600">@r.ObraNombre</RadzenText>
-                <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">@r.ObraNumeroLicitacion</RadzenText>
-            </RadzenCard>
-        </RadzenColumn>
-        <RadzenColumn Size="12" SizeMD="4">
-            <RadzenCard Variant="Variant.Outlined" style="height:100%">
-                <RadzenText TextStyle="TextStyle.Subtitle2" class="app-muted rz-mb-2">Período</RadzenText>
-                <RadzenRow><RadzenColumn Size="5"><RadzenText TextStyle="TextStyle.Caption" class="app-muted">Mes Base (K₀)</RadzenText></RadzenColumn><RadzenColumn Size="7"><RadzenText TextStyle="TextStyle.Caption">@Fmt.PubLabelRevista(r.IdPublicacionBase, r.MesBase, r.AnioBase)</RadzenText></RadzenColumn></RadzenRow>
-                <RadzenRow><RadzenColumn Size="5"><RadzenText TextStyle="TextStyle.Caption" class="app-muted">Mes Salto (Kᵢ)</RadzenText></RadzenColumn><RadzenColumn Size="7"><RadzenText TextStyle="TextStyle.Caption">@Fmt.PubLabelRevista(r.IdPublicacionSalto, r.MesSalto, r.AnioSalto)</RadzenText></RadzenColumn></RadzenRow>
-                <RadzenRow><RadzenColumn Size="5"><RadzenText TextStyle="TextStyle.Caption" class="app-muted">Guardado</RadzenText></RadzenColumn><RadzenColumn Size="7"><RadzenText TextStyle="TextStyle.Caption">@r.FechaGuardado.ToString("dd/MM/yyyy HH:mm")</RadzenText></RadzenColumn></RadzenRow>
-            </RadzenCard>
-        </RadzenColumn>
-        <RadzenColumn Size="12" SizeMD="4">
-            <RadzenCard Variant="Variant.Outlined" style="@($"height:100%;border-color:{ColorSuba}")">
-                <RadzenText TextStyle="TextStyle.Subtitle2" class="app-muted rz-text-align-center rz-mb-2">Resultado</RadzenText>
-                @if (r.PorcentajeAumento.HasValue)
-                {
-                    <RadzenText TextStyle="TextStyle.H3" class="rz-text-align-center rz-mb-0"
-                                style="@($"color:{ColorSuba};font-weight:700")">@r.PorcentajeAumento.Value.ToString("N4")%</RadzenText>
-                    <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-text-align-center">Coeficiente: @r.TotalKiK0?.ToString("N2")</RadzenText>
-                }
-                else
-                {
-                    <RadzenText TextStyle="TextStyle.Body2" class="rz-text-align-center" style="color:var(--rz-warning)">Faltan valores de índices</RadzenText>
-                }
-            </RadzenCard>
-        </RadzenColumn>
-    </RadzenRow>
-
     <RadzenCard Variant="Variant.Outlined" id="print-section">
-        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
-                     AlignItems="AlignItems.Center" Wrap="FlexWrap.Wrap" Gap="0.5rem" class="rz-mb-3">
-            <div>
-                <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-0" style="font-weight:600;display:inline">Tabla de Ponderación — @r.ObraNombre</RadzenText>
-                <RadzenText TextStyle="TextStyle.Caption" class="app-muted" style="display:inline;margin-left:.5rem">@($"{Fmt.MesCorto(r.MesBase)} {r.AnioBase}") → @($"{Fmt.MesCorto(r.MesSalto)} {r.AnioSalto}")</RadzenText>
-            </div>
-            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" class="d-print-none">
+        @* El período va con etiqueta de revista (PubLabelRevista): es el único dato
+           que no entra en el subtítulo de la cabecera. *@
+        <BannerResultado Porcentaje="@r.PorcentajeAumento" Coeficiente="@r.TotalKiK0"
+                         Periodo="@($"{Fmt.PubLabelRevista(r.IdPublicacionBase, r.MesBase, r.AnioBase)} → {Fmt.PubLabelRevista(r.IdPublicacionSalto, r.MesSalto, r.AnioSalto)}")">
+            <Acciones>
                 <RadzenButton Text="Excel" Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat"
                               Click="@(() => Nav.NavigateTo($"/Redeterminacion/DescargarExcelGuardado/{r.Id}", true))" />
                 <RadzenButton Text="PDF" Icon="print" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                               Click="@(async () => await JS.InvokeVoidAsync("window.print"))" />
-            </RadzenStack>
-        </RadzenStack>
+            </Acciones>
+        </BannerResultado>
+
+        <div class="rz-mb-3">
+            <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-0" style="font-weight:600;display:inline">Tabla de Ponderación — @r.ObraNombre</RadzenText>
+            <RadzenText TextStyle="TextStyle.Caption" class="app-muted" style="display:inline;margin-left:.5rem">@($"{Fmt.MesCorto(r.MesBase)} {r.AnioBase}") → @($"{Fmt.MesCorto(r.MesSalto)} {r.AnioSalto}")</RadzenText>
+        </div>
         <TablaPonderacionCalculo EtiquetaBase="@($"{Fmt.MesCorto(r.MesBase)} {r.AnioBase}")"
                                  EtiquetaSalto="@($"{Fmt.MesCorto(r.MesSalto)} {r.AnioSalto}")"
                                  TotalKiK0="@r.TotalKiK0" PorcentajeAumento="@r.PorcentajeAumento"
@@ -86,8 +59,6 @@ else
 
     private RedeterminacionDetalleVM? r;
     private bool noEncontrado;
-
-    private string ColorSuba => Redet.ColorSuba(r?.PorcentajeAumento);
 
     private int idCargado;
 

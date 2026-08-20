@@ -1,0 +1,60 @@
+@inject RedeterminacionService Service
+@inject DialogService DialogService
+@inject NotificationService Notifications
+
+@* Datos administrativos de un disparo en diálogo (antes página /redeterminacion/{id}/admin:
+   una edición de 4 campos no justificaba navegar y perder el contexto del historial).
+   Recibe el VM ya cargado por el llamador (BuildAdminVmAsync, con RowVersion como token
+   de concurrencia). Cierra con true si guardó (el llamador recarga el historial). *@
+
+<RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-3">
+    @Vm.ObraNombre · Mes Salto: @Fmt.MesCorto(Vm.MesSalto) @Vm.AnioSalto · Variación:
+    <span style="@($"font-weight:700;color:{Redet.ColorSuba(Vm.PorcentajeAumento)}")">@Vm.PorcentajeAumento?.ToString("N4")%</span>
+</RadzenText>
+
+<RadzenTemplateForm TItem="RedeterminacionAdminVM" Data="@Vm" Submit="@GuardarAsync">
+    <RadzenStack Gap="1rem">
+        <RadzenFormField Text="N° Expediente VR" Variant="Variant.Outlined" style="width:100%">
+            <RadzenTextBox @bind-Value="Vm.NroExpedienteVR" Placeholder="EX-2025-XXXXXXXX-GCABA-SBASE" style="width:100%" />
+        </RadzenFormField>
+        <RadzenFormField Text="Fecha Aprobación CCyR" Variant="Variant.Outlined" style="width:100%">
+            <RadzenDatePicker @bind-Value="Vm.FechaAprobacionCCyR" DateFormat="dd/MM/yyyy" ShowTime="false" style="width:100%" />
+        </RadzenFormField>
+        <RadzenFormField Text="Fecha Aprobación por OS" Variant="Variant.Outlined" style="width:100%">
+            <RadzenDatePicker @bind-Value="Vm.FechaAprobacionOS" DateFormat="dd/MM/yyyy" ShowTime="false" style="width:100%" />
+        </RadzenFormField>
+        <RadzenFormField Text="Fecha Límite Presentación Red. Def." Variant="Variant.Outlined" style="width:100%">
+            <RadzenDatePicker @bind-Value="Vm.FechaLimitePresentacion" DateFormat="dd/MM/yyyy" ShowTime="false" style="width:100%" />
+        </RadzenFormField>
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+            <RadzenButton Text="Cancelar" Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                          Click="@(() => DialogService.Close(false))" />
+            <RadzenButton ButtonType="ButtonType.Submit" Text="Guardar" Icon="save" ButtonStyle="ButtonStyle.Primary"
+                          IsBusy="@guardando" BusyText="Guardando..." />
+        </RadzenStack>
+    </RadzenStack>
+</RadzenTemplateForm>
+
+@code {
+    [Parameter, EditorRequired] public RedeterminacionAdminVM Vm { get; set; } = new();
+
+    private bool guardando;
+
+    private async Task GuardarAsync()
+    {
+        if (guardando) return;
+        guardando = true;
+        try
+        {
+            // Los rechazos (incluida la concurrencia por RowVersion) llegan como
+            // excepción del servicio: Persistencia los traduce a una notificación.
+            var hecho = await Persistencia.EjecutarAsync(
+                () => Service.GuardarDatosAdminAsync(Vm.Id, Vm, Vm.RowVersion), Notifications);
+            if (!hecho) return;
+
+            Notifications.Notify(NotificationSeverity.Success, "Guardado", "Datos administrativos actualizados.", 3000);
+            DialogService.Close(true);
+        }
+        finally { guardando = false; }
+    }
+}

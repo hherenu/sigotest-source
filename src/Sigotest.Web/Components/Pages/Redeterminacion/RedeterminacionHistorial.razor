@@ -77,7 +77,7 @@ else
                                                   Disabled="@(!EsRecalculable(r))"
                                                   Click="@(() => Nav.NavigateTo($"redeterminacion/calcular?editarId={r.Id}"))" />
                                     <RadzenButton Icon="edit_note" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Text"
-                                                  title="Datos administrativos" Click="@(() => Nav.NavigateTo($"redeterminacion/{r.Id}/admin"))" />
+                                                  title="Datos administrativos" Click="@(() => AbrirAdminAsync(r))" />
                                     <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
                                                   title="@(r.NroDisparo != ultimoDisparo ? "Solo se puede eliminar el último disparo"
                                                           : !EsRecalculable(r) ? $"En estado {r.Estado} no puede eliminarse" : "Eliminar")"
@@ -132,6 +132,27 @@ else
     // Espejo UI de RedeterminacionValidator (la regla completa vive en el servicio).
     private static bool EsRecalculable(RedeterminacionHistorialVM r) =>
         RedeterminacionValidator.EsRecalculable(r.Estado);
+
+    // El VM se carga acá y no en el diálogo: si el disparo ya no existe (lo borró otro
+    // usuario) se avisa y se recarga la grilla sin abrir nada.
+    private async Task AbrirAdminAsync(RedeterminacionHistorialVM r)
+    {
+        var vm = await Service.BuildAdminVmAsync(r.Id);
+        if (vm is null)
+        {
+            Notifications.Notify(NotificationSeverity.Warning, "No encontrado", "El cálculo ya no existe.", 4000);
+            await CargarAsync();
+            return;
+        }
+
+        var resultado = await DialogService.OpenAsync<RedeterminacionAdminDialog>(
+            $"Disparo N° {vm.NroDisparo} — Datos Administrativos",
+            new Dictionary<string, object?> { [nameof(RedeterminacionAdminDialog.Vm)] = vm },
+            new DialogOptions { Width = "480px" });
+
+        if (resultado is true)
+            await CargarAsync();
+    }
 
     private async Task EliminarAsync(RedeterminacionHistorialVM r)
     {
