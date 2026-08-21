@@ -10,7 +10,7 @@
 <RadzenTemplateForm TItem="UsuarioVM" Data="@Usuario" Submit="@GuardarAsync">
     <RadzenStack Gap="0.75rem">
         <div>
-            <RadzenFormField Text="Nombre" Variant="Variant.Outlined" style="width:100%">
+            <RadzenFormField Text="Nombre *" Variant="Variant.Outlined" style="width:100%">
                 <RadzenTextBox @bind-Value="Usuario.Nombre" Name="Nombre" style="width:100%" />
             </RadzenFormField>
             <RadzenRequiredValidator Component="Nombre" Text="El nombre es obligatorio" Popup="true" />

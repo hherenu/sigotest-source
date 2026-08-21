@@ -10,7 +10,7 @@
 
 @* Mismo nombre que el menú y el Home ("Calcular Redeterminación"): el módulo tenía
    cuatro nombres distintos y el usuario no podía confirmar dónde estaba. *@
-<RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" class="rz-mb-4">Calcular Redeterminación</RadzenText>
+<CabeceraPagina Titulo="Calcular Redeterminación" Estilo="TextStyle.H4" Clase="rz-mb-4" />
 
 @* ── Configuración: obra + período en una sola tarjeta ── *@
 <RadzenCard Variant="Variant.Outlined" class="rz-mb-4">
@@ -33,23 +33,27 @@
         </RadzenColumn>
 
         <RadzenColumn Size="12" SizeMD="7">
+            @* Alineado al MEDIO del recuadro de los FormField: el tema Material les da
+               margin-block 0.5rem 0 (aire para la etiqueta flotante), así que Center
+               solo queda 4px alto y End queda bajo; el margin-top del botón Calcular
+               compensa ese offset exacto. *@
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem" Wrap="FlexWrap.Wrap">
                 <RadzenFormField Text="Publicación" Variant="Variant.Outlined" style="flex:1.25 1 0;min-width:11rem">
                     <RadzenDropDown @bind-Value="selectedPublicacion" Data="@publicaciones" TValue="string"
-                                    AllowClear="true" Placeholder="-- seleccionar --"
+                                    AllowClear="true" Placeholder="-- Seleccionar --"
                                     Change="@OnPublicacionChanged" style="width:100%">
                         <Template Context="p">@(((string)p).Replace("_", " "))</Template>
                     </RadzenDropDown>
                 </RadzenFormField>
                 <RadzenFormField Text="Mes Base (K₀)" Variant="Variant.Outlined" style="flex:1 1 0;min-width:9rem">
                     <RadzenDropDown @bind-Value="mesBaseStr" Data="@MesesFiltrados" TextProperty="Text" ValueProperty="Value"
-                                    TValue="string" AllowClear="true" Placeholder="-- seleccionar --" style="width:100%" />
+                                    TValue="string" AllowClear="true" Placeholder="-- Seleccionar --" style="width:100%" />
                 </RadzenFormField>
                 <RadzenFormField Text="Mes Salto (Kᵢ)" Variant="Variant.Outlined" style="flex:1 1 0;min-width:9rem">
                     <RadzenDropDown @bind-Value="mesSaltoStr" Data="@MesesFiltrados" TextProperty="Text" ValueProperty="Value"
-                                    TValue="string" AllowClear="true" Placeholder="-- seleccionar --" style="width:100%" />
+                                    TValue="string" AllowClear="true" Placeholder="-- Seleccionar --" style="width:100%" />
                 </RadzenFormField>
-                <RadzenButton Text="Calcular" Icon="calculate" ButtonStyle="ButtonStyle.Primary"
+                <RadzenButton Text="Calcular" Icon="calculate" ButtonStyle="ButtonStyle.Primary" style="margin-top:0.5rem"
                               Disabled="@(obra is null || tabla is null || string.IsNullOrEmpty(selectedPublicacion) || string.IsNullOrEmpty(mesBaseStr) || string.IsNullOrEmpty(mesSaltoStr))"
                               IsBusy="@calculando" BusyText="Calculando..." Click="@CalcularClickAsync" />
             </RadzenStack>
@@ -76,11 +80,14 @@
             <Acciones>
                 @if (vm.TotalKiK0.HasValue)
                 {
+                    @* Primary constante: antes alternaba Success/Danger según el resultado
+                       y un guardado se veía como acción destructiva. El estado ya lo
+                       comunica el banner. *@
                     <RadzenButton Text="@(editarId.HasValue ? "Actualizar cálculo" : "Guardar cálculo")" Icon="save"
-                                  ButtonStyle="@(EsSuba ? ButtonStyle.Success : ButtonStyle.Danger)"
+                                  ButtonStyle="ButtonStyle.Primary"
                                   IsBusy="@guardando" BusyText="Guardando..." Click="@GuardarAsync" />
                 }
-                <RadzenButton Text="Excel" Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat"
+                <RadzenButton Text="Excel" Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Flat"
                               Click="@DescargarExcel" />
                 <RadzenButton Text="PDF" Icon="print" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                               Click="@(async () => await JS.InvokeVoidAsync("window.print"))" />

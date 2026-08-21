@@ -23,13 +23,24 @@
 
 @if (lista is null)
 {
-    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    <EstadoCargando Texto="Cargando historial…" />
 }
 else if (lista.Count == 0)
 {
-    <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
-        No hay cálculos guardados.
-    </RadzenAlert>
+    <EstadoVacio Icono="history"
+                 Titulo="@(filterObraId.HasValue ? "No hay cálculos guardados para esta obra" : "No hay cálculos guardados")"
+                 Descripcion="Los cálculos guardados desde Calcular Redeterminación aparecen acá como disparos por obra.">
+        <Accion>
+            @if (filterObraId.HasValue)
+            {
+                <RadzenButton Text="Ver todas las obras" Icon="filter_alt_off" Size="ButtonSize.Small"
+                              ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                              Click="@(() => Nav.NavigateTo("redeterminacion/historial", replace: true))" />
+            }
+            <RadzenButton Text="Calcular Redeterminación" Icon="calculate" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                          Click="@(() => Nav.NavigateTo("redeterminacion/calcular"))" />
+        </Accion>
+    </EstadoVacio>
 }
 else
 {
@@ -125,7 +136,8 @@ else
                                                   title="@(EsRecalculable(r) ? "Recalcular" : $"En estado {r.Estado} no admite recálculo")"
                                                   Disabled="@(!EsRecalculable(r))"
                                                   Click="@(() => Nav.NavigateTo($"redeterminacion/calcular?editarId={r.Id}"))" />
-                                    <RadzenButton Icon="edit_note" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Text"
+                                    @* Primary como todos los "editar" de fila (era Warning, único en la app). *@
+                                    <RadzenButton Icon="edit_note" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
                                                   title="Datos administrativos" Click="@(() => AbrirAdminAsync(r))" />
                                     <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
                                                   title="@(r.NroDisparo != ultimoDisparo ? "Solo se puede eliminar el último disparo"

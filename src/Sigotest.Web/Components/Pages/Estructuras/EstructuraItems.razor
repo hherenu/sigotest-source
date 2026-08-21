@@ -15,7 +15,7 @@
 }
 else if (estructura is null)
 {
-    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    <EstadoCargando Texto="Cargando ítems…" />
 }
 else
 {
@@ -23,7 +23,7 @@ else
                     Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(estructura.ObraNombre, $"obras/{estructura.ObraId}"), new("Estructuras", $"obras/{estructura.ObraId}/estructuras"), new(estructura.Nombre) })">
         <Subtitulo>@estructura.ObraNombre — @estructura.ObraNumeroLicitacion</Subtitulo>
         <Acciones>
-            <RadzenButton Text="Volver a estructuras" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
+            <RadzenButton Text="Volver a Estructuras" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
                           Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"obras/{estructura.ObraId}/estructuras"))" />
         </Acciones>
     </CabeceraPagina>

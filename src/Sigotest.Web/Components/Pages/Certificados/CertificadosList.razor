@@ -15,7 +15,7 @@
 }
 else if (obra is null)
 {
-    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    <EstadoCargando Texto="Cargando certificados…" />
 }
 else
 {
@@ -32,9 +32,13 @@ else
 
     @if (certificados.Count == 0)
     {
-        <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
-            No hay certificados cargados para esta obra.
-        </RadzenAlert>
+        <EstadoVacio Icono="receipt_long" Titulo="No hay certificados para esta obra"
+                     Descripcion="Los certificados registran el avance mensual contra una estructura de costos de la obra.">
+            <Accion>
+                <RadzenButton Text="Nuevo Certificado" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                              Click="@(() => Nav.NavigateTo($"obras/{ObraId}/certificados/nuevo"))" />
+            </Accion>
+        </EstadoVacio>
     }
     else
     {
@@ -65,7 +69,7 @@ else
                                       title="Ver" Click="@(() => Nav.NavigateTo($"certificados/{c.Id}"))" />
                         <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
                                       title="Editar" Click="@(() => Nav.NavigateTo($"certificados/{c.Id}/cargar"))" />
-                        <RadzenButton Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success" Variant="Variant.Text"
+                        <RadzenButton Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text"
                                       title="Excel" Click="@(() => Nav.NavigateTo($"/Certificado/DescargarExcel/{c.Id}", true))" />
                         <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
                                       title="@(c.EsCerrado ? "Un certificado cerrado no se puede eliminar (reabrilo primero)" : "Eliminar")"

@@ -3,15 +3,17 @@
    implementación evita que las dos pantallas deriven). Verde/rojo según el umbral
    de suba; amarillo cuando el cálculo no tiene coeficiente total. Las acciones
    (guardar/exportar) las pone cada página y van con d-print-none. *@
+@* El layout y los derivados del color viven en app-blazor.css (.app-banner-resultado);
+   acá solo entra el color de estado por la custom property --banner-color. *@
 @if (Porcentaje.HasValue)
 {
-    <div class="rz-mb-4" style="@($"display:flex;align-items:center;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;border:1px solid {Color};border-radius:var(--rz-border-radius);background:color-mix(in srgb, {Color} 14%, transparent);padding:0.75rem 1.125rem")">
+    <div class="rz-mb-4 app-banner-resultado" style="@($"--banner-color:{Color}")">
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1.5rem">
             <div>
-                <RadzenText TextStyle="TextStyle.Overline" class="rz-mt-0 rz-mb-0" style="@($"color:{Color}")">Resultado</RadzenText>
-                <RadzenText TextStyle="TextStyle.H4" class="rz-mb-0" style="@($"color:{Color};font-weight:700;line-height:1.1")">@Porcentaje.Value.ToString("N4")%</RadzenText>
+                <RadzenText TextStyle="TextStyle.Overline" class="rz-mt-0 rz-mb-0" style="color:var(--banner-color)">Resultado</RadzenText>
+                <RadzenText TextStyle="TextStyle.H4" class="rz-mb-0 app-banner-resultado__valor">@Porcentaje.Value.ToString("N4")%</RadzenText>
             </div>
-            <div style="@($"width:1px;height:2.75rem;background:color-mix(in srgb, {Color} 35%, transparent)")"></div>
+            <div class="app-banner-resultado__sep"></div>
             <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0" style="line-height:1.7">
                 Coeficiente: <b style="color:var(--rz-text-color)">@Coeficiente?.ToString("N2")</b><br />
                 @Periodo
@@ -27,7 +29,7 @@
 }
 else
 {
-    <div class="rz-mb-4" style="display:flex;align-items:center;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;border:1px solid var(--rz-warning);border-radius:var(--rz-border-radius);background:color-mix(in srgb, var(--rz-warning) 14%, transparent);padding:0.75rem 1.125rem">
+    <div class="rz-mb-4 app-banner-resultado" style="--banner-color:var(--rz-warning)">
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
             <RadzenIcon Icon="warning" style="color:var(--rz-warning)" />
             <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0">@MensajeSinCoeficiente</RadzenText>

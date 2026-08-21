@@ -15,7 +15,7 @@
 }
 else if (vm is null)
 {
-    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    <EstadoCargando Texto="Cargando certificado…" />
 }
 else
 {
@@ -37,7 +37,9 @@ else
             {
                 <RadzenButton Text="Reabrir" Icon="lock_open" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Flat"
                               Disabled="@procesando" Click="@ReabrirAsync" />
-                <RadzenButton Text="Aprobar" Icon="check" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                @* Success como toda transición que consolida (igual que Cerrar y que
+                   Aprobar en Planificación; era Primary solo acá). *@
+                <RadzenButton Text="Aprobar" Icon="check" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success"
                               Disabled="@procesando" Click="@AprobarAsync" />
             }
             else if (vm.Estado == EstadoCertificado.Aprobado)
@@ -45,9 +47,9 @@ else
                 <RadzenButton Text="Volver a Cerrado" Icon="undo" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Flat"
                               Disabled="@procesando" Click="@DesaprobarAsync" />
             }
-            <RadzenButton Text="Excel" Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat"
+            <RadzenButton Text="Excel" Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Flat"
                           Click="@(() => Nav.NavigateTo($"/Certificado/DescargarExcel/{Id}", true))" />
-            <RadzenButton Text="Volver" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+            <RadzenButton Text="Volver a Certificados" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                           Click="@(() => Nav.NavigateTo($"obras/{vm.ObraId}/certificados"))" />
         </Acciones>
     </CabeceraPagina>

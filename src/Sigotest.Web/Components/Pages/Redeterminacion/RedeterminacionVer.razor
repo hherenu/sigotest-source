@@ -14,7 +14,7 @@
 }
 else if (r is null)
 {
-    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    <EstadoCargando Texto="Cargando cálculo…" />
 }
 else
 {
@@ -23,7 +23,7 @@ else
             @r.ObraNumeroLicitacion · Guardado @r.FechaGuardado.ToString("dd/MM/yyyy HH:mm")
         </Subtitulo>
         <Acciones>
-            <RadzenButton Text="Historial" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+            <RadzenButton Text="Volver al Historial" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                           Click="@(() => Nav.NavigateTo($"redeterminacion/historial?obraId={r.ObraId}"))" />
         </Acciones>
     </CabeceraPagina>
@@ -34,7 +34,7 @@ else
         <BannerResultado Porcentaje="@r.PorcentajeAumento" Coeficiente="@r.TotalKiK0"
                          Periodo="@($"{Fmt.PubLabelRevista(r.IdPublicacionBase, r.MesBase, r.AnioBase)} → {Fmt.PubLabelRevista(r.IdPublicacionSalto, r.MesSalto, r.AnioSalto)}")">
             <Acciones>
-                <RadzenButton Text="Excel" Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat"
+                <RadzenButton Text="Excel" Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Flat"
                               Click="@(() => Nav.NavigateTo($"/Redeterminacion/DescargarExcelGuardado/{r.Id}", true))" />
                 <RadzenButton Text="PDF" Icon="print" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                               Click="@(async () => await JS.InvokeVoidAsync("window.print"))" />

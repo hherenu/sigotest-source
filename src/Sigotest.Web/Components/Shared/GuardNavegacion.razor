@@ -12,13 +12,25 @@
     /// <summary>true si la página tiene cambios tipeados que difieren de lo guardado.</summary>
     [Parameter, EditorRequired] public Func<bool> HayCambios { get; set; } = () => false;
 
+    // El flag antes del Confirm (mismo criterio que las eliminaciones de la app):
+    // dos clics rápidos en el menú disparan dos navegaciones y sin esto se apilaban
+    // dos diálogos; la segunda navegación se bloquea mientras la pregunta está abierta.
+    private bool preguntando;
+
     private async Task ConfirmarAsync(LocationChangingContext ctx)
     {
         if (!HayCambios()) return;
-        var ok = await DialogService.Confirm(
-            "Hay cambios sin guardar que se van a perder si salís de esta página. ¿Salir igual?",
-            "Cambios sin guardar",
-            new ConfirmOptions { OkButtonText = "Salir sin guardar", CancelButtonText = "Quedarme" });
-        if (ok != true) ctx.PreventNavigation();
+        if (preguntando) { ctx.PreventNavigation(); return; }
+
+        preguntando = true;
+        try
+        {
+            var ok = await DialogService.Confirm(
+                "Hay cambios sin guardar que se van a perder si salís de esta página. ¿Salir igual?",
+                "Cambios sin guardar",
+                new ConfirmOptions { OkButtonText = "Salir sin guardar", CancelButtonText = "Quedarme" });
+            if (ok != true) ctx.PreventNavigation();
+        }
+        finally { preguntando = false; }
     }
 }

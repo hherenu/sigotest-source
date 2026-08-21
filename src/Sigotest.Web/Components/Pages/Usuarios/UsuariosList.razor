@@ -15,10 +15,8 @@
 
 @if (usuarios.Count == 0)
 {
-    <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
-        Todavía no hay usuarios registrados: cada persona queda registrada automáticamente
-        en su primer ingreso (la primera de todas, como Admin).
-    </RadzenAlert>
+    <EstadoVacio Icono="group" Titulo="Todavía no hay usuarios registrados"
+                 Descripcion="Cada persona queda registrada automáticamente en su primer ingreso (la primera de todas, como Admin)." />
 }
 else
 {
@@ -29,7 +27,7 @@ else
     <RadzenDataGrid Data="@usuarios" TItem="UsuarioVM" Density="Density.Compact"
                     AllowFiltering="true" FilterMode="FilterMode.CheckBoxList"
                     FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
-                    AllowSorting="true" AllowPaging="true" PageSize="15">
+                    AllowSorting="true" AllowPaging="true" PageSize="20">
         <Columns>
             <RadzenDataGridColumn TItem="UsuarioVM" Property="WindowsUser" Title="Usuario Windows" Width="180px" />
             <RadzenDataGridColumn TItem="UsuarioVM" Property="Nombre" Title="Nombre" />
@@ -53,9 +51,11 @@ else
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="UsuarioVM" Title="" Width="90px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                 <Template Context="u">
-                    <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Text"
+                    @* editar=Primary y eliminar=delete, como todas las filas de la app
+                       (eran Warning y close, únicos acá). *@
+                    <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
                                   title="Editar" Disabled="@procesando" Click="@(() => EditarAsync(u))" />
-                    <RadzenButton Icon="close" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
+                    <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
                                   title="Eliminar" Disabled="@procesando" Click="@(() => EliminarAsync(u))" />
                 </Template>
             </RadzenDataGridColumn>

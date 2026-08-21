@@ -11,6 +11,14 @@
    MARCA secundario, ilegible como texto). */
 .app-muted { color: var(--rz-text-secondary-color) !important; }
 
+/* Respiro superior de los títulos de página: sin esto el H1 quedaba pegado al
+   borde del contenido. El margen inferior lo maneja cada cabecera (rz-mb-*).
+   !important: el tema Material pone margin-block: 0 en los headings de Radzen
+   y pisa el margin-top sin él. */
+.app-content h1 {
+    margin-top: 10px !important;
+}
+
 /* Miga de pan de CabeceraPagina (páginas anidadas bajo obra). */
 .app-migas {
     display: flex;
@@ -20,6 +28,111 @@
     font-size: 0.78rem;
     color: var(--rz-text-secondary-color);
     margin-bottom: 0.25rem;
+}
+
+/* ===========================================================================
+   Banner de resultado de redeterminación (BannerResultado.razor). El color del
+   estado (verde/rojo/amarillo) entra por la custom property --banner-color;
+   antes eran ~10 estilos inline con interpolación de color.
+   =========================================================================== */
+.app-banner-resultado {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    border: 1px solid var(--banner-color);
+    border-radius: var(--rz-border-radius);
+    background: color-mix(in srgb, var(--banner-color) 14%, transparent);
+    padding: 0.75rem 1.125rem;
+}
+
+.app-banner-resultado__valor {
+    color: var(--banner-color);
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.app-banner-resultado__sep {
+    width: 1px;
+    height: 2.75rem;
+    background: color-mix(in srgb, var(--banner-color) 35%, transparent);
+}
+
+/* ===========================================================================
+   Home (tiles por módulo). Vivía en un <style> dentro de Home.razor: era CSS
+   global de facto y el único embebido en página del proyecto. Las superficies
+   se adaptan al tema vía las clases .rz-material / .rz-material-dark que
+   RadzenLayout expone en el DOM (ancestros del componente: CSS aislado no
+   puede apuntarles).
+   =========================================================================== */
+.rz-layout.rz-material-dark {
+    --sigo-surface-border: rgba(255, 255, 255, .12);
+    --sigo-surface-bg: rgba(255, 255, 255, .04);
+}
+
+.rz-layout.rz-material {
+    --sigo-surface-border: rgba(0, 0, 0, .14);
+    --sigo-surface-bg: rgba(0, 0, 0, .03);
+}
+
+.sigo-home {
+    max-width: 1120px;
+    padding: 2rem 1rem;
+}
+
+.sigo-home__header {
+    margin-bottom: 1.5rem;
+}
+
+.sigo-home__eyebrow {
+    color: var(--rz-primary);
+    font-size: .85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.sigo-home h1 {
+    margin: .35rem 0 .5rem;
+}
+
+.sigo-home__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+.sigo-home__tile {
+    display: grid;
+    gap: .45rem;
+    padding: 1rem;
+    min-height: 140px;
+    color: inherit;
+    text-decoration: none;
+    border: 1px solid var(--sigo-surface-border, rgba(255, 255, 255, .12));
+    border-radius: 6px;
+    background: var(--sigo-surface-bg, rgba(255, 255, 255, .04));
+}
+
+.sigo-home__tile:hover {
+    border-color: var(--rz-primary);
+}
+
+.sigo-home__tile .rzi {
+    font-size: 1.75rem;
+    color: var(--rz-primary);
+}
+
+.sigo-home__tile small,
+.sigo-home__empty {
+    color: var(--rz-text-secondary-color);
+}
+
+.sigo-home__empty {
+    padding: 1rem;
+    border: 1px solid var(--sigo-surface-border, rgba(255, 255, 255, .12));
+    border-radius: 6px;
+    background: var(--sigo-surface-bg, rgba(255, 255, 255, .04));
 }
 
 /* Solo para lectores de pantalla (captions de las tablas cert-grid). */

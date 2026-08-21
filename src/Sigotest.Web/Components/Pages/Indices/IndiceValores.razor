@@ -15,7 +15,7 @@
 }
 else if (indice is null)
 {
-    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    <EstadoCargando Texto="Cargando valores…" />
 }
 else
 {
@@ -32,16 +32,20 @@ else
         <Acciones>
             <RadzenButton Text="Agregar valor" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
                           Disabled="@procesando" Click="@AbrirAgregarAsync" />
-            <RadzenButton Text="Volver" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+            <RadzenButton Text="Volver a Índices" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                           Click="@(() => Nav.NavigateTo("indices"))" />
         </Acciones>
     </CabeceraPagina>
 
     @if (valores.Count == 0)
     {
-        <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
-            Sin valores cargados aún.
-        </RadzenAlert>
+        <EstadoVacio Icono="calendar_month" Titulo="Sin valores cargados aún"
+                     Descripcion="Cargá el valor de un mes puntual, o importá una publicación INDEC completa desde el listado de índices.">
+            <Accion>
+                <RadzenButton Text="Agregar valor" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                              Disabled="@procesando" Click="@AbrirAgregarAsync" />
+            </Accion>
+        </EstadoVacio>
     }
     else
     {
@@ -51,7 +55,7 @@ else
         <RadzenDataGrid Data="@valores" TItem="ValorIndiceVM" Density="Density.Compact"
                         AllowFiltering="true" FilterMode="FilterMode.CheckBoxList"
                         FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
-                        AllowSorting="true" AllowPaging="true" PageSize="12">
+                        AllowSorting="true" AllowPaging="true" PageSize="20">
             <Columns>
                 <RadzenDataGridColumn TItem="ValorIndiceVM" Title="Período" Width="150px"
                                       Property="Anio" SortOrder="SortOrder.Descending">
@@ -63,7 +67,9 @@ else
                 <RadzenDataGridColumn TItem="ValorIndiceVM" Title="" Width="60px" Sortable="false" Filterable="false"
                                       TextAlign="TextAlign.Center">
                     <Template Context="v">
-                        <RadzenButton Icon="close" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger"
+                        @* Ícono delete como todos los "eliminar" de fila (close significa
+                           "cancelar" en el resto de la app). *@
+                        <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger"
                                       Variant="Variant.Text" title="Eliminar" Disabled="@procesando"
                                       Click="@(() => EliminarAsync(v))" />
                     </Template>

@@ -40,78 +40,9 @@
     }
 </section>
 
-<style>
-    /* Superficies adaptadas al tema, como en SAF: RadzenLayout expone .rz-material
-       (claro) y .rz-material-dark (oscuro) en el DOM y sirven de gancho. */
-    .rz-layout.rz-material-dark {
-        --sigo-surface-border: rgba(255, 255, 255, .12);
-        --sigo-surface-bg: rgba(255, 255, 255, .04);
-    }
-
-    .rz-layout.rz-material {
-        --sigo-surface-border: rgba(0, 0, 0, .14);
-        --sigo-surface-bg: rgba(0, 0, 0, .03);
-    }
-
-    .sigo-home {
-        max-width: 1120px;
-        padding: 2rem 1rem;
-    }
-
-    .sigo-home__header {
-        margin-bottom: 1.5rem;
-    }
-
-    .sigo-home__eyebrow {
-        color: var(--rz-primary);
-        font-size: .85rem;
-        font-weight: 700;
-        text-transform: uppercase;
-    }
-
-    .sigo-home h1 {
-        margin: .35rem 0 .5rem;
-    }
-
-    .sigo-home__grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 1rem;
-    }
-
-    .sigo-home__tile {
-        display: grid;
-        gap: .45rem;
-        padding: 1rem;
-        min-height: 140px;
-        color: inherit;
-        text-decoration: none;
-        border: 1px solid var(--sigo-surface-border, rgba(255, 255, 255, .12));
-        border-radius: 6px;
-        background: var(--sigo-surface-bg, rgba(255, 255, 255, .04));
-    }
-
-    .sigo-home__tile:hover {
-        border-color: var(--rz-primary);
-    }
-
-    .sigo-home__tile .rzi {
-        font-size: 1.75rem;
-        color: var(--rz-primary);
-    }
-
-    .sigo-home__tile small,
-    .sigo-home__empty {
-        color: var(--rz-text-secondary-color);
-    }
-
-    .sigo-home__empty {
-        padding: 1rem;
-        border: 1px solid var(--sigo-surface-border, rgba(255, 255, 255, .12));
-        border-radius: 6px;
-        background: var(--sigo-surface-bg, rgba(255, 255, 255, .04));
-    }
-</style>
+@* Los estilos (.sigo-home*) viven en app-blazor.css: eran el único <style>
+   embebido en página y necesitan apuntar a ancestros (.rz-layout), fuera del
+   alcance del CSS aislado. *@
 
 @code {
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }

@@ -1,0 +1,15 @@
+@* Estado de carga estándar: antes cada página ponía el mismo spinner suelto arriba
+   a la izquierda, sin texto. Centrado y con texto opcional ("Cargando obras…") para
+   que la espera tenga contexto y el salto de layout sea menor. *@
+<RadzenStack AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Gap="0.75rem" class="rz-my-8">
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    @if (Texto is not null)
+    {
+        <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">@Texto</RadzenText>
+    }
+</RadzenStack>
+
+@code {
+    /// <summary>Texto bajo el spinner (ej. "Cargando obras…"). Null = solo spinner.</summary>
+    [Parameter] public string? Texto { get; set; }
+}

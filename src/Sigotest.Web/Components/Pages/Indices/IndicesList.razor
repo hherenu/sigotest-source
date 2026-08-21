@@ -7,16 +7,18 @@
 
 <CabeceraPagina Titulo="Índices INDEC" Estilo="TextStyle.H4" Clase="rz-mb-4">
     <Acciones>
+        @* Un solo primario: importar es la acción frecuente (mensual); el alta de un
+           índice nuevo es rara y baja a secundario. *@
         <RadzenButton Text="Importar publicación" Icon="upload" ButtonStyle="ButtonStyle.Primary"
                       Click="@(() => Nav.NavigateTo("indices/importar"))" />
-        <RadzenButton Text="Nuevo Índice" Icon="add" ButtonStyle="ButtonStyle.Success"
+        <RadzenButton Text="Nuevo Índice" Icon="add" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Flat"
                       Click="@(() => Nav.NavigateTo("indices/nuevo"))" />
     </Acciones>
 </CabeceraPagina>
 
 @if (indices is null)
 {
-    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    <EstadoCargando Texto="Cargando índices…" />
 }
 else
 {

@@ -9,26 +9,32 @@
 
 <CabeceraPagina Titulo="Obras" Estilo="TextStyle.H4" Clase="rz-mb-4">
     <Acciones>
-        <RadzenButton Text="Nueva Obra" Icon="add" ButtonStyle="ButtonStyle.Success"
+        @* Primary: el alta es la acción principal del listado (Success queda para
+           transiciones que consolidan estado — regla de color de la app). *@
+        <RadzenButton Text="Nueva Obra" Icon="add" ButtonStyle="ButtonStyle.Primary"
                       Click="@(() => Nav.NavigateTo("obras/nueva"))" />
     </Acciones>
 </CabeceraPagina>
 
 @if (obras is null)
 {
-    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    <EstadoCargando Texto="Cargando obras…" />
 }
 else if (obras.Count == 0)
 {
-    <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
-        No hay obras cargadas.
-    </RadzenAlert>
+    <EstadoVacio Icono="apartment" Titulo="No hay obras cargadas"
+                 Descripcion="Las obras agrupan estructuras de costos, certificados y redeterminaciones. Creá la primera para empezar.">
+        <Accion>
+            <RadzenButton Text="Nueva Obra" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                          Click="@(() => Nav.NavigateTo("obras/nueva"))" />
+        </Accion>
+    </EstadoVacio>
 }
 else
 {
     <RadzenDataGrid @ref="grid" Data="@obras" TItem="ObraVM" AllowFiltering="true"
                     FilterMode="FilterMode.CheckBoxList" AllowColumnResize="true"
-                    AllowSorting="true" AllowPaging="true" PageSize="15"
+                    AllowSorting="true" AllowPaging="true" PageSize="20"
                     FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
                     Density="Density.Compact" class="rz-shadow-1">
         <Columns>

@@ -6,12 +6,14 @@
 
 <PageTitle>Importar publicación INDEC</PageTitle>
 
-<RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
-             AlignItems="AlignItems.Center" Wrap="FlexWrap.Wrap" Gap="0.5rem" class="rz-mb-4">
-    <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" class="rz-mb-0">Importar publicación INDEC</RadzenText>
-    <RadzenButton Text="Volver" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
-                  Click="@(() => Nav.NavigateTo("indices"))" />
-</RadzenStack>
+@* CabeceraPagina en vez del stack manual (duplicaba su markup a mano). *@
+<CabeceraPagina Titulo="Importar publicación INDEC" Estilo="TextStyle.H4" Clase="rz-mb-4"
+                Migas="@(new CabeceraPagina.Miga[] { new("Índices INDEC", "indices"), new("Importar") })">
+    <Acciones>
+        <RadzenButton Text="Volver a Índices" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                      Click="@(() => Nav.NavigateTo("indices"))" />
+    </Acciones>
+</CabeceraPagina>
 
 <RadzenRow Gap="1rem" RowGap="1rem">
     <RadzenColumn Size="12" SizeMD="4">
@@ -74,7 +76,7 @@
                 </RadzenStack>
 
                 <RadzenDataGrid Data="@filas" TItem="FilaImport" Density="Density.Compact"
-                                AllowSorting="true" AllowPaging="true" PageSize="15">
+                                AllowSorting="true" AllowPaging="true" PageSize="20">
                     <Columns>
                         <RadzenDataGridColumn TItem="FilaImport" Property="Linea" Title="Línea" Width="70px" TextAlign="TextAlign.Center" />
                         <RadzenDataGridColumn TItem="FilaImport" Property="Codigo" Title="Código" Width="230px" />

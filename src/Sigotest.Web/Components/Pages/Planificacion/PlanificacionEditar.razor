@@ -22,7 +22,7 @@ else if (noAsignada)
 }
 else if (vm is null)
 {
-    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    <EstadoCargando Texto="Cargando planificación…" />
 }
 else
 {
@@ -52,7 +52,7 @@ else
             }
             <RadzenButton Text="Exportar Excel" Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Flat"
                           Click="@(() => Nav.NavigateTo($"PlanificacionExport/Obra/{ObraId}?modo=vigente", forceLoad: true))" />
-            <RadzenButton Text="Volver" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+            <RadzenButton Text="Volver a Planificación" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                           Click="@(() => Nav.NavigateTo("planificacion"))" />
         </Acciones>
     </CabeceraPagina>
@@ -114,7 +114,7 @@ else
             <RadzenTemplateForm TItem="PlanificacionVM" Data="@vm" Submit="@(async (PlanificacionVM _) => await EnviarARevisionAsync())">
                 <RadzenStack Gap="0.75rem">
                     <div>
-                        <RadzenFormField Text="Motivo de la revisión" Variant="Variant.Outlined" style="width:100%">
+                        <RadzenFormField Text="Motivo de la revisión *" Variant="Variant.Outlined" style="width:100%">
                             <RadzenTextBox @bind-Value="motivoRevision" Name="motivo" style="width:100%" />
                         </RadzenFormField>
                         <RadzenRequiredValidator Component="motivo" Text="El motivo es obligatorio" Popup="true" />

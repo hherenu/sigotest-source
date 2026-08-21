@@ -1,0 +1,32 @@
+@* Estado vacío estándar: antes eran alerts "No hay X cargados." sin explicación ni
+   salida. Ícono + título + descripción del porqué/para qué + acción de alta cuando
+   corresponde, para que el vacío diga qué hacer a continuación. *@
+<RadzenStack AlignItems="AlignItems.Center" Gap="0.5rem" class="rz-my-8 rz-text-align-center">
+    <RadzenIcon Icon="@Icono" style="font-size:2.5rem;color:var(--rz-text-secondary-color)" />
+    <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-0">@Titulo</RadzenText>
+    @if (Descripcion is not null)
+    {
+        <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0" style="max-width:48ch">@Descripcion</RadzenText>
+    }
+    @if (Accion is not null)
+    {
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap"
+                     JustifyContent="JustifyContent.Center" class="rz-mt-2">
+            @Accion
+        </RadzenStack>
+    }
+</RadzenStack>
+
+@code {
+    /// <summary>Ícono Material del módulo (ej. "apartment", "receipt_long").</summary>
+    [Parameter, EditorRequired] public string Icono { get; set; } = string.Empty;
+
+    /// <summary>Título corto del vacío (ej. "No hay obras cargadas").</summary>
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+
+    /// <summary>Por qué está vacío / para qué sirve lo que falta. Null = sin descripción.</summary>
+    [Parameter] public string? Descripcion { get; set; }
+
+    /// <summary>Botones de salida (alta, limpiar filtro). Null = sin acciones.</summary>
+    [Parameter] public RenderFragment? Accion { get; set; }
+}
