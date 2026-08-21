@@ -7,7 +7,10 @@
 
 <PageTitle>Historial de Redeterminaciones</PageTitle>
 
-<CabeceraPagina Titulo="Variaciones de Referencia" Estilo="TextStyle.H4">
+@* Mismo nombre que el menú y el PageTitle; el término de dominio ("variaciones de
+   referencia") se conserva en el subtítulo para los usuarios que lo buscan así. *@
+<CabeceraPagina Titulo="Historial de Redeterminaciones" Estilo="TextStyle.H4">
+    <Subtitulo>Variaciones de referencia guardadas, agrupadas por obra</Subtitulo>
     <Acciones>
         <RadzenButton Text="Calcular" Icon="calculate" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                       Click="@(() => Nav.NavigateTo("redeterminacion/calcular"))" />
@@ -34,23 +37,44 @@ else
     {
         var obra = grupo.First();
         var ultimoDisparo = grupo.Max(x => x.NroDisparo);
+        // Cada columna administrativa se muestra solo si algún disparo del grupo tiene
+        // ESE dato (visibilidad por columna, no por grupo: el historial importado trae
+        // fechas de aprobación sin expediente, y en bloque la columna Expediente
+        // quedaba siempre visible en "—"). Se editan/ven siempre por el diálogo.
+        var verExpediente = grupo.Any(x => !string.IsNullOrWhiteSpace(x.NroExpedienteVR));
+        var verCCyR = grupo.Any(x => x.FechaAprobacionCCyR is not null);
+        var verOS = grupo.Any(x => x.FechaAprobacionOS is not null);
+        var verLimite = grupo.Any(x => x.FechaLimitePresentacion is not null);
         <RadzenCard @key="grupo.Key" Variant="Variant.Outlined" class="rz-mb-4">
             <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-3" style="font-weight:600">@obra.ObraNumeroLicitacion — @obra.ObraNombre</RadzenText>
             <div class="cert-scroll">
                 <table class="cert-grid">
+                    <caption class="sr-only">Disparos de redeterminación de @obra.ObraNombre</caption>
                     <thead>
                         <tr>
-                            <th>Disparo N°</th>
-                            <th>Mes de Disparo</th>
-                            <th>Variación Ref. %</th>
-                            <th>Coef. (K/K₀)</th>
-                            <th>Var. Acumulada</th>
-                            <th>Publicación</th>
-                            <th>N° Expediente VR</th>
-                            <th>Aprob. CCyR</th>
-                            <th>Aprob. OS</th>
-                            <th>Límite Red. Def.</th>
-                            <th>Acciones</th>
+                            <th scope="col">Disparo N°</th>
+                            <th scope="col">Mes de Disparo</th>
+                            <th scope="col" title="Variación de referencia respecto del mes base (habilita redeterminación desde el @(Redet.SaltoMinimo.ToString("N0"))%)">Variación Ref. %</th>
+                            <th scope="col" title="Coeficiente total Kᵢ/K₀ del salto">Coef. (K/K₀)</th>
+                            <th scope="col" title="Variación acumulada de la cadena de disparos">Var. Acumulada</th>
+                            <th scope="col">Publicación</th>
+                            @if (verExpediente)
+                            {
+                                <th scope="col" title="N° de expediente de la Variación de Referencia">N° Expediente VR</th>
+                            }
+                            @if (verCCyR)
+                            {
+                                <th scope="col" title="Fecha de aprobación CCyR">Aprob. CCyR</th>
+                            }
+                            @if (verOS)
+                            {
+                                <th scope="col" title="Fecha de aprobación OS">Aprob. OS</th>
+                            }
+                            @if (verLimite)
+                            {
+                                <th scope="col" title="Fecha límite de presentación de la redeterminación definitiva">Límite Red. Def.</th>
+                            }
+                            <th scope="col">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -59,16 +83,41 @@ else
                             <tr @key="r.Id" style="text-align:center">
                                 <td style="font-weight:700">@r.NroDisparo</td>
                                 <td>@Fmt.MesCorto(r.MesSalto)-@(r.AnioSalto % 100)</td>
-                                <td style="@($"font-weight:700;color:{Redet.ColorSuba(r.PorcentajeAumento)}")">
-                                    @(r.PorcentajeAumento.HasValue ? r.PorcentajeAumento.Value.ToString("N4") + "%" : "—")
+                                <td style="white-space:nowrap">
+                                    @if (r.PorcentajeAumento.HasValue)
+                                    {
+                                        @* Badge con texto además del color: el rojo significa "no llega
+                                           al salto mínimo", no "variación negativa", y sin texto se
+                                           malinterpretaba (y era invisible para daltónicos). *@
+                                        <span style="@($"font-weight:700;color:{Redet.ColorSuba(r.PorcentajeAumento)}")">@r.PorcentajeAumento.Value.ToString("N4")%</span>
+                                        <RadzenBadge Text="@(Redet.EsSuba(r.PorcentajeAumento) ? "Habilita" : "No habilita")" IsPill="true"
+                                                     BadgeStyle="@(Redet.EsSuba(r.PorcentajeAumento) ? BadgeStyle.Success : BadgeStyle.Danger)"
+                                                     Shade="Shade.Lighter" class="rz-ml-1" />
+                                    }
+                                    else
+                                    {
+                                        <span>—</span>
+                                    }
                                 </td>
                                 <td>@r.TotalKiK0?.ToString("N2")</td>
                                 <td style="font-weight:600">@r.VariacionAcumulada?.ToString("N2")</td>
                                 <td>@Fmt.PubMayus(r.IdPublicacionSalto ?? r.IdPublicacionBase)</td>
-                                <td style="text-align:left">@(r.NroExpedienteVR ?? "—")</td>
-                                <td>@r.FechaAprobacionCCyR?.ToString("d/M/yyyy")</td>
-                                <td>@r.FechaAprobacionOS?.ToString("d/M/yyyy")</td>
-                                <td>@r.FechaLimitePresentacion?.ToString("d/M/yyyy")</td>
+                                @if (verExpediente)
+                                {
+                                    <td style="text-align:left">@(string.IsNullOrWhiteSpace(r.NroExpedienteVR) ? "—" : r.NroExpedienteVR)</td>
+                                }
+                                @if (verCCyR)
+                                {
+                                    <td>@r.FechaAprobacionCCyR?.ToString("d/M/yyyy")</td>
+                                }
+                                @if (verOS)
+                                {
+                                    <td>@r.FechaAprobacionOS?.ToString("d/M/yyyy")</td>
+                                }
+                                @if (verLimite)
+                                {
+                                    <td>@r.FechaLimitePresentacion?.ToString("d/M/yyyy")</td>
+                                }
                                 <td style="white-space:nowrap">
                                     <RadzenButton Icon="visibility" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info" Variant="Variant.Text"
                                                   title="Ver" Click="@(() => Nav.NavigateTo($"redeterminacion/{r.Id}"))" />

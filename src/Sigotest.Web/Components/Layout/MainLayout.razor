@@ -47,8 +47,13 @@
                ligadura Material en inglés). Expandido, title=null no emite atributo. *@
             <RadzenPanelMenuItem Text="Inicio" Icon="home" Path="" Match="NavLinkMatch.All" title="@Tooltip("Inicio")" />
             <AuthorizeView Roles="@Roles.Certificaciones">
-                <RadzenPanelMenuItem Text="Calcular" Icon="calculate" Path="redeterminacion/calcular" title="@Tooltip("Calcular")" />
-                <RadzenPanelMenuItem Text="Historial" Icon="history" Path="redeterminacion/historial" title="@Tooltip("Historial")" />
+                @* Calcular e Historial agrupados bajo "Redeterminación": el menú plano
+                   mezclaba estas dos acciones con los catálogos (Obras, Índices) y no
+                   se veía que son el mismo módulo. *@
+                <RadzenPanelMenuItem Text="Redeterminación" Icon="percent" title="@Tooltip("Redeterminación")">
+                    <RadzenPanelMenuItem Text="Calcular" Icon="calculate" Path="redeterminacion/calcular" title="@Tooltip("Calcular")" />
+                    <RadzenPanelMenuItem Text="Historial" Icon="history" Path="redeterminacion/historial" title="@Tooltip("Historial")" />
+                </RadzenPanelMenuItem>
                 <RadzenPanelMenuItem Text="Obras" Icon="apartment" Path="obras" title="@Tooltip("Obras")" />
                 <RadzenPanelMenuItem Text="Índices INDEC" Icon="trending_up" Path="indices" title="@Tooltip("Índices INDEC")" />
             </AuthorizeView>

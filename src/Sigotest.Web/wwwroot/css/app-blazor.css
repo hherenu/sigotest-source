@@ -11,6 +11,30 @@
    MARCA secundario, ilegible como texto). */
 .app-muted { color: var(--rz-text-secondary-color) !important; }
 
+/* Miga de pan de CabeceraPagina (páginas anidadas bajo obra). */
+.app-migas {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    color: var(--rz-text-secondary-color);
+    margin-bottom: 0.25rem;
+}
+
+/* Solo para lectores de pantalla (captions de las tablas cert-grid). */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 /* Colores de fila de agrupador — definidos una sola vez; se usan en cert-grid
    (CSS) y en el RowRender del RadzenDataGrid de Estructuras (inline). */
 :root {

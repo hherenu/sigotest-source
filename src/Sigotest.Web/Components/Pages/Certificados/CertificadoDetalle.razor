@@ -19,7 +19,8 @@ else if (vm is null)
 }
 else
 {
-    <CabeceraPagina Titulo="@($"Certificado N° {vm.Numero} — {Fmt.MesNombre(vm.Mes)} {vm.Anio}")">
+    <CabeceraPagina Titulo="@($"Certificado N° {vm.Numero} — {Fmt.MesNombre(vm.Mes)} {vm.Anio}")"
+                    Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(vm.ObraNombre, $"obras/{vm.ObraId}"), new("Certificados", $"obras/{vm.ObraId}/certificados"), new($"N° {vm.Numero}") })">
         <Badges>
             <RadzenBadge Text="@vm.Estado.ToString()" IsPill="true" BadgeStyle="@EstadoUi.Badge(vm.Estado)" />
         </Badges>
@@ -73,27 +74,27 @@ else
             <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-2" style="font-weight:600">@bloque.Titulo</RadzenText>
             <div class="cert-scroll">
                 <table class="cert-grid">
+                    <caption class="sr-only">Detalle del certificado por ítem — @bloque.Titulo</caption>
                     <thead>
                         <tr>
-                            <th style="text-align:left">Cód.</th>
-                            <th style="text-align:left;min-width:200px">Descripción</th>
-                            <th>Unid.</th>
-                            <th>Cant. Contrato</th>
-                            <th>PU Básico</th>
-                            <th>Monto Contrato</th>
-                            <th class="col-warning" colspan="2">ANTERIOR</th>
-                            <th class="col-primary" colspan="2">MES</th>
-                            <th class="col-info" colspan="3">ACUMULADO</th>
+                            <th scope="col" rowspan="2" style="text-align:left">Cód.</th>
+                            <th scope="col" rowspan="2" style="text-align:left;min-width:200px">Descripción</th>
+                            <th scope="col" rowspan="2">Unid.</th>
+                            <th scope="col" rowspan="2">Cant. Contrato</th>
+                            <th scope="col" rowspan="2">PU Básico</th>
+                            <th scope="col" rowspan="2">Monto Contrato</th>
+                            <th scope="colgroup" class="col-warning" colspan="2">ANTERIOR</th>
+                            <th scope="colgroup" class="col-primary" colspan="2">MES</th>
+                            <th scope="colgroup" class="col-info" colspan="3">ACUMULADO</th>
                         </tr>
                         <tr>
-                            <th colspan="6"></th>
-                            <th class="col-warning">Cant.</th>
-                            <th class="col-warning">Monto</th>
-                            <th class="col-primary">Cant.</th>
-                            <th class="col-primary">Monto</th>
-                            <th class="col-info">Cant.</th>
-                            <th class="col-info">Monto</th>
-                            <th class="col-info">%</th>
+                            <th scope="col" class="col-warning">Cant.</th>
+                            <th scope="col" class="col-warning">Monto</th>
+                            <th scope="col" class="col-primary">Cant.</th>
+                            <th scope="col" class="col-primary">Monto</th>
+                            <th scope="col" class="col-info">Cant.</th>
+                            <th scope="col" class="col-info">Monto</th>
+                            <th scope="col" class="col-info">%</th>
                         </tr>
                     </thead>
                     <tbody>

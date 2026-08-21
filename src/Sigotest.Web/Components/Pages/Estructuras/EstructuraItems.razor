@@ -19,7 +19,8 @@ else if (estructura is null)
 }
 else
 {
-    <CabeceraPagina Titulo="@estructura.Nombre">
+    <CabeceraPagina Titulo="@estructura.Nombre"
+                    Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(estructura.ObraNombre, $"obras/{estructura.ObraId}"), new("Estructuras", $"obras/{estructura.ObraId}/estructuras"), new(estructura.Nombre) })">
         <Subtitulo>@estructura.ObraNombre — @estructura.ObraNumeroLicitacion</Subtitulo>
         <Acciones>
             <RadzenButton Text="Volver a estructuras" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"

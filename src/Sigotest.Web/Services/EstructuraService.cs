@@ -127,7 +127,13 @@ public class EstructuraService(IDbContextFactory<AppDbContext> dbFactory, ICurre
             .Select(i => new AgrupadorOpcionVM(i.Id, i.Descripcion))
             .ToListAsync();
 
-        return new ItemParaEditarVM(MapItem(item), agrupadores);
+        // Contexto para la cabecera de la página (obra + estructura).
+        var ctx = await db.EstructurasCostos.AsNoTracking()
+            .Where(e => e.Id == item.EstructuraCostosId)
+            .Select(e => new { e.ObraId, ObraNombre = e.Obra.Nombre, e.Nombre })
+            .FirstAsync();
+
+        return new ItemParaEditarVM(MapItem(item), agrupadores, ctx.ObraId, ctx.ObraNombre, ctx.Nombre);
     }
 
     /// <summary>Agrega un ítem al final de la estructura (normalizado por el validator).</summary>

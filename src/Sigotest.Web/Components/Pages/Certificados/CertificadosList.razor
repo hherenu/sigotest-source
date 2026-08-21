@@ -19,7 +19,8 @@ else if (obra is null)
 }
 else
 {
-    <CabeceraPagina Titulo="Certificados de Avance" Clase="rz-mb-4">
+    <CabeceraPagina Titulo="Certificados de Avance" Clase="rz-mb-4"
+                    Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(obra.Nombre, $"obras/{ObraId}"), new("Certificados") })">
         <Subtitulo>@obra.Nombre — @obra.NumeroLicitacion</Subtitulo>
         <Acciones>
             <RadzenButton Text="Nuevo Certificado" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"

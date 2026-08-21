@@ -21,12 +21,18 @@ else
 {
     <GuardNavegacion HayCambios="@HayCambiosSinGuardar" />
 
-    <CabeceraPagina Titulo="@($"Certificado N° {vm.Numero} — {Fmt.MesNombre(vm.Mes)} {vm.Anio}")" Clase="rz-mb-2">
+    <CabeceraPagina Titulo="@($"Certificado N° {vm.Numero} — {Fmt.MesNombre(vm.Mes)} {vm.Anio}")" Clase="rz-mb-2"
+                    Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(vm.ObraNombre, $"obras/{vm.ObraId}"), new("Certificados", $"obras/{vm.ObraId}/certificados"), new($"N° {vm.Numero} — Carga") })">
         <Badges>
             <RadzenBadge Text="Borrador" IsPill="true" BadgeStyle="BadgeStyle.Secondary" />
         </Badges>
         <Subtitulo>@vm.ObraNombre</Subtitulo>
         <Acciones>
+            @* Guardar también en la cabecera (además del pie): con estructuras largas
+               el botón del pie queda a varias pantallas de scroll. Mismo criterio que
+               ya aplicaba Planificación. *@
+            <RadzenButton Text="Guardar certificado" Icon="save" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                          IsBusy="@procesando" BusyText="Guardando..." Click="@GuardarAsync" />
             <RadzenButton Text="Ver Detalle" Icon="visibility" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info"
                           Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"certificados/{Id}"))" />
             <RadzenButton Text="Volver" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
@@ -66,18 +72,19 @@ else
             </RadzenStack>
             <div class="cert-scroll">
                 <table class="cert-grid">
+                    <caption class="sr-only">Carga del % de avance del mes — @bloque.Titulo</caption>
                     <thead>
                         <tr>
-                            <th style="text-align:left">Cód.</th>
-                            <th style="text-align:left;min-width:200px">Descripción</th>
-                            <th>Unid.</th>
-                            <th>Cant. Contrato</th>
-                            <th>PU Básico</th>
-                            <th>Monto Contrato</th>
-                            <th class="col-warning">% Anterior</th>
-                            <th class="col-warning">Monto Anterior</th>
-                            <th class="col-primary">% Mes</th>
-                            <th class="col-primary">Monto Mes</th>
+                            <th scope="col" style="text-align:left">Cód.</th>
+                            <th scope="col" style="text-align:left;min-width:200px">Descripción</th>
+                            <th scope="col">Unid.</th>
+                            <th scope="col">Cant. Contrato</th>
+                            <th scope="col">PU Básico</th>
+                            <th scope="col">Monto Contrato</th>
+                            <th scope="col" class="col-warning">% Anterior</th>
+                            <th scope="col" class="col-warning">Monto Anterior</th>
+                            <th scope="col" class="col-primary">% Mes</th>
+                            <th scope="col" class="col-primary">Monto Mes</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -110,8 +117,11 @@ else
                                     <td class="num col-warning">@Fmt.Money(item.MontoAnterior)</td>
                                     <td class="col-primary" style="@(ExcedeAcumulado(bloque.CertificadoEstructuraId, item) ? "outline:2px solid var(--rz-danger);outline-offset:-2px" : "")"
                                         title="@(ExcedeAcumulado(bloque.CertificadoEstructuraId, item) ? $"El acumulado (anterior {item.PorcentajeAnterior?.ToString("N2") ?? "0"}% + mes) supera el 100%" : null)">
+                                        @* aria-label: sin él, un lector de pantalla anuncia el input sin
+                                           decir de qué ítem es (Radzen lo propaga al <input>). *@
                                         <RadzenNumeric TValue="decimal?" @bind-Value="pct[bloque.CertificadoEstructuraId][item.ItemEstructuraId]"
-                                                       Step="0.01" ShowUpDown="false" style="width:110px" />
+                                                       Step="0.01" ShowUpDown="false" style="width:110px"
+                                                       aria-label="@($"% del mes — {item.Codigo} {item.Descripcion}")" />
                                     </td>
                                     <td class="num col-primary">@Fmt.Money(LiveMonto(bloque.CertificadoEstructuraId, item))</td>
                                 </tr>

@@ -191,12 +191,13 @@ else
                 }
                 <div class="cert-scroll">
                     <table class="cert-grid">
+                        <caption class="sr-only">Montos planificados por período y moneda — @bloque.Titulo</caption>
                         <thead>
                             <tr>
-                                <th style="text-align:left;min-width:270px">Concepto / Período</th>
+                                <th scope="col" style="text-align:left;min-width:270px">Concepto / Período</th>
                                 @foreach (var m in vm.Monedas)
                                 {
-                                    <th style="min-width:140px">@m</th>
+                                    <th scope="col" style="min-width:140px">@m</th>
                                 }
                             </tr>
                         </thead>
@@ -274,12 +275,13 @@ else
             <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-2" style="font-weight:600">Totales del plan</RadzenText>
             <div class="cert-scroll">
                 <table class="cert-grid">
+                    <caption class="sr-only">Totales del plan por moneda</caption>
                     <thead>
                         <tr>
-                            <th style="text-align:left">Concepto</th>
+                            <th scope="col" style="text-align:left">Concepto</th>
                             @foreach (var m in vm.Monedas)
                             {
-                                <th>@m</th>
+                                <th scope="col">@m</th>
                             }
                         </tr>
                     </thead>
@@ -315,12 +317,13 @@ else
             <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-2" style="font-weight:600">Versiones anteriores</RadzenText>
             <div class="cert-scroll">
                 <table class="cert-grid">
+                    <caption class="sr-only">Versiones anteriores del plan (snapshots de cada toma de conocimiento)</caption>
                     <thead>
                         <tr>
-                            <th style="text-align:left">Versión (mes)</th>
-                            <th style="text-align:left">Toma de conocimiento</th>
-                            <th style="text-align:left">Por</th>
-                            <th></th>
+                            <th scope="col" style="text-align:left">Versión (mes)</th>
+                            <th scope="col" style="text-align:left">Toma de conocimiento</th>
+                            <th scope="col" style="text-align:left">Por</th>
+                            <th scope="col"><span class="sr-only">Exportar</span></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -449,12 +452,27 @@ else
     private bool AnioTambienMensual(int anio) =>
         vm!.Periodos.Any(p => !p.EsAnual && p.Anio == anio);
 
+    // Nombre accesible de una celda de la grilla: sin él, para un lector de pantalla
+    // la planilla es una secuencia de spinbuttons anónimos (Radzen lo pasa al <input>).
+    private string EtiquetaCelda(int autId, ConceptoPlanMonto c, int? anio, int? mes, Moneda mon)
+    {
+        var concepto = c switch
+        {
+            ConceptoPlanMonto.MontoAutorizado => "Monto autorizado",
+            ConceptoPlanMonto.AnticipoFinanciero => "Anticipo financiero",
+            ConceptoPlanMonto.CalculoAnual => $"Año {anio}",
+            _ => $"{Fmt.MesCorto(mes!.Value)} {anio}"
+        };
+        var bloque = vm?.Bloques.FirstOrDefault(b => b.AutorizanteId == autId)?.Titulo;
+        return $"{concepto} — {mon}{(bloque is null ? "" : $" — {bloque}")}";
+    }
+
     private RenderFragment Celda(int autId, ConceptoPlanMonto c, int? anio, int? mes, Moneda mon)
     {
         var key = (autId, c, anio, mes, mon);
         return @<RadzenNumeric TValue="decimal?" Value="@(celdas.TryGetValue(key, out var v) ? v : null)"
             Change="@((decimal? nv) => celdas[key] = nv)" Step="0.01" ShowUpDown="false" style="width:100%"
-            Disabled="@(!puedeEditar)" />;
+            Disabled="@(!puedeEditar)" aria-label="@EtiquetaCelda(autId, c, anio, mes, mon)" />;
     }
 
     // Celda del importe del anticipo: al llegar a 0 en todas las monedas limpia el mes, para
@@ -464,7 +482,8 @@ else
         var key = (autId, ConceptoPlanMonto.AnticipoFinanciero, (int?)null, (int?)null, mon);
         return @<RadzenNumeric TValue="decimal?" Value="@(celdas.TryGetValue(key, out var v) ? v : null)"
             Change="@((decimal? nv) => { celdas[key] = nv; if (!TieneImporteAnticipo(autId)) anticipoFecha[autId] = null; })"
-            Step="0.01" ShowUpDown="false" style="width:100%" Disabled="@(!puedeEditar)" />;
+            Step="0.01" ShowUpDown="false" style="width:100%" Disabled="@(!puedeEditar)"
+            aria-label="@EtiquetaCelda(autId, ConceptoPlanMonto.AnticipoFinanciero, null, null, mon)" />;
     }
 
     /// <summary>true si el bloque tiene importe de anticipo ≠ 0 en alguna moneda (lo único que persiste el mes).</summary>
