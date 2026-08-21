@@ -51,7 +51,9 @@
 
     private string? nombre;
     private bool esCertificaciones, esPlanificacion, esAdmin;
-    private bool tieneAlgunRol => esCertificaciones || esPlanificacion;
+    // Incluye Admin: un usuario solo-Admin tiene rol (vería el botón Usuarios);
+    // sin esto se le mostraba el mensaje de "sin roles asignados", que es falso.
+    private bool tieneAlgunRol => esCertificaciones || esPlanificacion || esAdmin;
 
     protected override async Task OnInitializedAsync()
     {

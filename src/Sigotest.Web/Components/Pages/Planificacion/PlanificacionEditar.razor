@@ -26,6 +26,8 @@ else if (vm is null)
 }
 else
 {
+    <GuardNavegacion HayCambios="@HayCambiosSinGuardar" />
+
     <CabeceraPagina Titulo="Planificación">
         <Badges>
             <RadzenBadge Text="@vm.Estado.ToString()" IsPill="true" BadgeStyle="@EstadoUi.Badge(vm.Estado)" />

@@ -19,6 +19,8 @@ else if (vm is null)
 }
 else
 {
+    <GuardNavegacion HayCambios="@HayCambiosSinGuardar" />
+
     <CabeceraPagina Titulo="@($"Certificado N° {vm.Numero} — {Fmt.MesNombre(vm.Mes)} {vm.Anio}")" Clase="rz-mb-2">
         <Badges>
             <RadzenBadge Text="Borrador" IsPill="true" BadgeStyle="BadgeStyle.Secondary" />
@@ -150,6 +152,9 @@ else
     private List<EstructuraOpcionVM> disponibles = new();
     private int? nuevoBloqueEstructuraId;
     private bool procesando;
+    // true tras un guardado exitoso: la navegación al detalle no debe pedir
+    // confirmación aunque pct difiera del VM (que quedó con los valores previos).
+    private bool navegacionSegura;
 
     private int idCargado;
 
@@ -204,6 +209,23 @@ else
         var usadas = vm.Bloques.Select(b => b.EstructuraCostosId).ToHashSet();
         disponibles = await Service.EstructurasDisponiblesAsync(vm.ObraId, usadas);
         nuevoBloqueEstructuraId = disponibles.FirstOrDefault()?.Id;
+    }
+
+    // true si algún % tipeado difiere de lo guardado en la DB. El sembrado de pct
+    // copia PorcentajeMes (0 → null), así que la comparación con ?? 0 arranca sin
+    // cambios; agregar/quitar bloque reconstruye pct desde la DB preservando lo
+    // tipeado, y esos bloques ya quedaron persistidos, así que sigue siendo válida.
+    private bool HayCambiosSinGuardar()
+    {
+        if (navegacionSegura || vm is null) return false;
+        foreach (var bloque in vm.Bloques)
+        {
+            if (!pct.TryGetValue(bloque.CertificadoEstructuraId, out var dict)) continue;
+            foreach (var item in bloque.Items.Where(i => !i.EsAgrupador))
+                if ((dict.GetValueOrDefault(item.ItemEstructuraId) ?? 0m) != (item.PorcentajeMes ?? 0m))
+                    return true;
+        }
+        return false;
     }
 
     private decimal LiveMonto(int bloqueId, ItemCertificadoVM item)
@@ -313,6 +335,7 @@ else
             if (!hecho) return;
 
             Notifications.Notify(NotificationSeverity.Success, "Guardado", "Certificado guardado.", 4000);
+            navegacionSegura = true;
             Nav.NavigateTo($"certificados/{Id}");
         }
         finally { procesando = false; }

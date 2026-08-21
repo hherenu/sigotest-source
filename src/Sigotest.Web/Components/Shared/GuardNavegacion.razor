@@ -1,0 +1,24 @@
+@inject DialogService DialogService
+
+@* Guard de navegación para páginas de carga masiva (certificados y planificación):
+   con cambios tipeados sin guardar, la navegación interna pide confirmación con un
+   diálogo Radzen y la externa (F5, cerrar pestaña, forceLoad) dispara el aviso
+   nativo del navegador vía ConfirmExternalNavigation. El predicado lo aporta cada
+   página; se re-evalúa en cada render (tipear una celda re-renderiza y actualiza
+   el parámetro). *@
+<NavigationLock OnBeforeInternalNavigation="@ConfirmarAsync" ConfirmExternalNavigation="@HayCambios()" />
+
+@code {
+    /// <summary>true si la página tiene cambios tipeados que difieren de lo guardado.</summary>
+    [Parameter, EditorRequired] public Func<bool> HayCambios { get; set; } = () => false;
+
+    private async Task ConfirmarAsync(LocationChangingContext ctx)
+    {
+        if (!HayCambios()) return;
+        var ok = await DialogService.Confirm(
+            "Hay cambios sin guardar que se van a perder si salís de esta página. ¿Salir igual?",
+            "Cambios sin guardar",
+            new ConfirmOptions { OkButtonText = "Salir sin guardar", CancelButtonText = "Quedarme" });
+        if (ok != true) ctx.PreventNavigation();
+    }
+}
