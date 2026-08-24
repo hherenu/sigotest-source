@@ -55,7 +55,8 @@ else
         <RadzenDataGrid Data="@valores" TItem="ValorIndiceVM" Density="Density.Compact"
                         AllowFiltering="true" FilterMode="FilterMode.CheckBoxList"
                         FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
-                        AllowSorting="true" AllowPaging="true" PageSize="20">
+                        AllowSorting="true" AllowPaging="true" PageSize="20"
+                        EmptyText="Ningún registro coincide con los filtros aplicados.">
             <Columns>
                 <RadzenDataGridColumn TItem="ValorIndiceVM" Title="Período" Width="150px"
                                       Property="Anio" SortOrder="SortOrder.Descending">
@@ -110,7 +111,7 @@ else
         var resultado = await DialogService.OpenAsync<ValorAgregarDialog>(
             "Agregar valor mensual",
             new Dictionary<string, object?> { [nameof(ValorAgregarDialog.IndiceId)] = Id },
-            new DialogOptions { Width = "420px" });
+            new DialogOptions { Width = "min(420px, 92vw)" });
 
         if (resultado is true)
             await CargarValoresAsync();

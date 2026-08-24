@@ -22,22 +22,24 @@
                 <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-text-align-center rz-mb-0">
                     Podés seguir navegando por las secciones habilitadas para tu rol:
                 </RadzenText>
+                @* Alternativas equivalentes → mismo estilo para todas (antes mezclaban
+                   Primary sólido, Info y Light sin razón). *@
                 <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap" JustifyContent="JustifyContent.Center">
                     @if (esCertificaciones)
                     {
-                        <RadzenButton Text="Calcular" Icon="calculate" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                        <RadzenButton Text="Calcular" Icon="calculate" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Flat"
                                       Click="@(() => Nav.NavigateTo("redeterminacion/calcular"))" />
                         <RadzenButton Text="Obras" Icon="apartment" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Flat"
                                       Click="@(() => Nav.NavigateTo("obras"))" />
                     }
                     @if (esPlanificacion)
                     {
-                        <RadzenButton Text="Planificación" Icon="event_note" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info"
+                        <RadzenButton Text="Planificación" Icon="event_note" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Flat"
                                       Click="@(() => Nav.NavigateTo("planificacion"))" />
                     }
                     @if (esAdmin)
                     {
-                        <RadzenButton Text="Usuarios" Icon="group" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                        <RadzenButton Text="Usuarios" Icon="group" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Flat"
                                       Click="@(() => Nav.NavigateTo("usuarios"))" />
                     }
                 </RadzenStack>

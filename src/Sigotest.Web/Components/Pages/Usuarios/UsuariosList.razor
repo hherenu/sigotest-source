@@ -27,7 +27,8 @@ else
     <RadzenDataGrid Data="@usuarios" TItem="UsuarioVM" Density="Density.Compact"
                     AllowFiltering="true" FilterMode="FilterMode.CheckBoxList"
                     FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
-                    AllowSorting="true" AllowPaging="true" PageSize="20">
+                    AllowSorting="true" AllowPaging="true" PageSize="20"
+                    EmptyText="Ningún registro coincide con los filtros aplicados.">
         <Columns>
             <RadzenDataGridColumn TItem="UsuarioVM" Property="WindowsUser" Title="Usuario Windows" Width="180px" />
             <RadzenDataGridColumn TItem="UsuarioVM" Property="Nombre" Title="Nombre" />
@@ -46,7 +47,8 @@ else
             <RadzenDataGridColumn TItem="UsuarioVM" Property="Activo" Title="Activo" Width="80px" TextAlign="TextAlign.Center">
                 <Template Context="u">
                     <RadzenIcon Icon="@(u.Activo ? "check_circle" : "cancel")"
-                                IconColor="@(u.Activo ? "var(--rz-success)" : "var(--rz-danger)")" />
+                                IconColor="@(u.Activo ? "var(--rz-success)" : "var(--rz-danger)")"
+                                title="@(u.Activo ? "Activo" : "Inactivo")" />
                 </Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="UsuarioVM" Title="" Width="90px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
@@ -89,7 +91,7 @@ else
         var resultado = await DialogService.OpenAsync<UsuarioEditarDialog>(
             $"Editar — {u.WindowsUser}",
             new Dictionary<string, object?> { [nameof(UsuarioEditarDialog.Usuario)] = copia },
-            new DialogOptions { Width = "480px" });
+            new DialogOptions { Width = "min(480px, 92vw)" });
 
         if (resultado is true)
             await CargarAsync();

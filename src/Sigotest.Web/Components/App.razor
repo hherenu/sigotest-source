@@ -39,6 +39,10 @@
     <script src="_framework/blazor.web.js"></script>
     <script src="_content/Radzen.Blazor/Radzen.Blazor.js"></script>
     <script>
+        // Ancho del viewport para MainLayout (colapso inicial de la sidebar en
+        // pantallas angostas; Blazor Server no lo conoce sin JS).
+        window.sigoAnchoVentana = function () { return window.innerWidth; };
+
         // Quita el splash en cuanto Blazor renderiza el layout. Con red de seguridad:
         // si algo fallara, igual se retira a los 15s para no dejar la app tapada.
         (function () {

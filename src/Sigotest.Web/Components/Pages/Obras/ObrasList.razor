@@ -36,7 +36,8 @@ else
                     FilterMode="FilterMode.CheckBoxList" AllowColumnResize="true"
                     AllowSorting="true" AllowPaging="true" PageSize="20"
                     FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
-                    Density="Density.Compact" class="rz-shadow-1">
+                    EmptyText="Ningún registro coincide con los filtros aplicados."
+                    Density="Density.Compact">
         <Columns>
             <RadzenDataGridColumn TItem="ObraVM" Property="NumeroLicitacion" Title="Licitación" Width="140px" />
             <RadzenDataGridColumn TItem="ObraVM" Property="Nombre" Title="Nombre" />

@@ -10,7 +10,17 @@
 
 @* Mismo nombre que el menú y el Home ("Calcular Redeterminación"): el módulo tenía
    cuatro nombres distintos y el usuario no podía confirmar dónde estaba. *@
-<CabeceraPagina Titulo="Calcular Redeterminación" Estilo="TextStyle.H4" Clase="rz-mb-4" />
+<CabeceraPagina Titulo="Calcular Redeterminación" Estilo="TextStyle.H4" Clase="rz-mb-4">
+    <Badges>
+        @if (editarId.HasValue)
+        {
+            @* Señal de modo edición: sin esto, la única pista de que se estaba
+               actualizando un disparo existente era el texto del botón de guardar. *@
+            <RadzenBadge Text="Recalculando un disparo guardado" IsPill="true"
+                         BadgeStyle="BadgeStyle.Warning" Shade="Shade.Lighter" />
+        }
+    </Badges>
+</CabeceraPagina>
 
 @* ── Configuración: obra + período en una sola tarjeta ── *@
 <RadzenCard Variant="Variant.Outlined" class="rz-mb-4">
@@ -54,9 +64,16 @@
                                     TValue="string" AllowClear="true" Placeholder="-- Seleccionar --" style="width:100%" />
                 </RadzenFormField>
                 <RadzenButton Text="Calcular" Icon="calculate" ButtonStyle="ButtonStyle.Primary" style="margin-top:0.5rem"
-                              Disabled="@(obra is null || tabla is null || string.IsNullOrEmpty(selectedPublicacion) || string.IsNullOrEmpty(mesBaseStr) || string.IsNullOrEmpty(mesSaltoStr))"
+                              Disabled="@FaltaConfiguracion"
                               IsBusy="@calculando" BusyText="Calculando..." Click="@CalcularClickAsync" />
             </RadzenStack>
+            @if (FaltaConfiguracion)
+            {
+                @* El botón deshabilitado no decía qué faltaba completar. *@
+                <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mt-2 rz-mb-0">
+                    Elegí la obra, la publicación y ambos meses para habilitar el cálculo.
+                </RadzenText>
+            }
         </RadzenColumn>
     </RadzenRow>
 </RadzenCard>
@@ -89,7 +106,8 @@
                 }
                 <RadzenButton Text="Excel" Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Flat"
                               Click="@DescargarExcel" />
-                <RadzenButton Text="PDF" Icon="print" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                @* "Imprimir / PDF": el rótulo "PDF" prometía un archivo y abría el diálogo de impresión. *@
+                <RadzenButton Text="Imprimir / PDF" Icon="print" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                               Click="@(async () => await JS.InvokeVoidAsync("window.print"))" />
             </Acciones>
         </BannerResultado>
@@ -133,6 +151,11 @@
     private bool calculando;
 
     private bool EsSuba => Redet.EsSuba(vm?.PorcentajeAumento);
+
+    /// <summary>true mientras falte algo para poder calcular (deshabilita el botón y muestra la ayuda).</summary>
+    private bool FaltaConfiguracion =>
+        obra is null || tabla is null || string.IsNullOrEmpty(selectedPublicacion)
+        || string.IsNullOrEmpty(mesBaseStr) || string.IsNullOrEmpty(mesSaltoStr);
 
     private IEnumerable<MesOpcion> MesesFiltrados =>
         selectedPublicacion is null || !pubMesesMap.ContainsKey(selectedPublicacion)

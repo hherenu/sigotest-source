@@ -11,12 +11,12 @@
    MARCA secundario, ilegible como texto). */
 .app-muted { color: var(--rz-text-secondary-color) !important; }
 
-/* Respiro superior de los títulos de página: sin esto el H1 quedaba pegado al
-   borde del contenido. El margen inferior lo maneja cada cabecera (rz-mb-*).
-   !important: el tema Material pone margin-block: 0 en los headings de Radzen
-   y pisa el margin-top sin él. */
-.app-content h1 {
-    margin-top: 10px !important;
+/* Respiro superior de los títulos de página: sin esto quedaban pegados al borde
+   del contenido. Va en el PRIMER elemento de la página (no en el h1): un margen
+   en el h1 lo empujaba hacia abajo dentro de la fila flex de la cabecera y los
+   badges a su lado quedaban descentrados. */
+.app-content > :first-child {
+    margin-top: 10px;
 }
 
 /* Miga de pan de CabeceraPagina (páginas anidadas bajo obra). */
@@ -133,6 +133,36 @@
     border: 1px solid var(--sigo-surface-border, rgba(255, 255, 255, .12));
     border-radius: 6px;
     background: var(--sigo-surface-bg, rgba(255, 255, 255, .04));
+}
+
+/* Skip-link (WCAG 2.4.1): oculto salvo con foco por teclado. */
+.skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 2000;
+    padding: 0.5rem 1rem;
+    background: var(--rz-primary);
+    color: var(--rz-on-primary, #fff);
+    text-decoration: none;
+    border-radius: 0 0 6px 0;
+}
+
+.skip-link:focus {
+    left: 0;
+}
+
+/* Destino del skip-link: focuseable por tabindex=-1, sin outline propio. */
+.app-content:focus {
+    outline: none;
+}
+
+/* Foco visible por teclado en los tiles del Home (el outline por defecto se
+   perdía sobre el fondo sutil). */
+.sigo-home__tile:focus-visible {
+    outline: 2px solid var(--rz-primary);
+    outline-offset: 2px;
+    border-color: var(--rz-primary);
 }
 
 /* Solo para lectores de pantalla (captions de las tablas cert-grid). */
@@ -350,7 +380,9 @@ html, body {
 .cert-grid .col-info    { background: color-mix(in srgb, var(--rz-info) 10%, transparent); }
 .cert-grid tr.agrup-0 { background: var(--app-agrup-0-bg); font-weight: 600; }
 .cert-grid tr.agrup-1 { background: var(--app-agrup-1-bg); font-weight: 600; }
-.cert-grid .cell-mono { font-family: monospace; font-size: .75rem; opacity: .85; }
+/* Sin opacity: a .8rem sobre celdas coloreadas el texto atenuado quedaba al
+   borde del contraste AA; el tamaño menor ya lo distingue como secundario. */
+.cert-grid .cell-mono { font-family: monospace; font-size: .75rem; }
 
 /* Scroll de las tablas cert-grid: horizontal por ancho y, con tablas largas,
    también vertical acotado al viewport — necesario para que el sticky del

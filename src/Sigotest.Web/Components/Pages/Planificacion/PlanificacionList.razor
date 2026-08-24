@@ -38,7 +38,8 @@ else
 {
     <RadzenDataGrid @ref="grid" Data="@obras" TItem="PlanObraRowVM" AllowFiltering="true" FilterMode="FilterMode.CheckBoxList"
                     FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" AllowSorting="true" AllowPaging="true"
-                    PageSize="20" Density="Density.Compact" class="rz-shadow-1">
+                    PageSize="20" Density="Density.Compact"
+                    EmptyText="Ningún registro coincide con los filtros aplicados.">
         <Columns>
             <RadzenDataGridColumn TItem="PlanObraRowVM" Property="Nombre" Title="Obra" />
             <RadzenDataGridColumn TItem="PlanObraRowVM" Property="NumeroLicitacion" Title="Licitación" Width="140px" />

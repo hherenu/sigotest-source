@@ -10,6 +10,13 @@
 <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-3">
     @Vm.ObraNombre · Mes Salto: @Fmt.MesCorto(Vm.MesSalto) @Vm.AnioSalto · Variación:
     <span style="@($"font-weight:700;color:{Redet.ColorSuba(Vm.PorcentajeAumento)}")">@Vm.PorcentajeAumento?.ToString("N4")%</span>
+    @if (Vm.PorcentajeAumento.HasValue)
+    {
+        @* Texto además del color, como en el historial (el color solo era ambiguo). *@
+        <RadzenBadge Text="@(Redet.EsSuba(Vm.PorcentajeAumento) ? "Habilita" : "No habilita")" IsPill="true"
+                     BadgeStyle="@(Redet.EsSuba(Vm.PorcentajeAumento) ? BadgeStyle.Success : BadgeStyle.Danger)"
+                     Shade="Shade.Lighter" class="rz-ml-1" />
+    }
 </RadzenText>
 
 <RadzenTemplateForm TItem="RedeterminacionAdminVM" Data="@Vm" Submit="@GuardarAsync">

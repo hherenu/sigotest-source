@@ -44,7 +44,8 @@ else
     {
         <RadzenDataGrid Data="@certificados" TItem="CertificadoListItemVM" AllowFiltering="true" FilterMode="FilterMode.CheckBoxList"
                         FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" AllowSorting="true" AllowPaging="true"
-                        PageSize="20" Density="Density.Compact" class="rz-shadow-1">
+                        PageSize="20" Density="Density.Compact"
+                        EmptyText="Ningún registro coincide con los filtros aplicados.">
             <Columns>
                 <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Numero" Title="N°" Width="60px" TextAlign="TextAlign.Center" />
                 <RadzenDataGridColumn TItem="CertificadoListItemVM" Title="Período" Width="150px" Filterable="false">

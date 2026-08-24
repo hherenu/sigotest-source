@@ -73,7 +73,9 @@ else
         @if (vm.Estado is EstadoPlanificacion.Pendiente or EstadoPlanificacion.EnRevision)
         {
             <AuthorizeView Roles="@Roles.PlanificacionCarga" Context="authCtx">
-                <RadzenButton Text="Marcar como Cargada" Icon="task_alt" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info"
+                @* Success como toda transición que consolida (era el único botón en Info
+                   sólido, fuera de la regla de color de la app). *@
+                <RadzenButton Text="Marcar como Cargada" Icon="task_alt" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success"
                               Disabled="@procesando" Click="@MarcarCargadaAsync" />
             </AuthorizeView>
         }

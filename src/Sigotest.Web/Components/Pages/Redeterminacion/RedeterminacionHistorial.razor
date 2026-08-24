@@ -19,6 +19,7 @@
 
 <RadzenDropDown @bind-Value="filterObraId" Data="@obras" TextProperty="Nombre" ValueProperty="Id" TValue="int?"
                 AllowClear="true" Placeholder="-- Todas las obras --" style="width:100%;max-width:420px" class="rz-mb-3"
+                title="Filtrar por obra" aria-label="Filtrar por obra"
                 Change="@OnFiltroChanged" />
 
 @if (lista is null)
@@ -209,7 +210,7 @@ else
         var resultado = await DialogService.OpenAsync<RedeterminacionAdminDialog>(
             $"Disparo N° {vm.NroDisparo} — Datos Administrativos",
             new Dictionary<string, object?> { [nameof(RedeterminacionAdminDialog.Vm)] = vm },
-            new DialogOptions { Width = "480px" });
+            new DialogOptions { Width = "min(480px, 92vw)" });
 
         if (resultado is true)
             await CargarAsync();

@@ -3,6 +3,7 @@
 @inject ICurrentUser CurrentUser
 @inject NavigationManager Nav
 @inject ThemeService Tema
+@inject IJSRuntime JS
 @* Registrarlo en Program.cs NO alcanza: es scoped y RadzenTheme no lo resuelve —
    este inject es lo que lo construye en cada circuito. Al construirse lee la cookie
    SIGOTheme (restaura la elección tras F5) y se suscribe para escribirla en cada
@@ -14,6 +15,9 @@
    claro). Envuelve también a RadzenComponents: los toasts renderizan ahí,
    FUERA de RadzenLayout, y sin el wrapper no heredarían los tokens. *@
 <div class="@(EsTemaClaro ? "tema-claro" : null)">
+@* Skip-link (WCAG 2.4.1): invisible salvo con foco; evita tabular por todo el
+   menú lateral en cada página para llegar al contenido. *@
+<a href="#contenido" class="skip-link">Saltar al contenido</a>
 <RadzenLayout>
     <RadzenHeader>
         @* Sin padding horizontal en la cabecera (como SAF): el toggle queda en la misma
@@ -67,7 +71,7 @@
     </RadzenSidebar>
 
     <RadzenBody>
-        <div class="app-content">
+        <div class="app-content" id="contenido" tabindex="-1">
             @* Una excepción no capturada en una página (ej. corte de DB al navegar) se
                contiene acá en vez de tumbar el circuito completo. *@
             <ErrorBoundary @ref="errorBoundary">
@@ -136,4 +140,19 @@
     // Al navegar a otra página, el boundary vuelve a renderizar el contenido normal
     // (sin esto quedaría clavado en el error hasta un F5).
     protected override void OnParametersSet() => errorBoundary?.Recover();
+
+    // Sidebar colapsada de entrada en pantallas angostas (Responsive=false la
+    // dejaba expandida tapando media pantalla en móvil). Solo el estado INICIAL:
+    // el toggle manual manda después. Server-side no conoce el viewport, por eso
+    // se consulta por JS tras el primer render.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var ancho = await JS.InvokeAsync<int>("sigoAnchoVentana");
+        if (ancho < 900 && sidebarExpanded)
+        {
+            sidebarExpanded = false;
+            StateHasChanged();
+        }
+    }
 }

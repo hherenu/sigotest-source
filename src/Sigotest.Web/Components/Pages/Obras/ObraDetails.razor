@@ -163,7 +163,8 @@ else
                     </RadzenStack>
                     <RadzenDataGrid Data="@tabla.Items" TItem="ItemPonderacionObraVM"
                                     Density="Density.Compact" AllowFiltering="true" FilterMode="FilterMode.CheckBoxList"
-                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" AllowSorting="true">
+                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" AllowSorting="true"
+                                    EmptyText="Ningún registro coincide con los filtros aplicados.">
                         <Columns>
                             <RadzenDataGridColumn TItem="ItemPonderacionObraVM" Property="Numero" Title="N°" Width="60px" TextAlign="TextAlign.Center" />
                             <RadzenDataGridColumn TItem="ItemPonderacionObraVM" Property="Insumo" Title="Insumo" />

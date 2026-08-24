@@ -36,7 +36,7 @@ else
             <Acciones>
                 <RadzenButton Text="Excel" Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Flat"
                               Click="@(() => Nav.NavigateTo($"/Redeterminacion/DescargarExcelGuardado/{r.Id}", true))" />
-                <RadzenButton Text="PDF" Icon="print" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                <RadzenButton Text="Imprimir / PDF" Icon="print" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                               Click="@(async () => await JS.InvokeVoidAsync("window.print"))" />
             </Acciones>
         </BannerResultado>
