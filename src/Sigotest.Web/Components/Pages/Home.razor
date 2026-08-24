@@ -31,7 +31,9 @@
                    igual (navegación sin recarga) y además queda accesible por teclado,
                    anunciada como link y abrible en pestaña nueva. *@
                 <a class="sigo-home__tile" href="@m.Ruta">
-                    <span class="rzi">@m.Icono</span>
+                    @* aria-hidden: el contenido del span es la ligadura Material ("apartment")
+                       y sin esto el lector la anuncia en inglés antes del título del tile. *@
+                    <span class="rzi" aria-hidden="true">@m.Icono</span>
                     <strong>@m.Titulo</strong>
                     <small>@m.Descripcion</small>
                 </a>

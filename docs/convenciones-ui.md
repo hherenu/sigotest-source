@@ -20,7 +20,11 @@ regla, dejá el porqué en un comentario al lado (como hace el resto del código
 
 - Ver: `visibility` (Info, text) · Editar: `edit`/`edit_note` (Primary, text) ·
   Eliminar: `delete` (Danger, text). **`close` significa únicamente "Cancelar".**
-- Botón deshabilitado: siempre con `title` que explique el motivo
+- `Disabled` se reserva para el estado transitorio `procesando` (no necesita explicación).
+  Cuando una **regla de negocio** impide la acción, el botón queda HABILITADO y el clic
+  notifica el motivo (`Notify(Info, ...)`): un botón disabled no recibe foco ni hover
+  táctil, y el motivo puesto en `title` era invisible por teclado y lector de pantalla.
+  El `title` se conserva además como pista para mouse
   (ej. "Solo se puede eliminar el último disparo").
 
 ## Navegación
@@ -33,6 +37,8 @@ regla, dejá el porqué en un comentario al lado (como hace el resto del código
 ## Estados
 
 - Carga: `<EstadoCargando Texto="Cargando X…" />` (nunca el spinner suelto).
+  La colección de la página se declara **nullable** (`null` = cargando); inicializarla
+  en `new()` hace que el estado vacío se muestre durante toda la carga (pasó en /usuarios).
 - Vacío: `<EstadoVacio Icono=... Titulo=... Descripcion=...>` con CTA de alta si existe.
 - Vacío por filtros en grillas: `EmptyText="Ningún registro coincide con los filtros aplicados."`.
 - Estados de dominio → badge vía `EstadoUi` (mapa único). El color nunca es la única

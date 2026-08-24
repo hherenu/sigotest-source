@@ -72,9 +72,12 @@ else
                                       title="Editar" Click="@(() => Nav.NavigateTo($"certificados/{c.Id}/cargar"))" />
                         <RadzenButton Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text"
                                       title="Excel" Click="@(() => Nav.NavigateTo($"/Certificado/DescargarExcel/{c.Id}", true))" />
+                        @* Habilitado aunque esté cerrado: un botón disabled no recibe foco ni
+                           hover táctil y el motivo del title quedaba invisible por teclado.
+                           El clic notifica el porqué; el title sigue como pista para mouse. *@
                         <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
                                       title="@(c.EsCerrado ? "Un certificado cerrado no se puede eliminar (reabrilo primero)" : "Eliminar")"
-                                      Disabled="@(procesando || c.EsCerrado)" Click="@(() => EliminarAsync(c))" />
+                                      Disabled="@procesando" Click="@(() => EliminarAsync(c))" />
                     </Template>
                 </RadzenDataGridColumn>
             </Columns>
@@ -110,6 +113,13 @@ else
 
     private async Task EliminarAsync(CertificadoListItemVM c)
     {
+        // El motivo de negocio se explica al clic (el botón no va disabled: ver markup).
+        if (c.EsCerrado)
+        {
+            Notifications.Notify(NotificationSeverity.Info, "No se puede eliminar",
+                $"El certificado N° {c.Numero} está cerrado. Reabrilo desde su detalle si realmente corresponde eliminarlo.", 6000);
+            return;
+        }
         if (procesando) return;
         // El flag antes del Confirm: un doble click no debe apilar dos diálogos.
         procesando = true;

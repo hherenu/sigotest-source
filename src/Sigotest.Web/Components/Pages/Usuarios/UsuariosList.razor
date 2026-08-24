@@ -13,7 +13,11 @@
     </Subtitulo>
 </CabeceraPagina>
 
-@if (usuarios.Count == 0)
+@if (usuarios is null)
+{
+    <EstadoCargando Texto="Cargando usuarios…" />
+}
+else if (usuarios.Count == 0)
 {
     <EstadoVacio Icono="group" Titulo="Todavía no hay usuarios registrados"
                  Descripcion="Cada persona queda registrada automáticamente en su primer ingreso (la primera de todas, como Admin)." />
@@ -66,7 +70,9 @@ else
 }
 
 @code {
-    private List<UsuarioVM> usuarios = new();
+    // Nullable: null = cargando. Inicializarla en new() mostraba el estado vacío
+    // ("Todavía no hay usuarios registrados") durante toda la carga.
+    private List<UsuarioVM>? usuarios;
     private bool procesando;
 
     protected override async Task OnInitializedAsync() => await CargarAsync();
