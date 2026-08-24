@@ -133,18 +133,21 @@ else
                                 <td style="white-space:nowrap">
                                     <RadzenButton Icon="visibility" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info" Variant="Variant.Text"
                                                   title="Ver" Click="@(() => Nav.NavigateTo($"redeterminacion/{r.Id}"))" />
+                                    @* Habilitados aunque la regla de negocio no aplique: un botón
+                                       disabled no recibe foco ni hover táctil y el motivo del title
+                                       quedaba invisible por teclado. El clic notifica el porqué;
+                                       el title sigue como pista para mouse. Disabled queda solo
+                                       para el estado transitorio `procesando`. *@
                                     <RadzenButton Icon="calculate" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text"
-                                                  title="@(EsRecalculable(r) ? "Recalcular" : $"En estado {r.Estado} no admite recálculo")"
-                                                  Disabled="@(!EsRecalculable(r))"
-                                                  Click="@(() => Nav.NavigateTo($"redeterminacion/calcular?editarId={r.Id}"))" />
+                                                  title="@(MotivoNoRecalculable(r, ultimoDisparo) ?? "Recalcular")"
+                                                  Click="@(() => RecalcularClick(r, ultimoDisparo))" />
                                     @* Primary como todos los "editar" de fila (era Warning, único en la app). *@
                                     <RadzenButton Icon="edit_note" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
                                                   title="Datos administrativos" Click="@(() => AbrirAdminAsync(r))" />
                                     <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
-                                                  title="@(r.NroDisparo != ultimoDisparo ? "Solo se puede eliminar el último disparo"
-                                                          : !EsRecalculable(r) ? $"En estado {r.Estado} no puede eliminarse" : "Eliminar")"
-                                                  Disabled="@(procesando || r.NroDisparo != ultimoDisparo || !EsRecalculable(r))"
-                                                  Click="@(() => EliminarAsync(r))" />
+                                                  title="@(MotivoNoEliminable(r, ultimoDisparo) ?? "Eliminar")"
+                                                  Disabled="@procesando"
+                                                  Click="@(() => EliminarAsync(r, ultimoDisparo))" />
                                 </td>
                             </tr>
                         }
@@ -191,9 +194,15 @@ else
     private async Task CargarAsync() =>
         lista = await Service.GetHistorialAsync(filterObraId);
 
-    // Espejo UI de RedeterminacionValidator (la regla completa vive en el servicio).
-    private static bool EsRecalculable(RedeterminacionHistorialVM r) =>
-        RedeterminacionValidator.EsRecalculable(r.Estado);
+    // Espejo UI de RedeterminacionValidator (la regla completa vive en el servicio):
+    // el MISMO mensaje va al title del botón y a la notificación del clic. Recalcular
+    // y eliminar comparten la regla "solo el último y en estado recalculable" — un
+    // recálculo intermedio reescribiría la variación acumulada de los posteriores.
+    private static string? MotivoNoRecalculable(RedeterminacionHistorialVM r, int ultimoDisparo) =>
+        RedeterminacionValidator.AdmiteRecalculo(r.Estado, r.NroDisparo, hayPosterior: r.NroDisparo != ultimoDisparo);
+
+    private static string? MotivoNoEliminable(RedeterminacionHistorialVM r, int ultimoDisparo) =>
+        RedeterminacionValidator.EliminarDisparo(r.Estado, r.NroDisparo, hayPosterior: r.NroDisparo != ultimoDisparo);
 
     // El VM se carga acá y no en el diálogo: si el disparo ya no existe (lo borró otro
     // usuario) se avisa y se recarga la grilla sin abrir nada.
@@ -216,8 +225,24 @@ else
             await CargarAsync();
     }
 
-    private async Task EliminarAsync(RedeterminacionHistorialVM r)
+    // Los motivos de negocio se explican al clic (los botones no van disabled: ver markup).
+    private void RecalcularClick(RedeterminacionHistorialVM r, int ultimoDisparo)
     {
+        if (MotivoNoRecalculable(r, ultimoDisparo) is string rechazo)
+        {
+            Notifications.Notify(NotificationSeverity.Info, "No se puede recalcular", rechazo, 6000);
+            return;
+        }
+        Nav.NavigateTo($"redeterminacion/calcular?editarId={r.Id}");
+    }
+
+    private async Task EliminarAsync(RedeterminacionHistorialVM r, int ultimoDisparo)
+    {
+        if (MotivoNoEliminable(r, ultimoDisparo) is string rechazo)
+        {
+            Notifications.Notify(NotificationSeverity.Info, "No se puede eliminar", rechazo, 6000);
+            return;
+        }
         if (procesando) return;
         procesando = true;
         try

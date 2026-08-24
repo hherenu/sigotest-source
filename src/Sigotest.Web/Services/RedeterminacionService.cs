@@ -165,8 +165,10 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
     }
 
     /// <summary>
-    /// Reemplaza el cálculo de un disparo existente (solo Borrador/Calculada) y
-    /// re-encadena la VariacionAcumulada de TODOS los disparos de la obra.
+    /// Reemplaza el cálculo de un disparo existente (solo Borrador/Calculada y solo
+    /// el ÚLTIMO de la obra: recalcular uno intermedio reescribiría la variación
+    /// acumulada de los posteriores, incluidos los oficiales) y re-encadena la
+    /// VariacionAcumulada de TODOS los disparos de la obra.
     /// Devuelve el ObraId del disparo para la navegación posterior.
     /// </summary>
     public async Task<int> RecalcularDisparoAsync(int disparoId, int obraId, int tablaPonderacionId, RedeterminacionVM vm)
@@ -184,7 +186,12 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
             .FirstOrThrowAsync(r => r.Id == disparoId,
                 "El disparo a recalcular ya no existe (otro usuario pudo haberlo eliminado).");
 
-        Validacion.Exigir(RedeterminacionValidator.AdmiteRecalculo(existing.Estado, existing.NroDisparo));
+        // El chequeo de posteriores va DENTRO de la transacción Serializable (como en
+        // EliminarDisparoAsync): un guardado concurrente de un disparo nuevo volvería
+        // intermedio a este mientras se recalcula.
+        var hayPosterior = await db.RedeterminacionesGuardadas
+            .AnyAsync(x => x.ObraId == existing.ObraId && x.NroDisparo > existing.NroDisparo);
+        Validacion.Exigir(RedeterminacionValidator.AdmiteRecalculo(existing.Estado, existing.NroDisparo, hayPosterior));
         Validacion.Exigir(RedeterminacionValidator.MismaObra(existing.ObraId, obraId));
         Validacion.Exigir(RedeterminacionValidator.TablaDeLaObra(await ObraDeTablaAsync(db, tablaPonderacionId), obraId));
 
@@ -398,7 +405,10 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
 
     /// <summary>
     /// Parámetros con los que se guardó un disparo, para que Calcular los precargue
-    /// al entrar con ?editarId=. Null si el disparo ya no existe.
+    /// al entrar con ?editarId=. Null si el disparo ya no existe. Incluye Estado,
+    /// NroDisparo y EsUltimo para que la página rechace temprano un recálculo
+    /// inválido (link viejo a un disparo que ya tiene posteriores u oficializado)
+    /// en vez de dejar calcular y fallar recién al guardar.
     /// </summary>
     public async Task<RedeterminacionParaRecalcularVM?> GetDisparoParaRecalcularAsync(int disparoId)
     {
@@ -409,6 +419,10 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
             .Select(r => new RedeterminacionParaRecalcularVM
             {
                 ObraId = r.ObraId,
+                NroDisparo = r.NroDisparo,
+                Estado = r.Estado,
+                EsUltimo = !db.RedeterminacionesGuardadas
+                    .Any(x => x.ObraId == r.ObraId && x.NroDisparo > r.NroDisparo),
                 AnioBase = r.AnioBase,
                 MesBase = r.MesBase,
                 IdPublicacionBase = r.IdPublicacionBase,

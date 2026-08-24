@@ -190,12 +190,27 @@
             var r = await Service.GetDisparoParaRecalcularAsync(EditarId.Value);
             if (r is not null)
             {
-                selectedObraId = r.ObraId;
-                await LoadObraAsync(r.ObraId);
-                selectedPublicacion = r.IdPublicacionBase ?? publicacionDefault;
-                mesBaseStr = $"{r.AnioBase}-{r.MesBase}";
-                mesSaltoStr = $"{r.AnioSalto}-{r.MesSalto}";
-                await CalcularAsync();
+                // El botón del historial ya bloquea, pero un ?editarId= puede llegar por
+                // URL vieja a un disparo que ganó posteriores o se oficializó: se avisa
+                // acá (mismo mensaje del validator que exige el servicio) en vez de
+                // dejar calcular y rechazar recién al guardar. La obra queda precargada
+                // por si se quiere calcular un disparo NUEVO.
+                if (RedeterminacionValidator.AdmiteRecalculo(r.Estado, r.NroDisparo, hayPosterior: !r.EsUltimo) is string rechazo)
+                {
+                    Notifications.Notify(NotificationSeverity.Warning, "No se puede recalcular", rechazo, 8000);
+                    editarId = null;
+                    selectedObraId = r.ObraId;
+                    await LoadObraAsync(r.ObraId);
+                }
+                else
+                {
+                    selectedObraId = r.ObraId;
+                    await LoadObraAsync(r.ObraId);
+                    selectedPublicacion = r.IdPublicacionBase ?? publicacionDefault;
+                    mesBaseStr = $"{r.AnioBase}-{r.MesBase}";
+                    mesSaltoStr = $"{r.AnioSalto}-{r.MesSalto}";
+                    await CalcularAsync();
+                }
             }
         }
         else if (ObraId.HasValue)

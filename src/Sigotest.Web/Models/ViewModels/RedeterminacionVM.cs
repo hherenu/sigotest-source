@@ -138,6 +138,10 @@ public class RedeterminacionHistorialVM
 public class RedeterminacionParaRecalcularVM
 {
     public int ObraId { get; set; }
+    public int NroDisparo { get; set; }
+    public EstadoRedeterminacion Estado { get; set; }
+    /// <summary>false si la obra tiene disparos posteriores: el recálculo no aplica.</summary>
+    public bool EsUltimo { get; set; }
     public int AnioBase { get; set; }
     public int MesBase { get; set; }
     public string? IdPublicacionBase { get; set; }

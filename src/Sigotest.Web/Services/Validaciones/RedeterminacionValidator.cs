@@ -54,12 +54,22 @@ public static class RedeterminacionValidator
 
     /// <summary>
     /// Un disparo presentado/aprobado es un valor oficial: recalcularlo pisaría su
-    /// snapshot sin rastro. Solo Borrador/Calculada admiten recálculo.
+    /// snapshot sin rastro. Solo Borrador/Calculada admiten recálculo, y solo el
+    /// ÚLTIMO de la obra (misma regla que <see cref="EliminarDisparo"/>): cambiar el
+    /// coeficiente o el tramo de uno intermedio reescribiría la VariacionAcumulada
+    /// de todos los posteriores —incluidos los oficiales— y rompería el encadenado
+    /// base→salto de sus tramos.
     /// </summary>
-    public static string? AdmiteRecalculo(EstadoRedeterminacion estado, int nroDisparo) =>
-        !EsRecalculable(estado)
-            ? $"El disparo {nroDisparo} está en estado {estado} y no admite recálculo."
-            : null;
+    public static string? AdmiteRecalculo(EstadoRedeterminacion estado, int nroDisparo, bool hayPosterior)
+    {
+        if (!EsRecalculable(estado))
+            return $"El disparo {nroDisparo} está en estado {estado} y no admite recálculo.";
+
+        if (hayPosterior)
+            return $"Solo se puede recalcular el último disparo de la obra. El disparo {nroDisparo} tiene posteriores que acumulan su coeficiente.";
+
+        return null;
+    }
 
     /// <summary>
     /// Solo el último disparo de la obra puede eliminarse: los posteriores acumulan la
