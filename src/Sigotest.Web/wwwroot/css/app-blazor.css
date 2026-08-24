@@ -276,9 +276,13 @@ html, body {
 }
 
 /* Títulos de columna en varias líneas en vez de elipsis (como en SAF): Radzen
-   los trae con nowrap + ellipsis y los títulos largos quedaban ilegibles. */
-.rz-data-grid .rz-column-title,
-.rz-data-grid .rz-column-title-content {
+   los trae con nowrap + ellipsis y los títulos largos quedaban ilegibles.
+   OJO con la especificidad: el tema material define el ellipsis con
+   ".rz-grid-table thead th .rz-column-title" (0,2,2) — la versión anterior de
+   esta regla usaba ".rz-data-grid .rz-column-title" (0,2,0) y PERDÍA: todos
+   los encabezados truncaban igual ("Act…", "Fin …"). */
+.rz-data-grid .rz-grid-table thead th .rz-column-title,
+.rz-data-grid .rz-grid-table thead th .rz-column-title-content {
     white-space: normal;
     overflow: visible;
     text-overflow: clip;
@@ -312,12 +316,22 @@ html, body {
    =========================================================================== */
 .cert-grid {
     width: 100%;
-    border-collapse: collapse;
+    /* separate (no collapse): con collapse + thead sticky, los bordes colapsados
+       se pintan FUERA del fondo de la celda y el contenido scrolleado asomaba en
+       la franja de 1px sobre el encabezado, en ambos temas. Con separate cada
+       celda pinta borde derecho+inferior (la tabla pone el superior+izquierdo
+       externo): misma grilla de 1px, pero el fondo opaco del th cubre todo. */
+    border-collapse: separate;
+    border-spacing: 0;
+    border-top: 1px solid var(--rz-base-300);
+    border-left: 1px solid var(--rz-base-300);
     font-size: .8rem;
 }
 .cert-grid th,
 .cert-grid td {
-    border: 1px solid var(--rz-base-300);
+    border: none;
+    border-right: 1px solid var(--rz-base-300);
+    border-bottom: 1px solid var(--rz-base-300);
     padding: .28rem .45rem;
     white-space: nowrap;
 }
@@ -337,7 +351,56 @@ html, body {
 .cert-grid tr.agrup-0 { background: var(--app-agrup-0-bg); font-weight: 600; }
 .cert-grid tr.agrup-1 { background: var(--app-agrup-1-bg); font-weight: 600; }
 .cert-grid .cell-mono { font-family: monospace; font-size: .75rem; opacity: .85; }
-.cert-scroll { overflow-x: auto; }
+
+/* Scroll de las tablas cert-grid: horizontal por ancho y, con tablas largas,
+   también vertical acotado al viewport — necesario para que el sticky del
+   encabezado funcione (position:sticky solo actúa contra el scrollport más
+   cercano, y este wrapper con overflow lo es; contra el scroll de la página
+   nunca engancharía). Con tablas cortas el max-height no tiene efecto. */
+.cert-scroll {
+    overflow: auto;
+    max-height: 75vh;
+}
+
+/* Encabezado fijo de cert-grid. El fondo del tema es un tinte TRANSLÚCIDO
+   (color-mix sobre transparente): al stickear se veían las filas debajo, por
+   eso acá va base opaca + el mismo tinte como capa. */
+.cert-grid thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background-color: var(--rz-base-background-color, #fff);
+    background-image: linear-gradient(
+        color-mix(in srgb, var(--rz-text-color) 6%, transparent),
+        color-mix(in srgb, var(--rz-text-color) 6%, transparent));
+}
+
+/* Encabezado de DOS filas (detalle y carga de certificado): la primera fila con
+   altura fija y la segunda pegada exactamente debajo — sin el offset las dos
+   quedan en top:0 y se solapan al scrollear. Las celdas rowspan=2 de la primera
+   fila abarcan ambas alturas y no necesitan offset. */
+.cert-grid thead tr:first-child th { height: 1.7rem; }
+.cert-grid thead tr:nth-child(2) th { top: 1.7rem; }
+
+/* Los th de columnas coloreadas: su regla general (.cert-grid .col-*) usa el
+   shorthand background con tinte TRANSLÚCIDO y le gana en especificidad al
+   fondo opaco del encabezado — al scrollear, las filas se veían a través de
+   esos th. Acá se re-declara con base opaca + el mismo tinte como capa. */
+.cert-grid thead th.col-warning {
+    background: linear-gradient(color-mix(in srgb, var(--rz-warning) 10%, transparent),
+                                color-mix(in srgb, var(--rz-warning) 10%, transparent))
+                var(--rz-base-background-color, #fff);
+}
+.cert-grid thead th.col-primary {
+    background: linear-gradient(color-mix(in srgb, var(--rz-primary) 10%, transparent),
+                                color-mix(in srgb, var(--rz-primary) 10%, transparent))
+                var(--rz-base-background-color, #fff);
+}
+.cert-grid thead th.col-info {
+    background: linear-gradient(color-mix(in srgb, var(--rz-info) 10%, transparent),
+                                color-mix(in srgb, var(--rz-info) 10%, transparent))
+                var(--rz-base-background-color, #fff);
+}
 
 /* Fila resaltada cuando falta valor de índice (Kᵢ/K₀ null) */
 .cert-grid tr.row-warning { background: var(--rz-warning-lighter); }
@@ -357,6 +420,17 @@ html, body {
         display: block !important;
         height: auto !important;
         overflow: visible !important;
+    }
+    /* El scroll interno de las tablas cert-grid recortaría el PDF a una pantalla. */
+    .cert-scroll {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+    /* Sticky + altura fija del thead en medio paginado: Chrome recorta o
+       desplaza el encabezado en el PDF; en impresión el encabezado va estático. */
+    .cert-grid thead th {
+        position: static !important;
+        height: auto !important;
     }
 }
 

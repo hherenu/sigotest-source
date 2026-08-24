@@ -70,7 +70,11 @@ else
                         <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">Fecha Final Contrato</RadzenText>
                     </RadzenColumn>
                     <RadzenColumn Size="7">
-                        <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0" style="font-weight:600;color:var(--rz-danger)">
+                        @* Rojo SOLO con el plazo vencido (misma regla que el badge de estado):
+                           antes estaba siempre en rojo, también con años por delante, y el
+                           rojo permanente desensibiliza el color de peligro. *@
+                        <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0"
+                                    style="@(obra.Estado?.Contains("Vencido") == true ? "font-weight:600;color:var(--rz-danger)" : "font-weight:600")">
                             @obra.FechaFinalContrato?.ToString("dd/MM/yyyy")
                         </RadzenText>
                     </RadzenColumn>

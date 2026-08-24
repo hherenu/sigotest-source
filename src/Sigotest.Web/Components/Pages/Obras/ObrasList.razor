@@ -41,11 +41,13 @@ else
             <RadzenDataGridColumn TItem="ObraVM" Property="NumeroLicitacion" Title="Licitación" Width="140px" />
             <RadzenDataGridColumn TItem="ObraVM" Property="Nombre" Title="Nombre" />
             <RadzenDataGridColumn TItem="ObraVM" Property="Contratista" Title="Contratista" />
-            <RadzenDataGridColumn TItem="ObraVM" Property="FechaActaInicio" Title="Acta Inicio" Width="120px"
+            @* Anchos con margen para el título completo + ícono de filtro (con 120px
+               quedaban "Act…"/"Fin …") y para el badge "PLAZO VENCIDO" entero. *@
+            <RadzenDataGridColumn TItem="ObraVM" Property="FechaActaInicio" Title="Acta Inicio" Width="160px"
                                   FormatString="{0:dd/MM/yyyy}" TextAlign="TextAlign.Center" />
-            <RadzenDataGridColumn TItem="ObraVM" Property="FechaFinalContrato" Title="Fin Contrato" Width="120px"
+            <RadzenDataGridColumn TItem="ObraVM" Property="FechaFinalContrato" Title="Fin Contrato" Width="160px"
                                   FormatString="{0:dd/MM/yyyy}" TextAlign="TextAlign.Center" />
-            <RadzenDataGridColumn TItem="ObraVM" Title="Estado" Width="130px" Sortable="false" Filterable="false"
+            <RadzenDataGridColumn TItem="ObraVM" Title="Estado" Width="150px" Sortable="false" Filterable="false"
                                   TextAlign="TextAlign.Center">
                 <Template Context="obra">
                     @if (obra.Estado is not null)
