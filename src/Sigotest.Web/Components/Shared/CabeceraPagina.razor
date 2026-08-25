@@ -1,6 +1,30 @@
 @* Cabecera estándar de las páginas de detalle/edición: título H1 (+badges) y subtítulo
    a la izquierda, botones de acción a la derecha. Antes estaba copiada con variaciones
    accidentales en 9 páginas; las diferencias deliberadas entran por parámetros. *@
+@if (Migas is { Count: > 0 })
+{
+    @* Miga de pan para las páginas anidadas bajo obra (la app no tenía ninguna
+       indicación de ubicación en jerarquías de 3-4 niveles). El último tramo es la
+       página actual y va sin link. *@
+    <nav aria-label="Ubicación" class="app-migas">
+        @for (var i = 0; i < Migas.Count; i++)
+        {
+            var miga = Migas[i];
+            if (i > 0)
+            {
+                <span aria-hidden="true">/</span>
+            }
+            @if (miga.Ruta is not null)
+            {
+                <RadzenLink Path="@miga.Ruta" Text="@miga.Texto" />
+            }
+            else
+            {
+                <span aria-current="page">@miga.Texto</span>
+            }
+        }
+    </nav>
+}
 <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
              AlignItems="AlignItems.Center" Wrap="FlexWrap.Wrap" Gap="0.5rem" class="@Clase">
     <RadzenStack Gap="0.15rem">
@@ -50,4 +74,10 @@
 
     /// <summary>Clases del contenedor; el margen inferior lo decide la página.</summary>
     [Parameter] public string Clase { get; set; } = "rz-mb-3";
+
+    /// <summary>Tramo de la miga de pan: texto + ruta (null = página actual, sin link).</summary>
+    public record Miga(string Texto, string? Ruta = null);
+
+    /// <summary>Miga de pan sobre el título (páginas anidadas bajo obra). Null = sin miga.</summary>
+    [Parameter] public IReadOnlyList<Miga>? Migas { get; set; }
 }

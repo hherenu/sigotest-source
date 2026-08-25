@@ -9,37 +9,46 @@
 
 <CabeceraPagina Titulo="Obras" Estilo="TextStyle.H4" Clase="rz-mb-4">
     <Acciones>
-        <RadzenButton Text="Nueva Obra" Icon="add" ButtonStyle="ButtonStyle.Success"
+        @* Primary: el alta es la acción principal del listado (Success queda para
+           transiciones que consolidan estado — regla de color de la app). *@
+        <RadzenButton Text="Nueva Obra" Icon="add" ButtonStyle="ButtonStyle.Primary"
                       Click="@(() => Nav.NavigateTo("obras/nueva"))" />
     </Acciones>
 </CabeceraPagina>
 
 @if (obras is null)
 {
-    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    <EstadoCargando Texto="Cargando obras…" />
 }
 else if (obras.Count == 0)
 {
-    <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
-        No hay obras cargadas.
-    </RadzenAlert>
+    <EstadoVacio Icono="apartment" Titulo="No hay obras cargadas"
+                 Descripcion="Las obras agrupan estructuras de costos, certificados y redeterminaciones. Creá la primera para empezar.">
+        <Accion>
+            <RadzenButton Text="Nueva Obra" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                          Click="@(() => Nav.NavigateTo("obras/nueva"))" />
+        </Accion>
+    </EstadoVacio>
 }
 else
 {
     <RadzenDataGrid @ref="grid" Data="@obras" TItem="ObraVM" AllowFiltering="true"
                     FilterMode="FilterMode.CheckBoxList" AllowColumnResize="true"
-                    AllowSorting="true" AllowPaging="true" PageSize="15"
+                    AllowSorting="true" AllowPaging="true" PageSize="20"
                     FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
-                    Density="Density.Compact" class="rz-shadow-1">
+                    EmptyText="Ningún registro coincide con los filtros aplicados."
+                    Density="Density.Compact">
         <Columns>
             <RadzenDataGridColumn TItem="ObraVM" Property="NumeroLicitacion" Title="Licitación" Width="140px" />
             <RadzenDataGridColumn TItem="ObraVM" Property="Nombre" Title="Nombre" />
             <RadzenDataGridColumn TItem="ObraVM" Property="Contratista" Title="Contratista" />
-            <RadzenDataGridColumn TItem="ObraVM" Property="FechaActaInicio" Title="Acta Inicio" Width="120px"
+            @* Anchos con margen para el título completo + ícono de filtro (con 120px
+               quedaban "Act…"/"Fin …") y para el badge "PLAZO VENCIDO" entero. *@
+            <RadzenDataGridColumn TItem="ObraVM" Property="FechaActaInicio" Title="Acta Inicio" Width="160px"
                                   FormatString="{0:dd/MM/yyyy}" TextAlign="TextAlign.Center" />
-            <RadzenDataGridColumn TItem="ObraVM" Property="FechaFinalContrato" Title="Fin Contrato" Width="120px"
+            <RadzenDataGridColumn TItem="ObraVM" Property="FechaFinalContrato" Title="Fin Contrato" Width="160px"
                                   FormatString="{0:dd/MM/yyyy}" TextAlign="TextAlign.Center" />
-            <RadzenDataGridColumn TItem="ObraVM" Title="Estado" Width="130px" Sortable="false" Filterable="false"
+            <RadzenDataGridColumn TItem="ObraVM" Title="Estado" Width="150px" Sortable="false" Filterable="false"
                                   TextAlign="TextAlign.Center">
                 <Template Context="obra">
                     @if (obra.Estado is not null)

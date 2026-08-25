@@ -14,12 +14,14 @@
 }
 else if (alta is null)
 {
-    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    <EstadoCargando Texto="Preparando el alta…" />
 }
 else
 {
-    <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H1" class="rz-mb-1">Nuevo Certificado</RadzenText>
-    <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-4">@alta.ObraNombre — @alta.NumeroLicitacion</RadzenText>
+    <CabeceraPagina Titulo="Nuevo Certificado" Clase="rz-mb-4"
+                    Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(alta.ObraNombre, $"obras/{ObraId}"), new("Certificados", $"obras/{ObraId}/certificados"), new("Nuevo") })">
+        <Subtitulo>@alta.ObraNombre — @alta.NumeroLicitacion</Subtitulo>
+    </CabeceraPagina>
 
     <RadzenTemplateForm TItem="CertificadoNuevoVM" Data="@alta.Form" Submit="@GuardarAsync">
         <RadzenStack Gap="1rem" style="max-width: 640px;">

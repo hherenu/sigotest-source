@@ -15,11 +15,12 @@
 }
 else if (obra is null)
 {
-    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    <EstadoCargando Texto="Cargando estructuras…" />
 }
 else
 {
-    <CabeceraPagina Titulo="Estructuras de Costos" Clase="rz-mb-4">
+    <CabeceraPagina Titulo="Estructuras de Costos" Clase="rz-mb-4"
+                    Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(obra.Nombre, $"obras/{ObraId}"), new("Estructuras") })">
         <Subtitulo>@obra.Nombre — @obra.NumeroLicitacion</Subtitulo>
         <Acciones>
             <RadzenButton Text="Nueva Estructura" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
@@ -31,10 +32,13 @@ else
 
     @if (estructuras.Count == 0)
     {
-        <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
-            No hay estructuras de costos cargadas para esta obra.
-            <RadzenLink Path="@($"obras/{ObraId}/estructuras/nueva")" Text="Crear la primera" />.
-        </RadzenAlert>
+        <EstadoVacio Icono="account_tree" Titulo="No hay estructuras de costos para esta obra"
+                     Descripcion="La estructura define los ítems del contrato (códigos, cantidades y precios) y es la base de los certificados de avance.">
+            <Accion>
+                <RadzenButton Text="Nueva Estructura" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                              Click="@(() => Nav.NavigateTo($"obras/{ObraId}/estructuras/nueva"))" />
+            </Accion>
+        </EstadoVacio>
     }
     else
     {

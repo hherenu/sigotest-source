@@ -4,7 +4,7 @@
 @inject NavigationManager Nav
 @inject NotificationService Notifications
 
-<PageTitle>Editar Ítem</PageTitle>
+<PageTitle>@(item is null ? "Editar Ítem" : $"Editar Ítem — {estructuraNombre}")</PageTitle>
 
 @if (noEncontrado)
 {
@@ -14,11 +14,16 @@
 }
 else if (item is null)
 {
-    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    <EstadoCargando Texto="Cargando ítem…" />
 }
 else
 {
-    <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H1" class="rz-mb-4">Editar Ítem</RadzenText>
+    @* Cabecera estándar con contexto: antes el título era solo "Editar Ítem", sin
+       obra, estructura ni código — imposible saber qué se estaba editando. *@
+    <CabeceraPagina Titulo="@($"Editar Ítem{(item.Codigo is { Length: > 0 } c ? $" {c}" : "")}")" Clase="rz-mb-4"
+                    Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(obraNombre, $"obras/{obraId}"), new("Estructuras", $"obras/{obraId}/estructuras"), new(estructuraNombre, $"estructuras/{item.EstructuraCostosId}"), new("Editar ítem") })">
+        <Subtitulo>@estructuraNombre — @obraNombre</Subtitulo>
+    </CabeceraPagina>
 
     <RadzenTemplateForm TItem="ItemEstructuraVM" Data="@item" Submit="@GuardarAsync">
         <RadzenStack Gap="1rem" style="max-width: 820px;">
@@ -92,6 +97,11 @@ else
     private List<AgrupadorOpcionVM> agrupadores = new();
     private bool guardando;
 
+    // Contexto para la cabecera (viene con la carga del ítem).
+    private int obraId;
+    private string obraNombre = string.Empty;
+    private string estructuraNombre = string.Empty;
+
     private int idCargado;
 
     protected override async Task OnParametersSetAsync()
@@ -105,6 +115,9 @@ else
 
         item = carga.Item;
         agrupadores = carga.Agrupadores;
+        obraId = carga.ObraId;
+        obraNombre = carga.ObraNombre;
+        estructuraNombre = carga.EstructuraNombre;
     }
 
     private async Task GuardarAsync()

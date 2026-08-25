@@ -7,7 +7,10 @@
 
 <PageTitle>Historial de Redeterminaciones</PageTitle>
 
-<CabeceraPagina Titulo="Variaciones de Referencia" Estilo="TextStyle.H4">
+@* Mismo nombre que el menú y el PageTitle; el término de dominio ("variaciones de
+   referencia") se conserva en el subtítulo para los usuarios que lo buscan así. *@
+<CabeceraPagina Titulo="Historial de Redeterminaciones" Estilo="TextStyle.H4">
+    <Subtitulo>Variaciones de referencia guardadas, agrupadas por obra</Subtitulo>
     <Acciones>
         <RadzenButton Text="Calcular" Icon="calculate" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                       Click="@(() => Nav.NavigateTo("redeterminacion/calcular"))" />
@@ -16,17 +19,29 @@
 
 <RadzenDropDown @bind-Value="filterObraId" Data="@obras" TextProperty="Nombre" ValueProperty="Id" TValue="int?"
                 AllowClear="true" Placeholder="-- Todas las obras --" style="width:100%;max-width:420px" class="rz-mb-3"
+                title="Filtrar por obra" aria-label="Filtrar por obra"
                 Change="@OnFiltroChanged" />
 
 @if (lista is null)
 {
-    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    <EstadoCargando Texto="Cargando historial…" />
 }
 else if (lista.Count == 0)
 {
-    <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
-        No hay cálculos guardados.
-    </RadzenAlert>
+    <EstadoVacio Icono="history"
+                 Titulo="@(filterObraId.HasValue ? "No hay cálculos guardados para esta obra" : "No hay cálculos guardados")"
+                 Descripcion="Los cálculos guardados desde Calcular Redeterminación aparecen acá como disparos por obra.">
+        <Accion>
+            @if (filterObraId.HasValue)
+            {
+                <RadzenButton Text="Ver todas las obras" Icon="filter_alt_off" Size="ButtonSize.Small"
+                              ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                              Click="@(() => Nav.NavigateTo("redeterminacion/historial", replace: true))" />
+            }
+            <RadzenButton Text="Calcular Redeterminación" Icon="calculate" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                          Click="@(() => Nav.NavigateTo("redeterminacion/calcular"))" />
+        </Accion>
+    </EstadoVacio>
 }
 else
 {
@@ -34,23 +49,44 @@ else
     {
         var obra = grupo.First();
         var ultimoDisparo = grupo.Max(x => x.NroDisparo);
+        // Cada columna administrativa se muestra solo si algún disparo del grupo tiene
+        // ESE dato (visibilidad por columna, no por grupo: el historial importado trae
+        // fechas de aprobación sin expediente, y en bloque la columna Expediente
+        // quedaba siempre visible en "—"). Se editan/ven siempre por el diálogo.
+        var verExpediente = grupo.Any(x => !string.IsNullOrWhiteSpace(x.NroExpedienteVR));
+        var verCCyR = grupo.Any(x => x.FechaAprobacionCCyR is not null);
+        var verOS = grupo.Any(x => x.FechaAprobacionOS is not null);
+        var verLimite = grupo.Any(x => x.FechaLimitePresentacion is not null);
         <RadzenCard @key="grupo.Key" Variant="Variant.Outlined" class="rz-mb-4">
             <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-3" style="font-weight:600">@obra.ObraNumeroLicitacion — @obra.ObraNombre</RadzenText>
             <div class="cert-scroll">
                 <table class="cert-grid">
+                    <caption class="sr-only">Disparos de redeterminación de @obra.ObraNombre</caption>
                     <thead>
                         <tr>
-                            <th>Disparo N°</th>
-                            <th>Mes de Disparo</th>
-                            <th>Variación Ref. %</th>
-                            <th>Coef. (K/K₀)</th>
-                            <th>Var. Acumulada</th>
-                            <th>Publicación</th>
-                            <th>N° Expediente VR</th>
-                            <th>Aprob. CCyR</th>
-                            <th>Aprob. OS</th>
-                            <th>Límite Red. Def.</th>
-                            <th>Acciones</th>
+                            <th scope="col">Disparo N°</th>
+                            <th scope="col">Mes de Disparo</th>
+                            <th scope="col" title="Variación de referencia respecto del mes base (habilita redeterminación desde el @(Redet.SaltoMinimo.ToString("N0"))%)">Variación Ref. %</th>
+                            <th scope="col" title="Coeficiente total Kᵢ/K₀ del salto">Coef. (K/K₀)</th>
+                            <th scope="col" title="Variación acumulada de la cadena de disparos">Var. Acumulada</th>
+                            <th scope="col">Publicación</th>
+                            @if (verExpediente)
+                            {
+                                <th scope="col" title="N° de expediente de la Variación de Referencia">N° Expediente VR</th>
+                            }
+                            @if (verCCyR)
+                            {
+                                <th scope="col" title="Fecha de aprobación CCyR">Aprob. CCyR</th>
+                            }
+                            @if (verOS)
+                            {
+                                <th scope="col" title="Fecha de aprobación OS">Aprob. OS</th>
+                            }
+                            @if (verLimite)
+                            {
+                                <th scope="col" title="Fecha límite de presentación de la redeterminación definitiva">Límite Red. Def.</th>
+                            }
+                            <th scope="col">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -59,30 +95,59 @@ else
                             <tr @key="r.Id" style="text-align:center">
                                 <td style="font-weight:700">@r.NroDisparo</td>
                                 <td>@Fmt.MesCorto(r.MesSalto)-@(r.AnioSalto % 100)</td>
-                                <td style="@($"font-weight:700;color:{Redet.ColorSuba(r.PorcentajeAumento)}")">
-                                    @(r.PorcentajeAumento.HasValue ? r.PorcentajeAumento.Value.ToString("N4") + "%" : "—")
+                                <td style="white-space:nowrap">
+                                    @if (r.PorcentajeAumento.HasValue)
+                                    {
+                                        @* Badge con texto además del color: el rojo significa "no llega
+                                           al salto mínimo", no "variación negativa", y sin texto se
+                                           malinterpretaba (y era invisible para daltónicos). *@
+                                        <span style="@($"font-weight:700;color:{Redet.ColorSuba(r.PorcentajeAumento)}")">@r.PorcentajeAumento.Value.ToString("N4")%</span>
+                                        <RadzenBadge Text="@(Redet.EsSuba(r.PorcentajeAumento) ? "Habilita" : "No habilita")" IsPill="true"
+                                                     BadgeStyle="@(Redet.EsSuba(r.PorcentajeAumento) ? BadgeStyle.Success : BadgeStyle.Danger)"
+                                                     Shade="Shade.Lighter" class="rz-ml-1" />
+                                    }
+                                    else
+                                    {
+                                        <span>—</span>
+                                    }
                                 </td>
                                 <td>@r.TotalKiK0?.ToString("N2")</td>
                                 <td style="font-weight:600">@r.VariacionAcumulada?.ToString("N2")</td>
                                 <td>@Fmt.PubMayus(r.IdPublicacionSalto ?? r.IdPublicacionBase)</td>
-                                <td style="text-align:left">@(r.NroExpedienteVR ?? "—")</td>
-                                <td>@r.FechaAprobacionCCyR?.ToString("d/M/yyyy")</td>
-                                <td>@r.FechaAprobacionOS?.ToString("d/M/yyyy")</td>
-                                <td>@r.FechaLimitePresentacion?.ToString("d/M/yyyy")</td>
+                                @if (verExpediente)
+                                {
+                                    <td style="text-align:left">@(string.IsNullOrWhiteSpace(r.NroExpedienteVR) ? "—" : r.NroExpedienteVR)</td>
+                                }
+                                @if (verCCyR)
+                                {
+                                    <td>@r.FechaAprobacionCCyR?.ToString("d/M/yyyy")</td>
+                                }
+                                @if (verOS)
+                                {
+                                    <td>@r.FechaAprobacionOS?.ToString("d/M/yyyy")</td>
+                                }
+                                @if (verLimite)
+                                {
+                                    <td>@r.FechaLimitePresentacion?.ToString("d/M/yyyy")</td>
+                                }
                                 <td style="white-space:nowrap">
                                     <RadzenButton Icon="visibility" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info" Variant="Variant.Text"
                                                   title="Ver" Click="@(() => Nav.NavigateTo($"redeterminacion/{r.Id}"))" />
+                                    @* Habilitados aunque la regla de negocio no aplique: un botón
+                                       disabled no recibe foco ni hover táctil y el motivo del title
+                                       quedaba invisible por teclado. El clic notifica el porqué;
+                                       el title sigue como pista para mouse. Disabled queda solo
+                                       para el estado transitorio `procesando`. *@
                                     <RadzenButton Icon="calculate" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text"
-                                                  title="@(EsRecalculable(r) ? "Recalcular" : $"En estado {r.Estado} no admite recálculo")"
-                                                  Disabled="@(!EsRecalculable(r))"
-                                                  Click="@(() => Nav.NavigateTo($"redeterminacion/calcular?editarId={r.Id}"))" />
-                                    <RadzenButton Icon="edit_note" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Text"
-                                                  title="Datos administrativos" Click="@(() => Nav.NavigateTo($"redeterminacion/{r.Id}/admin"))" />
+                                                  title="@(MotivoNoRecalculable(r, ultimoDisparo) ?? "Recalcular")"
+                                                  Click="@(() => RecalcularClick(r, ultimoDisparo))" />
+                                    @* Primary como todos los "editar" de fila (era Warning, único en la app). *@
+                                    <RadzenButton Icon="edit_note" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
+                                                  title="Datos administrativos" Click="@(() => AbrirAdminAsync(r))" />
                                     <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
-                                                  title="@(r.NroDisparo != ultimoDisparo ? "Solo se puede eliminar el último disparo"
-                                                          : !EsRecalculable(r) ? $"En estado {r.Estado} no puede eliminarse" : "Eliminar")"
-                                                  Disabled="@(procesando || r.NroDisparo != ultimoDisparo || !EsRecalculable(r))"
-                                                  Click="@(() => EliminarAsync(r))" />
+                                                  title="@(MotivoNoEliminable(r, ultimoDisparo) ?? "Eliminar")"
+                                                  Disabled="@procesando"
+                                                  Click="@(() => EliminarAsync(r, ultimoDisparo))" />
                                 </td>
                             </tr>
                         }
@@ -129,12 +194,55 @@ else
     private async Task CargarAsync() =>
         lista = await Service.GetHistorialAsync(filterObraId);
 
-    // Espejo UI de RedeterminacionValidator (la regla completa vive en el servicio).
-    private static bool EsRecalculable(RedeterminacionHistorialVM r) =>
-        RedeterminacionValidator.EsRecalculable(r.Estado);
+    // Espejo UI de RedeterminacionValidator (la regla completa vive en el servicio):
+    // el MISMO mensaje va al title del botón y a la notificación del clic. Recalcular
+    // y eliminar comparten la regla "solo el último y en estado recalculable" — un
+    // recálculo intermedio reescribiría la variación acumulada de los posteriores.
+    private static string? MotivoNoRecalculable(RedeterminacionHistorialVM r, int ultimoDisparo) =>
+        RedeterminacionValidator.AdmiteRecalculo(r.Estado, r.NroDisparo, hayPosterior: r.NroDisparo != ultimoDisparo);
 
-    private async Task EliminarAsync(RedeterminacionHistorialVM r)
+    private static string? MotivoNoEliminable(RedeterminacionHistorialVM r, int ultimoDisparo) =>
+        RedeterminacionValidator.EliminarDisparo(r.Estado, r.NroDisparo, hayPosterior: r.NroDisparo != ultimoDisparo);
+
+    // El VM se carga acá y no en el diálogo: si el disparo ya no existe (lo borró otro
+    // usuario) se avisa y se recarga la grilla sin abrir nada.
+    private async Task AbrirAdminAsync(RedeterminacionHistorialVM r)
     {
+        var vm = await Service.BuildAdminVmAsync(r.Id);
+        if (vm is null)
+        {
+            Notifications.Notify(NotificationSeverity.Warning, "No encontrado", "El cálculo ya no existe.", 4000);
+            await CargarAsync();
+            return;
+        }
+
+        var resultado = await DialogService.OpenAsync<RedeterminacionAdminDialog>(
+            $"Disparo N° {vm.NroDisparo} — Datos Administrativos",
+            new Dictionary<string, object?> { [nameof(RedeterminacionAdminDialog.Vm)] = vm },
+            new DialogOptions { Width = "min(480px, 92vw)" });
+
+        if (resultado is true)
+            await CargarAsync();
+    }
+
+    // Los motivos de negocio se explican al clic (los botones no van disabled: ver markup).
+    private void RecalcularClick(RedeterminacionHistorialVM r, int ultimoDisparo)
+    {
+        if (MotivoNoRecalculable(r, ultimoDisparo) is string rechazo)
+        {
+            Notifications.Notify(NotificationSeverity.Info, "No se puede recalcular", rechazo, 6000);
+            return;
+        }
+        Nav.NavigateTo($"redeterminacion/calcular?editarId={r.Id}");
+    }
+
+    private async Task EliminarAsync(RedeterminacionHistorialVM r, int ultimoDisparo)
+    {
+        if (MotivoNoEliminable(r, ultimoDisparo) is string rechazo)
+        {
+            Notifications.Notify(NotificationSeverity.Info, "No se puede eliminar", rechazo, 6000);
+            return;
+        }
         if (procesando) return;
         procesando = true;
         try

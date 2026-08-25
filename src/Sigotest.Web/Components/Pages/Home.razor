@@ -1,54 +1,50 @@
 @page "/"
-@inject NavigationManager Nav
 
 @* Landing accesible a TODO usuario autenticado (solo FallbackPolicy, sin rol): es el
    destino del logo y de la raíz, así nadie aterriza en un módulo que su rol no ve
-   (antes "/" era Calcular, solo Certificaciones). Muestra los módulos habilitados. *@
+   (antes "/" era Calcular, solo Certificaciones). Muestra los módulos habilitados.
+   Estilo portado del Home de SAF (tiles en grid con acento del tema). *@
 
 <PageTitle>Inicio</PageTitle>
 
-<CabeceraPagina Titulo="Inicio" Clase="rz-mb-4" Subtitulo="@Saludo()" />
+<section class="sigo-home">
+    <div class="sigo-home__header">
+        <span class="sigo-home__eyebrow">SIGO</span>
+        <h1>Sistema Integral de Gestión de Obras</h1>
+        <p>@Saludo()</p>
+    </div>
 
-@if (cargado && modulos.Count == 0)
-{
-    @* Recién registrado, sin roles: mismo mensaje que /sin-acceso. *@
-    <RadzenStack AlignItems="AlignItems.Center" class="rz-mt-8">
-        <RadzenCard Variant="Variant.Outlined" style="max-width:560px">
-            <RadzenStack Gap="0.75rem" AlignItems="AlignItems.Center">
-                <RadzenIcon Icon="hourglass_top" style="font-size:3rem;color:var(--rz-warning)" />
-                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Usuario sin roles asignados</RadzenText>
-                <RadzenText TextStyle="TextStyle.Body2" class="rz-text-align-center rz-mb-0">
-                    Tu usuario ya quedó registrado en el sistema, pero todavía no tiene roles
-                    asignados. Pedile a un administrador que te habilite y después recargá la página (F5).
-                </RadzenText>
-            </RadzenStack>
-        </RadzenCard>
-    </RadzenStack>
-}
-else
-{
-    <RadzenRow Gap="1rem" RowGap="1rem">
-        @foreach (var m in modulos)
-        {
-            <RadzenColumn Size="12" SizeSM="6" SizeMD="4">
+    @if (cargado && modulos.Count == 0)
+    {
+        @* Recién registrado, sin roles: mismo mensaje que /sin-acceso. *@
+        <div class="sigo-home__empty">
+            Tu usuario ya quedó registrado en el sistema, pero todavía no tiene roles
+            asignados. Pedile a un administrador que te habilite y después recargá la página (F5).
+        </div>
+    }
+    else
+    {
+        <div class="sigo-home__grid">
+            @foreach (var m in modulos)
+            {
                 @* Ancla real, no un div con @onclick: el router de Blazor la intercepta
                    igual (navegación sin recarga) y además queda accesible por teclado,
                    anunciada como link y abrible en pestaña nueva. *@
-                <a href="@m.Ruta" class="home-card">
-                    <RadzenCard Variant="Variant.Outlined" style="height:100%">
-                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem">
-                            <RadzenIcon Icon="@m.Icono" style="font-size:2rem;color:var(--rz-primary)" />
-                            <RadzenStack Gap="0.15rem">
-                                <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-0" style="font-weight:600">@m.Titulo</RadzenText>
-                                <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">@m.Descripcion</RadzenText>
-                            </RadzenStack>
-                        </RadzenStack>
-                    </RadzenCard>
+                <a class="sigo-home__tile" href="@m.Ruta">
+                    @* aria-hidden: el contenido del span es la ligadura Material ("apartment")
+                       y sin esto el lector la anuncia en inglés antes del título del tile. *@
+                    <span class="rzi" aria-hidden="true">@m.Icono</span>
+                    <strong>@m.Titulo</strong>
+                    <small>@m.Descripcion</small>
                 </a>
-            </RadzenColumn>
-        }
-    </RadzenRow>
-}
+            }
+        </div>
+    }
+</section>
+
+@* Los estilos (.sigo-home*) viven en app-blazor.css: eran el único <style>
+   embebido en página y necesitan apuntar a ancestros (.rz-layout), fuera del
+   alcance del CSS aislado. *@
 
 @code {
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
@@ -59,14 +55,12 @@ else
     private string? nombre;
     private bool cargado;
 
-    // null (sin subtítulo) mientras no hay nombre resuelto o el usuario no tiene módulos:
-    // un caption vacío empuja el contenido, y anunciar "módulos habilitados" contradiría
-    // el aviso de usuario sin roles que se muestra abajo.
-    private RenderFragment? Saludo()
-    {
-        if (nombre is null || modulos.Count == 0) return null;
-        return @<text>Hola, @nombre. Estos son los módulos habilitados para tu usuario:</text>;
-    }
+    // Sin nombre resuelto o sin módulos, la consigna genérica: anunciar "módulos
+    // habilitados" contradiría el aviso de usuario sin roles que se muestra abajo.
+    private string Saludo() =>
+        nombre is null || modulos.Count == 0
+            ? "Seleccioná un módulo para comenzar."
+            : $"Hola, {nombre}. Seleccioná un módulo habilitado para comenzar.";
 
     protected override async Task OnInitializedAsync()
     {
@@ -79,7 +73,7 @@ else
         {
             modulos.Add(new("Obras", "Catálogo de obras, certificados y estructuras de costos", "apartment", "obras"));
             modulos.Add(new("Calcular Redeterminación", "Cálculo de variación por tabla de ponderación", "calculate", "redeterminacion/calcular"));
-            modulos.Add(new("Historial", "Disparos de redeterminación guardados", "history", "redeterminacion/historial"));
+            modulos.Add(new("Historial de Redeterminaciones", "Disparos de redeterminación guardados", "history", "redeterminacion/historial"));
             modulos.Add(new("Índices INDEC", "Catálogo de índices y carga de publicaciones", "trending_up", "indices"));
         }
         if (Roles.TieneAlguno(user.IsInRole, Roles.Planificacion))

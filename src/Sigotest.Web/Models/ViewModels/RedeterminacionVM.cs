@@ -47,12 +47,12 @@ public class RedeterminacionVM
 
 /// <summary>
 /// Datos administrativos de un disparo guardado (expediente y aprobaciones), aplanados
-/// para el form de RedeterminacionAdmin: la página no bindea la entidad EF y el guardado
-/// pasa por RedeterminacionService.GuardarDatosAdminAsync con el RowVersion como token.
+/// para el form de RedeterminacionAdminDialog: el diálogo no bindea la entidad EF y el
+/// guardado pasa por RedeterminacionService.GuardarDatosAdminAsync con el RowVersion como token.
 /// </summary>
 public class RedeterminacionAdminVM
 {
-    // Cabecera (solo lectura en la página)
+    // Cabecera (solo lectura en el diálogo)
     public int Id { get; set; }
     public int NroDisparo { get; set; }
     public int ObraId { get; set; }
@@ -138,6 +138,10 @@ public class RedeterminacionHistorialVM
 public class RedeterminacionParaRecalcularVM
 {
     public int ObraId { get; set; }
+    public int NroDisparo { get; set; }
+    public EstadoRedeterminacion Estado { get; set; }
+    /// <summary>false si la obra tiene disparos posteriores: el recálculo no aplica.</summary>
+    public bool EsUltimo { get; set; }
     public int AnioBase { get; set; }
     public int MesBase { get; set; }
     public string? IdPublicacionBase { get; set; }

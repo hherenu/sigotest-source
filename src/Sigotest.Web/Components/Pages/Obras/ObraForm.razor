@@ -15,11 +15,11 @@
 }
 else if (obra is null)
 {
-    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    <EstadoCargando Texto="Cargando obra…" />
 }
 else
 {
-    <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" class="rz-mb-4">@Titulo</RadzenText>
+    <CabeceraPagina Titulo="@Titulo" Estilo="TextStyle.H4" Clase="rz-mb-4" Migas="@Migas" />
 
     <RadzenTemplateForm TItem="ObraVM" Data="@obra" Submit="@GuardarAsync">
         <RadzenStack Gap="1rem" style="max-width: 960px;">
@@ -27,13 +27,13 @@ else
             <RadzenFieldset Text="Datos Generales">
                 <RadzenRow Gap="1rem" RowGap="1rem">
                     <RadzenColumn Size="12" SizeMD="8">
-                        <RadzenFormField Text="Nombre" Variant="Variant.Outlined" style="width:100%">
+                        <RadzenFormField Text="Nombre *" Variant="Variant.Outlined" style="width:100%">
                             <RadzenTextBox @bind-Value="obra.Nombre" Name="Nombre" style="width:100%" />
                         </RadzenFormField>
                         <RadzenRequiredValidator Component="Nombre" Text="El nombre es obligatorio" Popup="true" />
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="4">
-                        <RadzenFormField Text="N° Licitación" Variant="Variant.Outlined" style="width:100%">
+                        <RadzenFormField Text="N° Licitación *" Variant="Variant.Outlined" style="width:100%">
                             <RadzenTextBox @bind-Value="obra.NumeroLicitacion" Name="NumeroLicitacion" style="width:100%" />
                         </RadzenFormField>
                         <RadzenRequiredValidator Component="NumeroLicitacion" Text="La licitación es obligatoria" Popup="true" />
@@ -44,7 +44,8 @@ else
                         </RadzenFormField>
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="6">
-                        <RadzenFormField Text="Antecedentes (EX)" Variant="Variant.Outlined" style="width:100%">
+                        <RadzenFormField Text="Antecedentes (EX)" Variant="Variant.Outlined" style="width:100%"
+                                         title="N° de expediente electrónico (EX-…)">
                             <RadzenTextBox @bind-Value="obra.Antecedentes" style="width:100%" />
                         </RadzenFormField>
                     </RadzenColumn>
@@ -64,7 +65,8 @@ else
                         </RadzenFormField>
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="8">
-                        <RadzenFormField Text="Oferta Final (IF)" Variant="Variant.Outlined" style="width:100%">
+                        <RadzenFormField Text="Oferta Final (IF)" Variant="Variant.Outlined" style="width:100%"
+                                         title="N° de documento GDE (IF-…)">
                             <RadzenTextBox @bind-Value="obra.OfertaFinal" style="width:100%" />
                         </RadzenFormField>
                     </RadzenColumn>
@@ -74,7 +76,8 @@ else
                         </RadzenFormField>
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="8">
-                        <RadzenFormField Text="IF Adjudicación" Variant="Variant.Outlined" style="width:100%">
+                        <RadzenFormField Text="IF Adjudicación" Variant="Variant.Outlined" style="width:100%"
+                                         title="N° de documento GDE (IF-…)">
                             <RadzenTextBox @bind-Value="obra.IFAdjudicacion" style="width:100%" />
                         </RadzenFormField>
                     </RadzenColumn>
@@ -84,7 +87,8 @@ else
                         </RadzenFormField>
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="8">
-                        <RadzenFormField Text="IF Contrato" Variant="Variant.Outlined" style="width:100%">
+                        <RadzenFormField Text="IF Contrato" Variant="Variant.Outlined" style="width:100%"
+                                         title="N° de documento GDE (IF-…)">
                             <RadzenTextBox @bind-Value="obra.IFContrato" style="width:100%" />
                         </RadzenFormField>
                     </RadzenColumn>
@@ -94,7 +98,8 @@ else
                         </RadzenFormField>
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="8">
-                        <RadzenFormField Text="IF Acta Inicio" Variant="Variant.Outlined" style="width:100%">
+                        <RadzenFormField Text="IF Acta Inicio" Variant="Variant.Outlined" style="width:100%"
+                                         title="N° de documento GDE (IF-…)">
                             <RadzenTextBox @bind-Value="obra.IFActaInicio" style="width:100%" />
                         </RadzenFormField>
                     </RadzenColumn>
@@ -109,10 +114,15 @@ else
                         </RadzenFormField>
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="6">
-                        <RadzenFormField Text="Director de Obra (usuario — recibe las notificaciones de planificación)" Variant="Variant.Outlined" style="width:100%">
+                        @* La explicación va como caption debajo: dentro del label flotante
+                           era una oración entera comprimida en el borde del campo. *@
+                        <RadzenFormField Text="Director de Obra (usuario)" Variant="Variant.Outlined" style="width:100%">
                             <RadzenDropDown @bind-Value="obra.DirectorUsuarioId" Data="@directores" TextProperty="Nombre" ValueProperty="Id"
                                             TValue="int?" AllowClear="true" Placeholder="(sin usuario asignado)" style="width:100%" />
                         </RadzenFormField>
+                        <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mt-1 rz-mb-0">
+                            Recibe las notificaciones de planificación.
+                        </RadzenText>
                     </RadzenColumn>
                     @if (obra.DirectorUsuarioId is null)
                     {
@@ -125,7 +135,8 @@ else
                         </RadzenColumn>
                     }
                     <RadzenColumn Size="12" SizeMD="6">
-                        <RadzenFormField Text="IF Designación" Variant="Variant.Outlined" style="width:100%">
+                        <RadzenFormField Text="IF Designación" Variant="Variant.Outlined" style="width:100%"
+                                         title="N° de documento GDE (IF-…)">
                             <RadzenTextBox @bind-Value="obra.IFDesignacion" style="width:100%" />
                         </RadzenFormField>
                     </RadzenColumn>
@@ -150,6 +161,12 @@ else
     private bool guardando;
 
     private string Titulo => Id is null ? "Nueva Obra" : "Editar Obra";
+
+    // En @code y no inline en el atributo: la expresión multilínea dentro del
+    // markup confundía al analizador Razor del IDE (falsos "Invalid expression").
+    private CabeceraPagina.Miga[] Migas => Id is null
+        ? [new("Obras", "obras"), new("Nueva")]
+        : [new("Obras", "obras"), new(obra?.Nombre ?? "Obra", $"obras/{Id}"), new("Editar")];
 
     private bool cargado;
     private int? idCargado;

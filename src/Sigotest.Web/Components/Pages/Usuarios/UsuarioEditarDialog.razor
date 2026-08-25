@@ -1,0 +1,77 @@
+@inject UsuarioService Service
+@inject DialogService DialogService
+@inject NotificationService Notifications
+
+@* Formulario de edición de /usuarios en diálogo (antes panel lateral: la grilla
+   quedaba angosta y dentro de una tarjeta, fuera del alto completo del layout).
+   Recibe una COPIA del usuario; la fila de la grilla no se bindea. Cierra con
+   true si guardó (el llamador recarga la lista). *@
+
+<RadzenTemplateForm TItem="UsuarioVM" Data="@Usuario" Submit="@GuardarAsync">
+    <RadzenStack Gap="0.75rem">
+        <div>
+            <RadzenFormField Text="Nombre *" Variant="Variant.Outlined" style="width:100%">
+                <RadzenTextBox @bind-Value="Usuario.Nombre" Name="Nombre" style="width:100%" />
+            </RadzenFormField>
+            <RadzenRequiredValidator Component="Nombre" Text="El nombre es obligatorio" Popup="true" />
+        </div>
+        <div>
+            <RadzenFormField Text="Email (notificaciones)" Variant="Variant.Outlined" style="width:100%">
+                <RadzenTextBox Value="@Usuario.Email" ReadOnly="true" Placeholder="(sin email en AD)" style="width:100%" />
+            </RadzenFormField>
+            <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mt-1 rz-mb-0">
+                El email viene de Active Directory (se toma al registrarse el usuario, no se carga a mano).
+            </RadzenText>
+        </div>
+        <div>
+            <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-1">Roles</RadzenText>
+            <RadzenCheckBoxList @bind-Value="Usuario.Roles" TValue="RolUsuario" Orientation="Orientation.Vertical" Gap="0.25rem"
+                                Data="@TodosLosRoles" TextProperty="Texto" ValueProperty="Rol" />
+        </div>
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+            <RadzenSwitch @bind-Value="Usuario.Activo" />
+            <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0">Activo</RadzenText>
+        </RadzenStack>
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+            <RadzenButton Text="Cancelar" Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                          Click="@(() => DialogService.Close(false))" />
+            <RadzenButton ButtonType="ButtonType.Submit" Text="Guardar" Icon="save"
+                          ButtonStyle="ButtonStyle.Primary" IsBusy="@procesando" BusyText="Guardando..." />
+        </RadzenStack>
+    </RadzenStack>
+</RadzenTemplateForm>
+
+@code {
+    [Parameter] public UsuarioVM Usuario { get; set; } = new();
+
+    private bool procesando;
+
+    private record OpcionRol(RolUsuario Rol, string Texto);
+    private static readonly OpcionRol[] TodosLosRoles =
+    [
+        new(RolUsuario.Admin, "Admin — todo + manejo de usuarios"),
+        new(RolUsuario.CCyR, "CCyR — certificaciones y redeterminaciones"),
+        new(RolUsuario.Director, "Director — carga la planificación"),
+        new(RolUsuario.Gerente, "Gerente — controla/aprueba la planificación"),
+        new(RolUsuario.Presupuesto, "Presupuesto — planificación solo lectura"),
+    ];
+
+    private async Task GuardarAsync()
+    {
+        if (procesando) return;
+        procesando = true;
+        try
+        {
+            // Los rechazos de negocio llegan como InvalidOperationException del servicio:
+            // Persistencia los traduce a una notificación con el mensaje.
+            var hecho = await Persistencia.EjecutarAsync(() => Service.ActualizarAsync(Usuario), Notifications);
+            if (!hecho) return;
+
+            Notifications.Notify(NotificationSeverity.Success, "Usuario actualizado", Usuario.Nombre ?? "", 4000);
+            Notifications.Notify(NotificationSeverity.Info, "Roles",
+                "Los cambios de rol aplican cuando el usuario recargue la página (F5).", 6000);
+            DialogService.Close(true);
+        }
+        finally { procesando = false; }
+    }
+}

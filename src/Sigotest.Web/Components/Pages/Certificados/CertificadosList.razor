@@ -15,11 +15,12 @@
 }
 else if (obra is null)
 {
-    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    <EstadoCargando Texto="Cargando certificados…" />
 }
 else
 {
-    <CabeceraPagina Titulo="Certificados de Avance" Clase="rz-mb-4">
+    <CabeceraPagina Titulo="Certificados de Avance" Clase="rz-mb-4"
+                    Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(obra.Nombre, $"obras/{ObraId}"), new("Certificados") })">
         <Subtitulo>@obra.Nombre — @obra.NumeroLicitacion</Subtitulo>
         <Acciones>
             <RadzenButton Text="Nuevo Certificado" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
@@ -31,15 +32,20 @@ else
 
     @if (certificados.Count == 0)
     {
-        <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
-            No hay certificados cargados para esta obra.
-        </RadzenAlert>
+        <EstadoVacio Icono="receipt_long" Titulo="No hay certificados para esta obra"
+                     Descripcion="Los certificados registran el avance mensual contra una estructura de costos de la obra.">
+            <Accion>
+                <RadzenButton Text="Nuevo Certificado" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                              Click="@(() => Nav.NavigateTo($"obras/{ObraId}/certificados/nuevo"))" />
+            </Accion>
+        </EstadoVacio>
     }
     else
     {
         <RadzenDataGrid Data="@certificados" TItem="CertificadoListItemVM" AllowFiltering="true" FilterMode="FilterMode.CheckBoxList"
                         FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" AllowSorting="true" AllowPaging="true"
-                        PageSize="20" Density="Density.Compact" class="rz-shadow-1">
+                        PageSize="20" Density="Density.Compact"
+                        EmptyText="Ningún registro coincide con los filtros aplicados.">
             <Columns>
                 <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Numero" Title="N°" Width="60px" TextAlign="TextAlign.Center" />
                 <RadzenDataGridColumn TItem="CertificadoListItemVM" Title="Período" Width="150px" Filterable="false">
@@ -64,11 +70,14 @@ else
                                       title="Ver" Click="@(() => Nav.NavigateTo($"certificados/{c.Id}"))" />
                         <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
                                       title="Editar" Click="@(() => Nav.NavigateTo($"certificados/{c.Id}/cargar"))" />
-                        <RadzenButton Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success" Variant="Variant.Text"
+                        <RadzenButton Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text"
                                       title="Excel" Click="@(() => Nav.NavigateTo($"/Certificado/DescargarExcel/{c.Id}", true))" />
+                        @* Habilitado aunque esté cerrado: un botón disabled no recibe foco ni
+                           hover táctil y el motivo del title quedaba invisible por teclado.
+                           El clic notifica el porqué; el title sigue como pista para mouse. *@
                         <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
                                       title="@(c.EsCerrado ? "Un certificado cerrado no se puede eliminar (reabrilo primero)" : "Eliminar")"
-                                      Disabled="@(procesando || c.EsCerrado)" Click="@(() => EliminarAsync(c))" />
+                                      Disabled="@procesando" Click="@(() => EliminarAsync(c))" />
                     </Template>
                 </RadzenDataGridColumn>
             </Columns>
@@ -104,6 +113,13 @@ else
 
     private async Task EliminarAsync(CertificadoListItemVM c)
     {
+        // El motivo de negocio se explica al clic (el botón no va disabled: ver markup).
+        if (c.EsCerrado)
+        {
+            Notifications.Notify(NotificationSeverity.Info, "No se puede eliminar",
+                $"El certificado N° {c.Numero} está cerrado. Reabrilo desde su detalle si realmente corresponde eliminarlo.", 6000);
+            return;
+        }
         if (procesando) return;
         // El flag antes del Confirm: un doble click no debe apilar dos diálogos.
         procesando = true;

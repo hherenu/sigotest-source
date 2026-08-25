@@ -15,11 +15,12 @@
 }
 else if (vm is null)
 {
-    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    <EstadoCargando Texto="Cargando tabla de ponderación…" />
 }
 else
 {
-    <CabeceraPagina Titulo="@($"Tabla de Ponderación{(vm.TieneTabla ? $": {vm.TablaNombre}" : "")}")">
+    <CabeceraPagina Titulo="@($"Tabla de Ponderación{(vm.TieneTabla ? $": {vm.TablaNombre}" : "")}")"
+                    Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(vm.ObraNombre, $"obras/{ObraId}"), new("Ponderación") })">
         <Subtitulo>@vm.ObraNombre — @vm.NumeroLicitacion</Subtitulo>
         <Acciones>
             @if (vm.TieneTabla)

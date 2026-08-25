@@ -6,18 +6,19 @@
 
 <PageTitle>Nuevo Índice INDEC</PageTitle>
 
-<RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" class="rz-mb-4">Nuevo Índice INDEC</RadzenText>
+<CabeceraPagina Titulo="Nuevo Índice INDEC" Estilo="TextStyle.H4" Clase="rz-mb-4"
+                Migas="@(new CabeceraPagina.Miga[] { new("Índices INDEC", "indices"), new("Nuevo") })" />
 
 <RadzenTemplateForm TItem="IndiceVM" Data="@indice" Submit="@GuardarAsync">
     <RadzenStack Gap="1rem" style="max-width: 640px;">
         <div>
-            <RadzenFormField Text="Código ID (ej: MANO_OBRA)" Variant="Variant.Outlined" style="width:100%">
+            <RadzenFormField Text="Código ID (ej: MANO_OBRA) *" Variant="Variant.Outlined" style="width:100%">
                 <RadzenTextBox @bind-Value="indice.CodigoIndice" Name="CodigoIndice" style="width:100%" />
             </RadzenFormField>
             <RadzenRequiredValidator Component="CodigoIndice" Text="El código es obligatorio" Popup="true" />
         </div>
         <div>
-            <RadzenFormField Text="Familia de Recurso" Variant="Variant.Outlined" style="width:100%">
+            <RadzenFormField Text="Familia de Recurso *" Variant="Variant.Outlined" style="width:100%">
                 <RadzenTextBox @bind-Value="indice.FamiliaRecurso" Name="FamiliaRecurso" style="width:100%" />
             </RadzenFormField>
             <RadzenRequiredValidator Component="FamiliaRecurso" Text="La familia de recurso es obligatoria" Popup="true" />

@@ -60,9 +60,20 @@ public class RedeterminacionValidatorTests
     [Fact]
     public void AdmiteRecalculo_EnEstadoOficial_RechazaConElEstado()
     {
-        var error = RedeterminacionValidator.AdmiteRecalculo(EstadoRedeterminacion.AprobadaCCyR, 3);
+        var error = RedeterminacionValidator.AdmiteRecalculo(EstadoRedeterminacion.AprobadaCCyR, 3, hayPosterior: false);
         Assert.Contains("disparo 3", error);
         Assert.Contains("AprobadaCCyR", error);
+    }
+
+    [Fact]
+    public void AdmiteRecalculo_SoloElUltimo()
+    {
+        Assert.Null(RedeterminacionValidator.AdmiteRecalculo(EstadoRedeterminacion.Calculada, 3, hayPosterior: false));
+
+        // Recalcular uno intermedio reescribiría la VariacionAcumulada de los
+        // posteriores (incluidos los oficiales): misma regla que EliminarDisparo.
+        Assert.Contains("el último disparo",
+            RedeterminacionValidator.AdmiteRecalculo(EstadoRedeterminacion.Calculada, 2, hayPosterior: true));
     }
 
     [Fact]

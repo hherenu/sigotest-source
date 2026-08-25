@@ -80,12 +80,15 @@ public static class Fmt
     /// <summary>Abreviatura del mes (1-12). Ej: "Mar".</summary>
     public static string MesCorto(int mes) => MesesCortos[mes - 1];
 
-    /// <summary>"$" + monto con 2 decimales, o "" si es 0 (cultura por defecto del servidor, como en las tablas de certificados/ponderación).</summary>
-    public static string Money(decimal v) => v != 0 ? "$ " + v.ToString("N2") : "";
+    // Cultura es-AR EXPLÍCITA en todos los formatos (antes Money/Qty/N2 usaban la
+    // del servidor y Pesos la fijaba): un cambio de cultura del host alteraba los
+    // separadores de la mitad de las tablas y no de la otra.
+    /// <summary>"$" + monto con 2 decimales, o "" si es 0.</summary>
+    public static string Money(decimal v) => v != 0 ? "$ " + v.ToString("N2", EsAr) : "";
     /// <summary>Cantidad "1.234,56" o "" si es 0.</summary>
-    public static string Qty(decimal v) => v != 0 ? v.ToString("N2") : "";
-    /// <summary>Número con 2 decimales (cultura por defecto).</summary>
-    public static string N2(decimal v) => v.ToString("N2");
+    public static string Qty(decimal v) => v != 0 ? v.ToString("N2", EsAr) : "";
+    /// <summary>Número con 2 decimales.</summary>
+    public static string N2(decimal v) => v.ToString("N2", EsAr);
     /// <summary>Monto con separadores es-AR (grilla de planificación).</summary>
     public static string Pesos(decimal v) => v.ToString("N2", EsAr);
 

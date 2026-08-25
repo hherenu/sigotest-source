@@ -13,17 +13,17 @@
 }
 else if (obra is null)
 {
-    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    <EstadoCargando Texto="Cargando obra…" />
 }
 else
 {
     <CabeceraPagina Titulo="@obra.Nombre" Estilo="TextStyle.H4" Clase="rz-mb-4">
         <Acciones>
-            <RadzenButton Text="Estructuras de Costos" Icon="account_tree" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success"
-                          Click="@(() => Nav.NavigateTo($"obras/{obra.Id}/estructuras"))" />
+            @* Sin el botón a Estructuras: duplicaba el "Ver / Gestionar" de la sección
+               homónima de abajo y era el tercer botón verde de la cabecera. *@
             <RadzenButton Text="Editar" Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Flat"
                           Click="@(() => Nav.NavigateTo($"obras/{obra.Id}/editar"))" />
-            <RadzenButton Text="Volver" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+            <RadzenButton Text="Volver a Obras" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                           Click="@(() => Nav.NavigateTo("obras"))" />
         </Acciones>
     </CabeceraPagina>
@@ -70,7 +70,11 @@ else
                         <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">Fecha Final Contrato</RadzenText>
                     </RadzenColumn>
                     <RadzenColumn Size="7">
-                        <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0" style="font-weight:600;color:var(--rz-danger)">
+                        @* Rojo SOLO con el plazo vencido (misma regla que el badge de estado):
+                           antes estaba siempre en rojo, también con años por delante, y el
+                           rojo permanente desensibiliza el color de peligro. *@
+                        <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0"
+                                    style="@(obra.Estado?.Contains("Vencido") == true ? "font-weight:600;color:var(--rz-danger)" : "font-weight:600")">
                             @obra.FechaFinalContrato?.ToString("dd/MM/yyyy")
                         </RadzenText>
                     </RadzenColumn>
@@ -87,8 +91,10 @@ else
                         Estructuras de Costos
                         <RadzenBadge Text="@obra.EstructurasCostos.Count.ToString()" BadgeStyle="BadgeStyle.Secondary" class="rz-ml-2" />
                     </RadzenText>
-                    <RadzenButton Text="Ver / Gestionar" Icon="account_tree" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success"
-                                  Click="@(() => Nav.NavigateTo($"obras/{obra.Id}/estructuras"))" />
+                    @* Navegación de sección: Light/Flat (el verde quedaba con el mismo peso
+                       que las acciones reales y la página tenía 5 botones verdes). *@
+                    <RadzenButton Text="Ver / Gestionar" Icon="account_tree" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
+                                  Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"obras/{obra.Id}/estructuras"))" />
                 </RadzenStack>
                 @if (!obra.EstructurasCostos.Any())
                 {
@@ -115,8 +121,8 @@ else
                 <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
                              AlignItems="AlignItems.Center" class="rz-mb-2">
                     <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Certificados de Avance</RadzenText>
-                    <RadzenButton Text="Ver / Gestionar" Icon="receipt_long" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
-                                  Click="@(() => Nav.NavigateTo($"obras/{obra.Id}/certificados"))" />
+                    <RadzenButton Text="Ver / Gestionar" Icon="receipt_long" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
+                                  Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"obras/{obra.Id}/certificados"))" />
                 </RadzenStack>
                 <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
                     Accedé al historial de certificados y cargá la ejecución mensual.
@@ -132,7 +138,7 @@ else
                     <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
                                  AlignItems="AlignItems.Center" class="rz-mb-2">
                         <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Tabla de Ponderación</RadzenText>
-                        <RadzenButton Text="Crear tabla" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success"
+                        <RadzenButton Text="Crear tabla" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
                                       Click="@(() => Nav.NavigateTo($"obras/{obra.Id}/ponderacion"))" />
                     </RadzenStack>
                     <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
@@ -149,15 +155,16 @@ else
                                  AlignItems="AlignItems.Center" class="rz-mb-3">
                         <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Tabla de Ponderación: @tabla.Nombre</RadzenText>
                         <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
-                            <RadzenButton Text="Editar Tabla" Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success"
-                                          Click="@(() => Nav.NavigateTo($"obras/{obra.Id}/ponderacion"))" />
+                            <RadzenButton Text="Editar Tabla" Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
+                                          Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"obras/{obra.Id}/ponderacion"))" />
                             <RadzenButton Text="Calcular Redeterminación" Icon="calculate" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
                                           Click="@(() => Nav.NavigateTo($"redeterminacion/calcular?obraId={obra.Id}"))" />
                         </RadzenStack>
                     </RadzenStack>
                     <RadzenDataGrid Data="@tabla.Items" TItem="ItemPonderacionObraVM"
                                     Density="Density.Compact" AllowFiltering="true" FilterMode="FilterMode.CheckBoxList"
-                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" AllowSorting="true">
+                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" AllowSorting="true"
+                                    EmptyText="Ningún registro coincide con los filtros aplicados.">
                         <Columns>
                             <RadzenDataGridColumn TItem="ItemPonderacionObraVM" Property="Numero" Title="N°" Width="60px" TextAlign="TextAlign.Center" />
                             <RadzenDataGridColumn TItem="ItemPonderacionObraVM" Property="Insumo" Title="Insumo" />

@@ -3,16 +3,17 @@
    las dos pantallas deriven. Las páginas proyectan su VM a FilaPonderacion. *@
 <div class="cert-scroll">
     <table class="cert-grid">
+        <caption class="sr-only">Tabla de ponderación: coeficiente por insumo entre @EtiquetaBase y @EtiquetaSalto</caption>
         <thead>
             <tr>
-                <th>N°</th>
-                <th style="text-align:left">Insumo</th>
-                <th>Peso %</th>
-                <th>Indicador @EtiquetaBase</th>
-                <th>Indicador @EtiquetaSalto</th>
-                <th>Kᵢ/K₀</th>
-                <th>Variación Ponderada</th>
-                <th style="text-align:left">INDEC</th>
+                <th scope="col">N°</th>
+                <th scope="col" style="text-align:left">Insumo</th>
+                <th scope="col">Peso %</th>
+                <th scope="col">Indicador @EtiquetaBase</th>
+                <th scope="col">Indicador @EtiquetaSalto</th>
+                <th scope="col">Kᵢ/K₀</th>
+                <th scope="col">Variación Ponderada</th>
+                <th scope="col" style="text-align:left">INDEC</th>
             </tr>
         </thead>
         <tbody>
@@ -34,12 +35,16 @@
             }
         </tbody>
         <tfoot>
+            @* Un solo rótulo TOTAL (estaba duplicado) y cada total debajo de SU
+               columna: Kᵢ/K₀ bajo Kᵢ/K₀ y el % bajo Variación Ponderada (antes
+               quedaban corridos una columna a la derecha). *@
             <tr style="text-align:center">
                 <td colspan="2" class="num">TOTAL</td>
                 <td>100,00%</td>
-                <td colspan="3">TOTAL</td>
+                <td colspan="2"></td>
                 <td style="color:@Color">@TotalKiK0?.ToString("N2")</td>
                 <td style="color:@Color">@PorcentajeAumento?.ToString("N4")%</td>
+                <td></td>
             </tr>
         </tfoot>
     </table>

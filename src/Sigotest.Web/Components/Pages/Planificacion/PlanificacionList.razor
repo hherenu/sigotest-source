@@ -26,21 +26,20 @@
 
 @if (obras is null)
 {
-    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    <EstadoCargando Texto="Cargando planificación…" />
 }
 else if (obras.Count == 0)
 {
-    <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
-        @(soloDirector
-            ? "No tenés obras asignadas como director. Un administrador debe asignarte desde la ficha de cada obra."
-            : "No hay obras cargadas.")
-    </RadzenAlert>
+    <EstadoVacio Icono="event_note"
+                 Titulo="@(soloDirector ? "No tenés obras asignadas como director" : "No hay obras cargadas")"
+                 Descripcion="@DescripcionVacio" />
 }
 else
 {
     <RadzenDataGrid @ref="grid" Data="@obras" TItem="PlanObraRowVM" AllowFiltering="true" FilterMode="FilterMode.CheckBoxList"
                     FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" AllowSorting="true" AllowPaging="true"
-                    PageSize="20" Density="Density.Compact" class="rz-shadow-1">
+                    PageSize="20" Density="Density.Compact"
+                    EmptyText="Ningún registro coincide con los filtros aplicados.">
         <Columns>
             <RadzenDataGridColumn TItem="PlanObraRowVM" Property="Nombre" Title="Obra" />
             <RadzenDataGridColumn TItem="PlanObraRowVM" Property="NumeroLicitacion" Title="Licitación" Width="140px" />
@@ -110,6 +109,10 @@ else
     private RadzenDataGrid<PlanObraRowVM>? grid;
     private List<PlanObraRowVM>? obras;
     private bool soloDirector;
+
+    private string DescripcionVacio => soloDirector
+        ? "Un administrador debe asignarte como director desde la ficha de cada obra."
+        : "Cuando haya obras cargadas, sus curvas de inversión se planifican desde acá.";
 
     /// <summary>Opción del selector: el plan vivo ("Vigente") o un corte mensual (as-of por snapshots).</summary>
     private sealed record CorteOption(int? Anio, int? Mes, string Texto)

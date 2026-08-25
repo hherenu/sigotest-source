@@ -68,5 +68,9 @@ public class ItemEstructuraVM
 /// <summary>Opción del dropdown "Agrupador padre" (agrupadores de la misma estructura).</summary>
 public record AgrupadorOpcionVM(int Id, string Descripcion);
 
-/// <summary>Carga de la página de edición de ítem: el ítem y sus padres posibles.</summary>
-public record ItemParaEditarVM(ItemEstructuraVM Item, List<AgrupadorOpcionVM> Agrupadores);
+/// <summary>
+/// Carga de la página de edición de ítem: el ítem, sus padres posibles y el contexto
+/// (obra + estructura) para la cabecera — sin él, la página no decía qué se editaba.
+/// </summary>
+public record ItemParaEditarVM(ItemEstructuraVM Item, List<AgrupadorOpcionVM> Agrupadores,
+    int ObraId, string ObraNombre, string EstructuraNombre);

@@ -14,17 +14,19 @@
 }
 else if (obra is null)
 {
-    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    <EstadoCargando Texto="Preparando el alta…" />
 }
 else
 {
-    <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H1" class="rz-mb-1">Nueva Estructura de Costos</RadzenText>
-    <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-4">@obra.Nombre — @obra.NumeroLicitacion</RadzenText>
+    <CabeceraPagina Titulo="Nueva Estructura de Costos" Clase="rz-mb-4"
+                    Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(obra.Nombre, $"obras/{ObraId}"), new("Estructuras", $"obras/{ObraId}/estructuras"), new("Nueva") })">
+        <Subtitulo>@obra.Nombre — @obra.NumeroLicitacion</Subtitulo>
+    </CabeceraPagina>
 
     <RadzenTemplateForm TItem="EstructuraFormVM" Data="@estructura" Submit="@GuardarAsync">
         <RadzenStack Gap="1rem" style="max-width: 520px;">
             <div>
-                <RadzenFormField Text="Nombre de la estructura" Variant="Variant.Outlined" style="width:100%">
+                <RadzenFormField Text="Nombre de la estructura *" Variant="Variant.Outlined" style="width:100%">
                     <RadzenTextBox @bind-Value="estructura.Nombre" Name="Nombre" Placeholder="Ej: Estructura Original, Adicional N°1" style="width:100%" />
                 </RadzenFormField>
                 <RadzenRequiredValidator Component="Nombre" Text="El nombre es obligatorio" Popup="true" />
