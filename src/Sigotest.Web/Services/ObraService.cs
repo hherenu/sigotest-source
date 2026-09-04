@@ -31,6 +31,7 @@ public class ObraService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser
                 Id = o.Id,
                 Nombre = o.Nombre,
                 NumeroLicitacion = o.NumeroLicitacion,
+                Antecedentes = o.Antecedentes,
                 Contratista = o.Contratista,
                 FechaActaInicio = o.FechaActaInicio,
                 FechaFinalContrato = o.FechaFinalContrato,

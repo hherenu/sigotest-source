@@ -43,11 +43,8 @@ else
                         <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">Estado</RadzenText>
                     </RadzenColumn>
                     <RadzenColumn Size="7">
-                        @if (obra.Estado is not null)
-                        {
-                            <RadzenBadge Text="@obra.Estado" IsPill="true"
-                                         BadgeStyle="@EstadoUi.BadgeObra(obra.Estado)" />
-                        }
+                        <RadzenBadge Text="@obra.Estado" IsPill="true"
+                                     BadgeStyle="@EstadoUi.BadgeObra(obra.Estado)" />
                     </RadzenColumn>
                 </RadzenRow>
             </RadzenCard>

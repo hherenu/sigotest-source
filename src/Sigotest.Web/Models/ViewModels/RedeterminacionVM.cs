@@ -74,19 +74,24 @@ public class RedeterminacionAdminVM
 /// <summary>
 /// Opción de obra para el módulo Redeterminación (selector de Calcular y filtro del
 /// historial). Aplanada: incluye los datos que la ficha de obra de Calcular muestra
-/// sin tocar la entidad. Local del módulo: ObraVM (módulo Obras) es el form completo.
+/// (y los que necesita el estado computado) sin tocar la entidad. Local del módulo:
+/// ObraVM (módulo Obras) es el form completo.
 /// </summary>
 public class ObraOpcionVM
 {
     public int Id { get; set; }
     public string Nombre { get; set; } = string.Empty;
     public string NumeroLicitacion { get; set; } = string.Empty;
+    public string? Antecedentes { get; set; }
     public string? Contratista { get; set; }
     public DateTime? FechaActaInicio { get; set; }
     public DateTime? FechaFinalContrato { get; set; }
 
-    /// <summary>Estado computado ("Vigente"/"Plazo Vencido"); la regla vive en ObraValidator.</summary>
-    public string? Estado => ObraValidator.Estado(FechaFinalContrato, DateTime.Today);
+    /// <summary>Texto de los desplegables de obra: "Nombre — N° de licitación".</summary>
+    public string Etiqueta => $"{Nombre} — {NumeroLicitacion}";
+
+    /// <summary>Estado computado ("Proceso Licitatorio"/"Vigente"/"Plazo Vencido"/"Proyectada"); la regla vive en ObraValidator.</summary>
+    public string Estado => ObraValidator.Estado(Antecedentes, FechaActaInicio, FechaFinalContrato, DateTime.Today);
 }
 
 /// <summary>Opción de tabla de ponderación de una obra (Calcular usa la primera).</summary>

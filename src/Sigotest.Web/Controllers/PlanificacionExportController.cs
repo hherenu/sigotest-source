@@ -4,6 +4,7 @@ using ClosedXML.Excel;
 using SIGO.Data;
 using SIGO.Models.Enums;
 using SIGO.Services;
+using SIGO.Services.Validaciones;
 
 namespace SIGO.Controllers;
 
@@ -70,6 +71,9 @@ public class PlanificacionExportController(IDbContextFactory<AppDbContext> dbFac
         var soloDirector = Roles.SoloDirector(User.IsInRole);
         var wu = User.Identity?.Name;
 
+        // Mismo universo que la lista: una obra "Proyectada" no participa de Planificación.
+        var enPlanificacion = db.Obras.Where(ObraValidator.EnPlanificacion(DateTime.Today)).Select(o => o.Id);
+
         if (modo == "vigente")
         {
             // Una sola query a propósito (sin AsSplitQuery): el export debe ser una foto
@@ -78,7 +82,7 @@ public class PlanificacionExportController(IDbContextFactory<AppDbContext> dbFac
             var query = db.Planificaciones.AsNoTracking()
                 .Include(p => p.Obra).ThenInclude(o => o.DirectorUsuario)
                 .Include(p => p.Autorizantes).ThenInclude(a => a.Montos)
-                .AsQueryable();
+                .Where(p => enPlanificacion.Contains(p.ObraId));
             if (obraId is int oid) query = query.Where(p => p.ObraId == oid);
             if (idsFiltro is not null) query = query.Where(p => idsFiltro.Contains(p.ObraId));
             if (soloDirector) query = query.Where(p =>
@@ -99,7 +103,7 @@ public class PlanificacionExportController(IDbContextFactory<AppDbContext> dbFac
         var snaps = db.PlanificacionSnapshots.AsNoTracking()
             .Include(s => s.Obra).ThenInclude(o => o.DirectorUsuario)
             .Include(s => s.Montos)
-            .AsQueryable();
+            .Where(s => enPlanificacion.Contains(s.ObraId));
         if (obraId is int oid2) snaps = snaps.Where(s => s.ObraId == oid2);
         if (idsFiltro is not null) snaps = snaps.Where(s => idsFiltro.Contains(s.ObraId));
         if (soloDirector) snaps = snaps.Where(s =>

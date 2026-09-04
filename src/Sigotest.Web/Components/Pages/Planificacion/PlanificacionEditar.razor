@@ -13,6 +13,13 @@
         No se encontró la obra solicitada.
     </RadzenAlert>
 }
+else if (proyectada)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+        Esta obra está en estado Proyectada (sin antecedentes ni plazo contractual) y todavía no se planifica.
+        <RadzenLink Path="planificacion" class="rz-ml-2">Volver a planificación</RadzenLink>
+    </RadzenAlert>
+}
 else if (noAsignada)
 {
     <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
@@ -360,6 +367,7 @@ else
 
     private PlanificacionVM? vm;
     private bool noEncontrada;
+    private bool proyectada;
     private bool noAsignada;
 
     private List<PlanVersionVM> versiones = [];
@@ -397,6 +405,9 @@ else
         var acceso = await Service.VerificarAccesoObraAsync(ObraId);
         if (acceso == AccesoPlanObra.NoEncontrada) { noEncontrada = true; return; }
         noEncontrada = false;
+
+        if (acceso == AccesoPlanObra.Proyectada) { proyectada = true; return; }
+        proyectada = false;
 
         if (acceso == AccesoPlanObra.NoAsignada)
         {

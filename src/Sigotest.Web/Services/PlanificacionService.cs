@@ -164,7 +164,8 @@ public class PlanificacionService(
         await using var db = await dbFactory.CreateDbContextAsync();
 
         var soloDirector = Roles.SoloDirector(currentUser.IsInRole);
-        var query = db.Obras.AsNoTracking().AsQueryable();
+        // Una obra "Proyectada" (sin plazo ni expediente) todavía no se planifica.
+        var query = db.Obras.AsNoTracking().Where(ObraValidator.EnPlanificacion(DateTime.Today));
         if (soloDirector)
         {
             var wu = currentUser.UserId;
@@ -248,6 +249,10 @@ public class PlanificacionService(
 
         if (!await db.Obras.AsNoTracking().AnyAsync(o => o.Id == obraId))
             return AccesoPlanObra.NoEncontrada;
+
+        if (!await db.Obras.AsNoTracking().Where(ObraValidator.EnPlanificacion(DateTime.Today))
+                .AnyAsync(o => o.Id == obraId))
+            return AccesoPlanObra.Proyectada;
 
         if (Roles.SoloDirector(currentUser.IsInRole) && !await ObraAsignadaAsync(db, obraId))
             return AccesoPlanObra.NoAsignada;

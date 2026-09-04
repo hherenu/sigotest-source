@@ -1,3 +1,4 @@
+using SIGO.Models;
 using SIGO.Services.Validaciones;
 
 namespace SIGO.Tests;
@@ -14,21 +15,49 @@ public class ObraValidatorTests
     // ── Estado ───────────────────────────────────────────────────────────────────
 
     [Fact]
-    public void Estado_SinFechaFinal_EsNull() =>
-        Assert.Null(ObraValidator.Estado(null, Hoy));
+    public void Estado_SinFechaFinal_EsProyectada() =>
+        Assert.Equal("Proyectada", ObraValidator.Estado(null, null, null, Hoy));
+
+    [Fact]
+    public void Estado_ConAntecedentesYActaFutura_EsProcesoLicitatorio() =>
+        Assert.Equal("Proceso Licitatorio", ObraValidator.Estado("EX-2026-123", Hoy.AddDays(30), null, Hoy));
+
+    [Fact]
+    public void Estado_ProcesoLicitatorio_PrevaleceSobreElPlazo() =>
+        // Si todavía no arrancó (acta futura) y tiene expediente, está en licitación aunque
+        // ya tenga cargada una fecha final de contrato.
+        Assert.Equal("Proceso Licitatorio", ObraValidator.Estado("EX-2026-123", Hoy.AddDays(30), Hoy.AddDays(400), Hoy));
+
+    [Fact]
+    public void Estado_ConAntecedentesPeroActaHoy_NoEsProcesoLicitatorio() =>
+        // El acta de inicio tiene que ser estrictamente posterior a hoy.
+        Assert.Equal("Proyectada", ObraValidator.Estado("EX-2026-123", Hoy, null, Hoy));
+
+    [Fact]
+    public void Estado_ConAntecedentesSinActa_EsProyectada() =>
+        Assert.Equal("Proyectada", ObraValidator.Estado("EX-2026-123", null, null, Hoy));
+
+    [Fact]
+    public void Estado_ActaFuturaSinAntecedentes_EsProyectada() =>
+        Assert.Equal("Proyectada", ObraValidator.Estado("  ", Hoy.AddDays(30), null, Hoy));
 
     [Fact]
     public void Estado_FechaFutura_EsVigente() =>
-        Assert.Equal("Vigente", ObraValidator.Estado(Hoy.AddDays(1), Hoy));
+        Assert.Equal("Vigente", ObraValidator.Estado(null, null, Hoy.AddDays(1), Hoy));
 
     [Fact]
     public void Estado_MismoDia_SigueVigente() =>
         // El plazo vence al terminar el día: el día de la fecha final la obra aún está vigente.
-        Assert.Equal("Vigente", ObraValidator.Estado(Hoy, Hoy));
+        Assert.Equal("Vigente", ObraValidator.Estado(null, null, Hoy, Hoy));
 
     [Fact]
     public void Estado_FechaPasada_EsPlazoVencido() =>
-        Assert.Equal("Plazo Vencido", ObraValidator.Estado(Hoy.AddDays(-1), Hoy));
+        Assert.Equal("Plazo Vencido", ObraValidator.Estado(null, null, Hoy.AddDays(-1), Hoy));
+
+    [Fact]
+    public void Estado_ObraIniciadaConAntecedentes_UsaElPlazo() =>
+        // Con acta ya pasada, los antecedentes no cambian nada: manda el plazo contractual.
+        Assert.Equal("Vigente", ObraValidator.Estado("EX-2026-123", Hoy.AddDays(-10), Hoy.AddDays(100), Hoy));
 
     [Fact]
     public void Estado_IgnoraLaHora()
@@ -37,7 +66,31 @@ public class ObraValidatorTests
         // "hoy" con hora sigue siendo vigente.
         var finConHora = new DateTime(2026, 7, 27, 0, 0, 0);
         var hoyConHora = new DateTime(2026, 7, 27, 23, 59, 0);
-        Assert.Equal("Vigente", ObraValidator.Estado(finConHora, hoyConHora));
+        Assert.Equal("Vigente", ObraValidator.Estado(null, null, finConHora, hoyConHora));
+    }
+
+    // ── EnPlanificacion (espejo de Estado sobre la entidad) ──────────────────────
+
+    [Theory]
+    [InlineData(null, null, null)]
+    [InlineData("EX-1", null, null)]
+    [InlineData("EX-1", 30, null)]
+    [InlineData("EX-1", 30, 400)]
+    [InlineData("EX-1", 0, null)]
+    [InlineData("  ", 30, null)]
+    [InlineData(null, null, 1)]
+    [InlineData(null, null, -1)]
+    [InlineData("EX-1", -10, 100)]
+    public void EnPlanificacion_CoincideConEstado(string? antecedentes, int? diasActa, int? diasFinal)
+    {
+        var obra = new Obra
+        {
+            Nombre = "x", NumeroLicitacion = "x", Antecedentes = antecedentes,
+            FechaActaInicio = diasActa is int a ? Hoy.AddDays(a) : null,
+            FechaFinalContrato = diasFinal is int f ? Hoy.AddDays(f) : null
+        };
+        var esperado = ObraValidator.Estado(antecedentes, obra.FechaActaInicio, obra.FechaFinalContrato, Hoy) != "Proyectada";
+        Assert.Equal(esperado, ObraValidator.EnPlanificacion(Hoy).Compile()(obra));
     }
 
     // ── Guardar (campos mínimos) ─────────────────────────────────────────────────

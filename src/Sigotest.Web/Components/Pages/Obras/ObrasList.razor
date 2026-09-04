@@ -51,10 +51,7 @@ else
             <RadzenDataGridColumn TItem="ObraVM" Title="Estado" Width="150px" Sortable="false" Filterable="false"
                                   TextAlign="TextAlign.Center">
                 <Template Context="obra">
-                    @if (obra.Estado is not null)
-                    {
-                        <RadzenBadge Text="@obra.Estado" IsPill="true" BadgeStyle="@EstadoUi.BadgeObra(obra.Estado)" />
-                    }
+                    <RadzenBadge Text="@obra.Estado" IsPill="true" BadgeStyle="@EstadoUi.BadgeObra(obra.Estado)" />
                 </Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="ObraVM" Title="Tablas" Width="80px" Sortable="false" Filterable="false"

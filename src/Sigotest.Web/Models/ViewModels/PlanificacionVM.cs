@@ -214,6 +214,9 @@ public enum AccesoPlanObra
     /// <summary>La obra no existe.</summary>
     NoEncontrada,
 
+    /// <summary>La obra está "Proyectada" (sin plazo ni expediente): todavía no se planifica.</summary>
+    Proyectada,
+
     /// <summary>El usuario es solo-director y la obra no le está asignada.</summary>
     NoAsignada
 }

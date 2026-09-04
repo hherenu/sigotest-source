@@ -38,8 +38,8 @@ public class ObraVM
     /// <summary>Cantidad de tablas de ponderación (columna "Tablas"; solo la carga el listado).</summary>
     public int CantidadTablas { get; set; }
 
-    /// <summary>Estado computado ("Vigente"/"Plazo Vencido"); la regla vive en ObraValidator.</summary>
-    public string? Estado => ObraValidator.Estado(FechaFinalContrato, DateTime.Today);
+    /// <summary>Estado computado ("Proceso Licitatorio"/"Vigente"/"Plazo Vencido"/"Proyectada"); la regla vive en ObraValidator.</summary>
+    public string Estado => ObraValidator.Estado(Antecedentes, FechaActaInicio, FechaFinalContrato, DateTime.Today);
 }
 
 /// <summary>Detalle de la obra (solo lectura) con los resúmenes de estructuras y tablas.</summary>

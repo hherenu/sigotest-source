@@ -1,3 +1,6 @@
+using System.Linq.Expressions;
+using SIGO.Models;
+
 namespace SIGO.Services.Validaciones;
 
 /// <summary>
@@ -7,15 +10,40 @@ namespace SIGO.Services.Validaciones;
 public static class ObraValidator
 {
     /// <summary>
-    /// Estado computado de la obra según el plazo contractual: "Vigente" mientras la
-    /// fecha final no pasó, "Plazo Vencido" después, null si no hay fecha cargada.
+    /// Estado computado de la obra, en orden de precedencia:
+    /// "Proceso Licitatorio" si tiene antecedentes (expediente) y el acta de inicio es
+    /// posterior a hoy (todavía no arrancó); si no, según el plazo contractual:
+    /// "Vigente" mientras la fecha final no pasó y "Plazo Vencido" después; sin fecha
+    /// final, "Proyectada".
     /// ÚNICA implementación (ObraVM y ObraOpcionVM delegan acá); `hoy` viene por
     /// parámetro para que la regla sea testeable sin depender del reloj.
     /// </summary>
-    public static string? Estado(DateTime? fechaFinalContrato, DateTime hoy) =>
-        fechaFinalContrato.HasValue
-            ? (fechaFinalContrato.Value.Date >= hoy.Date ? "Vigente" : "Plazo Vencido")
-            : null;
+    public static string Estado(string? antecedentes, DateTime? fechaActaInicio,
+        DateTime? fechaFinalContrato, DateTime hoy)
+    {
+        if (!string.IsNullOrWhiteSpace(antecedentes)
+            && fechaActaInicio.HasValue && fechaActaInicio.Value.Date > hoy.Date)
+            return "Proceso Licitatorio";
+
+        if (fechaFinalContrato.HasValue)
+            return fechaFinalContrato.Value.Date >= hoy.Date ? "Vigente" : "Plazo Vencido";
+
+        return "Proyectada";
+    }
+
+    /// <summary>
+    /// Predicado traducible a SQL: obras cuyo estado NO es "Proyectada" (las únicas que
+    /// participan del módulo de Planificación). Es el espejo de <see cref="Estado"/>
+    /// sobre la entidad —ObraValidatorTests verifica que ambos coincidan—; si cambia
+    /// la regla del estado, cambia acá también.
+    /// </summary>
+    public static Expression<Func<Obra, bool>> EnPlanificacion(DateTime hoy)
+    {
+        var hoyFecha = hoy.Date;
+        return o => o.FechaFinalContrato != null
+            || (!string.IsNullOrWhiteSpace(o.Antecedentes)
+                && o.FechaActaInicio != null && o.FechaActaInicio.Value.Date > hoyFecha);
+    }
 
     /// <summary>
     /// Campos mínimos del alta/edición. Defensa en profundidad detrás de los

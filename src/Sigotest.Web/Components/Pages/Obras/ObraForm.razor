@@ -48,6 +48,9 @@ else
                                          title="N° de expediente electrónico (EX-…)">
                             <RadzenTextBox @bind-Value="obra.Antecedentes" style="width:100%" />
                         </RadzenFormField>
+                        <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mt-1 rz-mb-0">
+                            Sin este dato la obra figura con estado Proyectada.
+                        </RadzenText>
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="6">
                         <RadzenFormField Text="PUByC" Variant="Variant.Outlined" style="width:100%">

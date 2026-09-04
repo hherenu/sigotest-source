@@ -443,4 +443,41 @@ public class PlanificacionServiceTests(LocalDbFixture fx) : IClassFixture<LocalD
             presupuesto.AgregarAutorizanteAsync(plan.Id, TipoAutorizante.Basica, null, null));
         Assert.Contains("permiso", ex.Message);
     }
+
+    // ── Obras "Proyectadas" (sin plazo ni expediente) quedan fuera del módulo ──
+
+    [Fact]
+    public async Task Listado_ExcluyeObrasProyectadas()
+    {
+        // CrearObraAsync no carga plazo ni antecedentes: esa obra es "Proyectada".
+        var proyectadaId = await CrearObraAsync();
+        int vigenteId;
+        await using (var db = fx.CrearContexto())
+        {
+            var obra = new Obra
+            {
+                Nombre = $"Obra plan {Guid.NewGuid():N}", NumeroLicitacion = "LP PLAN",
+                FechaFinalContrato = DateTime.Today.AddYears(1)
+            };
+            db.Obras.Add(obra);
+            await db.SaveChangesAsync();
+            vigenteId = obra.Id;
+        }
+        var (servicio, _) = Crear(Roles.Admin);
+
+        var listado = await servicio.ListadoAsync();
+
+        Assert.Contains(listado.Obras, o => o.Id == vigenteId);
+        Assert.DoesNotContain(listado.Obras, o => o.Id == proyectadaId);
+    }
+
+    [Fact]
+    public async Task VerificarAcceso_ObraProyectada_LaRechaza()
+    {
+        var proyectadaId = await CrearObraAsync();
+        var (servicio, _) = Crear(Roles.Admin);
+
+        Assert.Equal(AccesoPlanObra.Proyectada, await servicio.VerificarAccesoObraAsync(proyectadaId));
+        Assert.Equal(AccesoPlanObra.NoEncontrada, await servicio.VerificarAccesoObraAsync(-1));
+    }
 }

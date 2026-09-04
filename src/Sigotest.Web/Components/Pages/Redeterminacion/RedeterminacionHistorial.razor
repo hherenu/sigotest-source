@@ -17,7 +17,7 @@
     </Acciones>
 </CabeceraPagina>
 
-<RadzenDropDown @bind-Value="filterObraId" Data="@obras" TextProperty="Nombre" ValueProperty="Id" TValue="int?"
+<RadzenDropDown @bind-Value="filterObraId" Data="@obras" TextProperty="Etiqueta" ValueProperty="Id" TValue="int?"
                 AllowClear="true" Placeholder="-- Todas las obras --" style="width:100%;max-width:420px" class="rz-mb-3"
                 title="Filtrar por obra" aria-label="Filtrar por obra"
                 Change="@OnFiltroChanged" />
