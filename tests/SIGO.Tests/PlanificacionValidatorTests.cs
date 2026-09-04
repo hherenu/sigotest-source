@@ -65,4 +65,38 @@ public class PlanificacionValidatorTests
         Assert.Equal("La toma de conocimiento de este ciclo ya fue registrada.",
             PlanificacionValidator.TomarConocimiento(EstadoPlanificacion.Aprobada, DateTime.UtcNow));
     }
+
+    // ── Mes del anticipo ≤ primer mes del plan ─────────────────────────────────
+
+    [Theory]
+    [InlineData(2029, 12)] // anterior: el anticipo suele pagarse antes del inicio
+    [InlineData(2030, 3)]  // el mismo primer mes
+    public void MesAnticipo_HastaElPrimerMes_Pasa(int anio, int mes) =>
+        Assert.Null(PlanificacionValidator.MesAnticipo([("Obra Básica", anio, mes)], primerAnio: 2030, primerMes: 3));
+
+    [Fact]
+    public void MesAnticipo_SinMes_NoValida() =>
+        // Datos anteriores a la mejora (anticipo sin mes) no bloquean.
+        Assert.Null(PlanificacionValidator.MesAnticipo([("Obra Básica", null, null)], primerAnio: 2030, primerMes: 3));
+
+    [Theory]
+    [InlineData(2030, 4)]  // mes siguiente
+    [InlineData(2031, 1)]  // año siguiente con mes menor: se compara (año, mes), no el mes suelto
+    public void MesAnticipo_Posterior_Rechaza(int anio, int mes)
+    {
+        var error = PlanificacionValidator.MesAnticipo([("Obra Básica", anio, mes)], primerAnio: 2030, primerMes: 3);
+        Assert.Equal(
+            $"El mes del anticipo no puede ser posterior al primer mes del plan (03/2030). Obra Básica: {mes:00}/{anio}.",
+            error);
+    }
+
+    [Fact]
+    public void MesAnticipo_EnumeraSoloLosBloquesTardios()
+    {
+        var error = PlanificacionValidator.MesAnticipo(
+            [("Obra Básica", 2030, 3), ("Adicional N°1", 2030, 5), ("BED N°1", 2030, 6)],
+            primerAnio: 2030, primerMes: 3);
+        Assert.Contains("Adicional N°1: 05/2030; BED N°1: 06/2030.", error);
+        Assert.DoesNotContain("Obra Básica", error);
+    }
 }

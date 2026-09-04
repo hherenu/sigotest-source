@@ -140,7 +140,7 @@ else
         </RadzenCard>
     }
 
-    @* ── Agregar bloque (Presupuesto es solo lectura) ── *@
+    @* ── Agregar bloque (Gerente y Presupuesto son solo lectura) ── *@
     @if (puedeEditar)
     {
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.End" Gap="0.5rem" Wrap="FlexWrap.Wrap" class="rz-mb-3" style="max-width:720px">
@@ -223,7 +223,8 @@ else
                                     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
                                                  JustifyContent="JustifyContent.SpaceBetween" Gap="0.5rem" Wrap="FlexWrap.NoWrap">
                                         <span>Anticipo Financiero</span>
-                                        @* Mes de pago del anticipo (puede caer fuera del plazo de la obra). Se muestran
+                                        @* Mes de pago del anticipo (puede ser anterior al inicio de la obra; uno posterior
+                                           al primer mes del plan se guarda con aviso y bloquea el pase a Cargada). Se muestran
                                            los días a propósito: el click en un día ES la selección (ValueChanged), y se
                                            normaliza al día 1. Así navegar mes/año/flechas NO confirma nada hasta el click
                                            —hay "cancelar" real cerrando el popup—. AllowClear permite volver a "sin mes".
@@ -234,7 +235,7 @@ else
                                                           Disabled="@(!puedeEditar || !TieneImporteAnticipo(bloque.AutorizanteId))"
                                                           Value="@AnticipoFechaDe(bloque.AutorizanteId)"
                                                           ValueChanged="@((DateTime? d) => anticipoFecha[bloque.AutorizanteId] = d.HasValue ? new DateTime(d.Value.Year, d.Value.Month, 1) : null)"
-                                                          Style="width:150px;flex-shrink:0" title="Mes en que se paga el anticipo" />
+                                                          Style="width:150px;flex-shrink:0" title="Mes en que se paga el anticipo (no posterior al primer mes del plan)" />
                                     </RadzenStack>
                                 </td>
                                 @foreach (var m in vm.Monedas)
@@ -611,6 +612,34 @@ else
         return ok;
     }
 
+    /// <summary>
+    /// Avisos (no bloqueantes) tras guardar: las reglas del circuito —Autorizado vs
+    /// Planificado = 0 y mes del anticipo ≤ primer mes del plan— se aceptan en la grilla,
+    /// pero el servicio las exige al marcar Cargada/Aprobar. Mismas reglas que el servicio
+    /// (PlanificacionValidator) evaluadas sobre lo recién guardado (BuildStateAsync ya
+    /// recargó el VM y las celdas).
+    /// </summary>
+    private void AvisarReglasDelCircuito()
+    {
+        var totales = Totales;
+        var balance = PlanificacionValidator.Balanceado(
+            vm!.Bloques.SelectMany(b => vm.Monedas.Select(m =>
+                (b.Titulo, m, totales.AutorizadoVsPlanificado(b.AutorizanteId, m)))));
+        if (balance is not null)
+            Notifications.Notify(NotificationSeverity.Warning, "Plan desbalanceado",
+                $"{balance} Corregilo antes de marcar el plan como Cargada.", 10000);
+
+        var primerMes = vm.Periodos.FirstOrDefault(p => !p.EsAnual);
+        if (primerMes is null) return;
+
+        var anticipo = PlanificacionValidator.MesAnticipo(
+            vm.Bloques.Select(b => (b.Titulo, b.MesAnticipo()?.Anio, b.MesAnticipo()?.Mes)),
+            primerMes.Anio, primerMes.Mes!.Value);
+        if (anticipo is not null)
+            Notifications.Notify(NotificationSeverity.Warning, "Revisar el mes del anticipo",
+                $"{anticipo} Corregilo antes de marcar el plan como Cargada.", 10000);
+    }
+
     private async Task GuardarAsync()
     {
         if (procesando) return;
@@ -619,7 +648,10 @@ else
         try
         {
             if (await GuardarGrillaCoreAsync())
+            {
                 Notifications.Notify(NotificationSeverity.Success, "Guardado", "Planificación guardada.", 4000);
+                AvisarReglasDelCircuito();
+            }
         }
         finally { procesando = false; }
     }

@@ -19,13 +19,13 @@ public class PlanificacionServiceTests(LocalDbFixture fx) : IClassFixture<LocalD
 
     private sealed class FakeEmailSender : IEmailSender
     {
-        public List<(IReadOnlyCollection<string> Destinatarios, string Asunto)> Enviados { get; } = [];
+        public List<(IReadOnlyCollection<string> Destinatarios, string Asunto, string Cuerpo)> Enviados { get; } = [];
         public bool Fallar { get; set; }
 
         public Task<int> EnviarAsync(IReadOnlyCollection<string> destinatarios, string asunto, string cuerpoHtml)
         {
             if (Fallar) throw new InvalidOperationException("SMTP caído (simulado).");
-            Enviados.Add((destinatarios, asunto));
+            Enviados.Add((destinatarios, asunto, cuerpoHtml));
             return Task.FromResult(destinatarios.Count);
         }
     }
@@ -216,6 +216,11 @@ public class PlanificacionServiceTests(LocalDbFixture fx) : IClassFixture<LocalD
         Assert.Equal(4, mails.Enviados.Count);
         Assert.Contains("director@test.local", mails.Enviados[1].Destinatarios);
         Assert.Contains("presupuesto@test.local", mails.Enviados[3].Destinatarios);
+
+        // El mail de aprobación pide la acción que le toca a Presupuesto: tomar
+        // conocimiento (es lo que registra la versión del mes), no es informativo.
+        Assert.Contains("Tomá conocimiento", mails.Enviados[3].Cuerpo);
+        Assert.DoesNotContain("no requiere ninguna acción", mails.Enviados[3].Cuerpo);
     }
 
     [Fact]
@@ -309,46 +314,26 @@ public class PlanificacionServiceTests(LocalDbFixture fx) : IClassFixture<LocalD
     }
 
     [Fact]
-    public async Task GuardarGrilla_Desbalanceada_RechazaSinEscribirNada()
+    public async Task GuardarGrilla_Desbalanceada_SeGuardaPeroNoPasaACargada()
     {
         var obraId = await CrearObraAsync();
         var (servicio, _) = Crear(Roles.Admin);
         var plan = await servicio.GetOrCreateAsync(obraId);
         var basica = await servicio.AgregarAutorizanteAsync(plan.Id, TipoAutorizante.Basica, null, null);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.GuardarGrillaAsync(plan.Id,
+        // El guardado no exige el balance (la página solo avisa): queda registrado tal cual.
+        await servicio.GuardarGrillaAsync(plan.Id,
             [new PlanMontoInput(basica.Id, ConceptoPlanMonto.MontoAutorizado, null, null, Moneda.Pesos, 1000m),
              new PlanMontoInput(basica.Id, ConceptoPlanMonto.Mensual, 2030, 1, Moneda.Pesos, 300m)],
-            PeriodosTest));
-        Assert.Contains("Autorizado vs Planificado", ex.Message);
-
-        // El rechazo es previo a cualquier escritura: no quedó nada guardado.
-        await using var db = fx.CrearContexto();
-        Assert.Equal(0, await db.PlanMontos.CountAsync(m => m.AutorizanteId == basica.Id));
-    }
-
-    [Fact]
-    public async Task MarcarCargada_Desbalanceada_Rechaza()
-    {
-        var obraId = await CrearObraAsync();
-        var (servicio, _) = Crear(Roles.Admin);
-        var plan = await servicio.GetOrCreateAsync(obraId);
-        var basica = await servicio.AgregarAutorizanteAsync(plan.Id, TipoAutorizante.Basica, null, null);
-
-        // Desbalance inyectado por fuera del guardado (datos previos a la regla):
-        // la transición es el backstop.
+            PeriodosTest);
         await using (var db = fx.CrearContexto())
-        {
-            db.PlanMontos.Add(new PlanMonto
-            {
-                AutorizanteId = basica.Id, Concepto = ConceptoPlanMonto.MontoAutorizado,
-                Moneda = Moneda.Pesos, Monto = 500m
-            });
-            await db.SaveChangesAsync();
-        }
+            Assert.Equal(2, await db.PlanMontos.CountAsync(m => m.AutorizanteId == basica.Id));
 
+        // El cambio de paso es el que lo exige: sigue Pendiente.
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.MarcarCargadaAsync(plan.Id));
         Assert.Contains("Autorizado vs Planificado", ex.Message);
+        Assert.Contains("falta planificar 700", ex.Message);
+        Assert.Equal(EstadoPlanificacion.Pendiente, (await servicio.BuildVmAsync(obraId)).Estado);
     }
 
     [Fact]
@@ -442,6 +427,68 @@ public class PlanificacionServiceTests(LocalDbFixture fx) : IClassFixture<LocalD
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             presupuesto.AgregarAutorizanteAsync(plan.Id, TipoAutorizante.Basica, null, null));
         Assert.Contains("permiso", ex.Message);
+
+        // El gerente aprueba o envía a revisión, pero no edita la grilla.
+        var basica = await admin.AgregarAutorizanteAsync(plan.Id, TipoAutorizante.Basica, null, null);
+        var (gerente, _) = Crear(Roles.Gerente);
+        var exGrilla = await Assert.ThrowsAsync<InvalidOperationException>(() => gerente.GuardarGrillaAsync(plan.Id,
+            [new PlanMontoInput(basica.Id, ConceptoPlanMonto.MontoAutorizado, null, null, Moneda.Pesos, 100m)],
+            PeriodosTest));
+        Assert.Contains("permiso", exGrilla.Message);
+        var exBloque = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            gerente.AgregarAutorizanteAsync(plan.Id, TipoAutorizante.Adicional, null, "Extra"));
+        Assert.Contains("permiso", exBloque.Message);
+    }
+
+    // ── Mes del anticipo ≤ primer mes del plan (inicio de la obra) ────────────
+
+    [Fact]
+    public async Task AnticipoPosteriorAlInicio_SeGuardaPeroNoPasaACargada()
+    {
+        int obraId;
+        await using (var db = fx.CrearContexto())
+        {
+            var obra = new Obra
+            {
+                Nombre = $"Obra plan {Guid.NewGuid():N}", NumeroLicitacion = "LP PLAN",
+                FechaActaInicio = new DateTime(2030, 3, 15), FechaFinalContrato = new DateTime(2030, 12, 1)
+            };
+            db.Obras.Add(obra);
+            await db.SaveChangesAsync();
+            obraId = obra.Id;
+        }
+        var (servicio, _) = Crear(Roles.Admin);
+        var plan = await servicio.GetOrCreateAsync(obraId);
+        var basica = await servicio.AgregarAutorizanteAsync(plan.Id, TipoAutorizante.Basica, null, null);
+        var vm = await servicio.BuildVmAsync(obraId);
+
+        // Anticipo en abr/2030, un mes después del acta (mar/2030): la grilla lo guarda
+        // igual (la página solo avisa)...
+        await servicio.GuardarGrillaAsync(plan.Id,
+            [new(basica.Id, ConceptoPlanMonto.MontoAutorizado, null, null, Moneda.Pesos, 1000m),
+             new(basica.Id, ConceptoPlanMonto.AnticipoFinanciero, 2030, 4, Moneda.Pesos, 200m),
+             new(basica.Id, ConceptoPlanMonto.Mensual, 2030, 3, Moneda.Pesos, 800m)],
+            vm.Periodos, vm.RowVersion);
+        var tardio = await servicio.BuildVmAsync(obraId);
+        Assert.Equal(new PeriodoVM(2030, 4), tardio.Bloques.Single().MesAnticipo());
+
+        // ...pero el cambio de paso a Cargada lo rechaza y el plan sigue Pendiente.
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.MarcarCargadaAsync(plan.Id));
+        Assert.Contains("primer mes del plan (03/2030)", ex.Message);
+        Assert.Contains("Obra Básica: 04/2030", ex.Message);
+        Assert.Equal(EstadoPlanificacion.Pendiente, (await servicio.BuildVmAsync(obraId)).Estado);
+
+        // Corregido a feb/2030 (antes del inicio): guarda y pasa a Cargada.
+        await servicio.GuardarGrillaAsync(plan.Id,
+            [new(basica.Id, ConceptoPlanMonto.MontoAutorizado, null, null, Moneda.Pesos, 1000m),
+             new(basica.Id, ConceptoPlanMonto.AnticipoFinanciero, 2030, 2, Moneda.Pesos, 200m),
+             new(basica.Id, ConceptoPlanMonto.Mensual, 2030, 3, Moneda.Pesos, 800m)],
+            tardio.Periodos, tardio.RowVersion);
+        await servicio.MarcarCargadaAsync(plan.Id);
+
+        var cargado = await servicio.BuildVmAsync(obraId);
+        Assert.Equal(new PeriodoVM(2030, 2), cargado.Bloques.Single().MesAnticipo());
+        Assert.Equal(EstadoPlanificacion.Cargada, cargado.Estado);
     }
 
     // ── Obras "Proyectadas" (sin plazo ni expediente) quedan fuera del módulo ──

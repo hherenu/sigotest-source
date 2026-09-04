@@ -346,7 +346,8 @@ public class PlanificacionService(
     /// períodos que la grilla estaba editando: un monto de un período fuera del horizonte
     /// renderizado (obra muy larga, fin de contrato adelantado) se preserva en vez de
     /// borrarse silenciosamente. El plan es editable en cualquier estado; guardar la
-    /// grilla no cambia el estado.
+    /// grilla no cambia el estado ni exige las reglas del circuito (balance y mes del
+    /// anticipo): esas se avisan al guardar y se exigen al cambiar de paso.
     /// </summary>
     public async Task GuardarGrillaAsync(int planificacionId, IEnumerable<PlanMontoInput> montos,
         IReadOnlyCollection<PeriodoVM> periodosEditados, byte[]? rowVersionSesion = null)
@@ -379,16 +380,9 @@ public class PlanificacionService(
 
         var montosValidos = montos.Where(x => x.Monto != 0 && autIds.Contains(x.AutorizanteId)).ToList();
 
-        // Autorizado vs Planificado = 0, sobre el estado FINAL que este guardado dejaría:
-        // filas preservadas (fuera del horizonte editado) + celdas recibidas. Un plan
-        // desbalanceado no se registra ni parcialmente.
-        var filasFinales = plan.Autorizantes
-            .SelectMany(a => a.Montos.Where(m => !EnHorizonte(m))
-                .Select(m => (AutorizanteId: a.Id, m.Concepto, m.Moneda, m.Monto)))
-            .Concat(montosValidos.Select(m => (m.AutorizanteId, m.Concepto, m.Moneda, m.Monto)))
-            .ToLookup(f => f.AutorizanteId, f => (f.Concepto, f.Moneda, f.Monto));
-        Validacion.Exigir(PlanificacionValidator.Balanceado(
-            DiferenciasAutorizadoVsPlanificado(plan.Autorizantes, filasFinales)));
+        // Las reglas del circuito (Autorizado vs Planificado = 0 y mes del anticipo ≤
+        // primer mes del plan) NO bloquean el guardado: la grilla se registra tal cual,
+        // la página avisa lo incumplido y el cambio de paso a Cargada/Aprobada lo exige.
 
         foreach (var aut in plan.Autorizantes)
             db.PlanMontos.RemoveRange(aut.Montos.Where(EnHorizonte));
@@ -410,9 +404,8 @@ public class PlanificacionService(
     }
 
     /// <summary>
-    /// Diferencias Autorizado − Planificado por bloque × moneda sobre un conjunto de
-    /// filas de montos (las persistidas, o el estado final que un guardado va a dejar).
-    /// Alimentan <see cref="PlanificacionValidator.Balanceado"/>.
+    /// Diferencias Autorizado − Planificado por bloque × moneda sobre las filas de montos
+    /// persistidas. Alimentan <see cref="PlanificacionValidator.Balanceado"/>.
     /// </summary>
     private static IEnumerable<(string Bloque, Moneda Moneda, decimal Diferencia)> DiferenciasAutorizadoVsPlanificado(
         IEnumerable<Autorizante> autorizantes,
@@ -426,6 +419,25 @@ public class PlanificacionService(
                 if (autorizado != planificado)
                     yield return (TituloBloque(aut), g.Key, autorizado - planificado);
             }
+    }
+
+    /// <summary>
+    /// Mes asignado al anticipo de cada bloque (el primero por bloque, como
+    /// <see cref="BloqueAutorizanteVM.MesAnticipo"/>; null si no tiene mes), a partir
+    /// de filas de montos. Alimenta <see cref="PlanificacionValidator.MesAnticipo"/>.
+    /// </summary>
+    private static IEnumerable<(string Bloque, int? Anio, int? Mes)> MesesAnticipo(
+        IEnumerable<Autorizante> autorizantes,
+        IEnumerable<(int AutorizanteId, ConceptoPlanMonto Concepto, int? Anio, int? Mes)> filas)
+    {
+        var porBloque = filas
+            .Where(f => f.Concepto == ConceptoPlanMonto.AnticipoFinanciero && f.Anio.HasValue && f.Mes.HasValue)
+            .GroupBy(f => f.AutorizanteId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(f => f.Anio).ThenBy(f => f.Mes).First());
+        foreach (var aut in autorizantes)
+            yield return porBloque.TryGetValue(aut.Id, out var f)
+                ? (TituloBloque(aut), f.Anio, f.Mes)
+                : (TituloBloque(aut), null, null);
     }
 
     /// <summary>Filas persistidas de los bloques (con Montos ya cargados por Include) para el chequeo de balance.</summary>
@@ -447,6 +459,7 @@ public class PlanificacionService(
 
         Validacion.Exigir(PlanificacionValidator.MarcarCargada(plan.Estado, plan.Autorizantes.Count));
         ExigirBalanceado(plan);
+        await ExigirMesAnticipoAsync(db, plan);
 
         var obra = await NombreObraAsync(db, plan.ObraId);
 
@@ -504,6 +517,7 @@ public class PlanificacionService(
         var plan = await GetConMontosAsync(db, planificacionId);
         Validacion.Exigir(PlanificacionValidator.Aprobar(plan.Estado));
         ExigirBalanceado(plan);
+        await ExigirMesAnticipoAsync(db, plan);
 
         var obra = await NombreObraAsync(db, plan.ObraId);
 
@@ -515,7 +529,7 @@ public class PlanificacionService(
             await destinatarios.ConRolAsync(RolUsuario.Presupuesto),
             $"Planificación aprobada — {obra}",
             CuerpoMail($"{Quien()} <b>aprobó</b> la planificación de la obra <b>{HtmlEncode(obra)}</b>.",
-                       "Solo para tu conocimiento — no requiere ninguna acción.", plan.ObraId)));
+                       "Tomá conocimiento del plan en el sistema: eso registra la versión del mes.", plan.ObraId)));
     }
 
     /// <summary>
@@ -626,12 +640,46 @@ public class PlanificacionService(
             .FirstOrThrowAsync(p => p.Id == planificacionId, "Planificación no encontrada.");
 
     /// <summary>
-    /// Backstop del circuito: nada desbalanceado avanza (el guardado ya lo exige, pero
-    /// puede haber montos registrados antes de la regla).
+    /// Autorizado vs Planificado = 0, exigido solo en el cambio de paso (Cargada/Aprobada):
+    /// el guardado de la grilla lo deja pasar con aviso de la página.
     /// </summary>
     private static void ExigirBalanceado(Planificacion plan) =>
         Validacion.Exigir(PlanificacionValidator.Balanceado(
             DiferenciasAutorizadoVsPlanificado(plan.Autorizantes, FilasPersistidas(plan.Autorizantes))));
+
+    /// <summary>
+    /// Mes del anticipo ≤ primer mes del plan, exigido solo en el cambio de paso
+    /// (Cargada/Aprobada): el guardado de la grilla lo deja pasar con aviso de la página.
+    /// </summary>
+    private static async Task ExigirMesAnticipoAsync(AppDbContext db, Planificacion plan)
+    {
+        var inicio = await InicioHorizonteAsync(db, plan.ObraId);
+        Validacion.Exigir(PlanificacionValidator.MesAnticipo(
+            MesesAnticipo(plan.Autorizantes, plan.Autorizantes
+                .SelectMany(a => a.Montos.Select(m => (a.Id, m.Concepto, m.Anio, m.Mes)))),
+            inicio.Year, inicio.Month));
+    }
+
+    /// <summary>Primer mes del horizonte de la obra (ver <see cref="InicioHorizonte"/>) leyendo solo sus fechas.</summary>
+    private static async Task<DateTime> InicioHorizonteAsync(AppDbContext db, int obraId)
+    {
+        var fechas = await db.Obras.AsNoTracking().Where(o => o.Id == obraId)
+            .Select(o => new { o.FechaActaInicio, o.FechaContrato })
+            .FirstOrDefaultAsync() ?? throw new EntidadNoEncontradaException("Obra no encontrada.");
+        return InicioHorizonte(fechas.FechaActaInicio, fechas.FechaContrato);
+    }
+
+    /// <summary>
+    /// Primer mes del plan: el del acta de inicio, si no el del contrato, si no el mes
+    /// actual. ÚNICA implementación: el horizonte de la grilla y la regla del mes del
+    /// anticipo parten de acá.
+    /// </summary>
+    private static DateTime InicioHorizonte(DateTime? fechaActaInicio, DateTime? fechaContrato)
+    {
+        var hoy = DateTime.Today;
+        var inicio = fechaActaInicio ?? fechaContrato ?? hoy;
+        return new DateTime(inicio.Year, inicio.Month, 1);
+    }
 
     /// <summary>
     /// Etiqueta del tipo de autorizante para la UI (dropdown y títulos de bloque).
@@ -664,9 +712,7 @@ public class PlanificacionService(
     /// </summary>
     private static List<PeriodoVM> PeriodosDe(Obra obra)
     {
-        var hoy = DateTime.Today;
-        var inicio = (obra.FechaActaInicio ?? obra.FechaContrato ?? new DateTime(hoy.Year, hoy.Month, 1));
-        inicio = new DateTime(inicio.Year, inicio.Month, 1);
+        var inicio = InicioHorizonte(obra.FechaActaInicio, obra.FechaContrato);
 
         var fin = obra.FechaFinalContrato ?? inicio.AddMonths(12);
         fin = new DateTime(fin.Year, fin.Month, 1);
