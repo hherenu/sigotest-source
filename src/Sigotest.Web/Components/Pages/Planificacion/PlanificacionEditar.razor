@@ -33,11 +33,21 @@ else if (vm is null)
 }
 else
 {
+    var cambios = CambiosSinGuardar();
+
     <GuardNavegacion HayCambios="@HayCambiosSinGuardar" />
 
+    @* Contenedor de flujo normal para toda la página: los hijos directos de .app-content
+       son ítems de una columna flex con la altura del viewport, y los componentes con
+       overflow (RadzenTabs, RadzenAccordion) se encogían a cero al exceder el alto. *@
+    <div>
+
+    @* Toda la página se arma con componentes y utilidades de Radzen, sin CSS propio.
+       No hay cabecera fija (Radzen no trae sticky): se compensa con una sola grilla
+       visible a la vez (pestañas) que scrollea dentro de su contenedor. *@
     <CabeceraPagina Titulo="Planificación">
         <Badges>
-            <RadzenBadge Text="@vm.Estado.ToString()" IsPill="true" BadgeStyle="@EstadoUi.Badge(vm.Estado)" />
+            <RadzenBadge Text="@EstadoTexto(vm.Estado)" IsPill="true" BadgeStyle="@EstadoUi.Badge(vm.Estado)" Variant="Variant.Outlined" />
             @if (vm.FechaTomaConocimiento is not null)
             {
                 <RadzenBadge Text="@($"Conocida el {vm.FechaTomaConocimiento:dd/MM/yyyy}")" IsPill="true" BadgeStyle="BadgeStyle.Success" Shade="Shade.Lighter" />
@@ -49,14 +59,17 @@ else
         </Badges>
         <Subtitulo>@vm.ObraNombre — @vm.NumeroLicitacion</Subtitulo>
         <Acciones>
-            @* Guardar vive en la cabecera, el lugar estándar de acciones de todas las
-               páginas: al pie de los bloques quedaba perdido con grillas largas. Sin
-               bloques no se muestra (no hay nada que guardar; el servicio igual rechaza). *@
             @if (puedeEditar && vm.Bloques.Count > 0)
             {
+                @if (cambios > 0)
+                {
+                    <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">@(cambios == 1 ? "1 cambio sin guardar" : $"{cambios} cambios sin guardar")</RadzenText>
+                }
                 <RadzenButton Text="Guardar planificación" Icon="save" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
                               IsBusy="@procesando" BusyText="Guardando..." Click="@GuardarAsync" />
             }
+            @* Colores según docs/convenciones-ui.md: Guardar es la única acción Primary de la
+               pantalla; exportación y retorno en Light/Secondary flat. *@
             <RadzenButton Text="Exportar Excel" Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Flat"
                           Click="@(() => Nav.NavigateTo($"PlanificacionExport/Obra/{ObraId}?modo=vigente", forceLoad: true))" />
             <RadzenButton Text="Volver a Planificación" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
@@ -75,47 +88,84 @@ else
         </RadzenAlert>
     }
 
-    @* ── Transiciones de estado (cada rol ve solo la acción que le toca del circuito) ── *@
-    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap" class="rz-mb-3">
-        @if (vm.Estado is EstadoPlanificacion.Pendiente or EstadoPlanificacion.EnRevision)
-        {
-            <AuthorizeView Roles="@Roles.PlanificacionCarga" Context="authCtx">
-                @* Success como toda transición que consolida (era el único botón en Info
-                   sólido, fuera de la regla de color de la app). *@
-                <RadzenButton Text="Marcar como Cargada" Icon="task_alt" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success"
-                              Disabled="@procesando" Click="@MarcarCargadaAsync" />
-            </AuthorizeView>
-        }
-        @if (vm.Estado == EstadoPlanificacion.Cargada)
-        {
-            <AuthorizeView Roles="@Roles.PlanificacionAprobacion" Context="authCtx">
-                <RadzenButton Text="Aprobar" Icon="check" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success"
-                              Disabled="@procesando" Click="@AprobarAsync" />
-            </AuthorizeView>
-        }
-        @if (vm.Estado is EstadoPlanificacion.Cargada or EstadoPlanificacion.Aprobada)
-        {
-            <AuthorizeView Roles="@Roles.PlanificacionAprobacion" Context="authCtx">
-                <RadzenButton Text="Enviar a revisión" Icon="undo" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Flat"
-                              Disabled="@procesando" Click="@(() => showRevision = !showRevision)" />
-            </AuthorizeView>
-        }
-        @if (vm.Estado == EstadoPlanificacion.Aprobada && vm.FechaTomaConocimiento is null)
-        {
-            <AuthorizeView Roles="@Roles.PlanificacionConocimiento" Context="authCtx">
-                <RadzenButton Text="Tomar conocimiento" Icon="fact_check" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat"
-                              Disabled="@procesando" Click="@TomarConocimientoAsync" />
-            </AuthorizeView>
-        }
-        @if (puedeEditar)
-        {
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem" class="rz-ml-2">
-                <RadzenSwitch Value="@vm.ObraFinalizada" Disabled="@procesando"
-                              ValueChanged="@((bool v) => MarcarFinalizadaAsync(v))" />
-                <RadzenText TextStyle="TextStyle.Caption" class="rz-mb-0">Obra finalizada (sin ciclo mensual)</RadzenText>
+    @* ── Circuito: en qué paso está el plan, qué falta y la acción del rol actual ──
+       Antes era una fila de botones sueltos: no se veía el recorrido ni por qué el
+       servicio iba a rechazar el pase a Cargada. *@
+    <RadzenCard Variant="Variant.Outlined" class="rz-mb-3">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween"
+                     Gap="1rem" Wrap="FlexWrap.Wrap">
+            @* Más chico que el default (círculos de 2rem) y sin reacción al pasar el mouse:
+               el tema pinta el título seleccionado Y el hover con --rz-steps-title-selected-color,
+               así que se lleva al mismo gris que los demás títulos y el hover no cambia nada;
+               el paso actual se distingue solo por el círculo. user-select evita que el texto
+               se seleccione al arrastrar. Los pasos van Disabled: es la única forma que da
+               Radzen de que el cursor no sea la mano (no son clickeables, AllowStepSelect=false),
+               y el color de deshabilitado se lleva al mismo gris para que no se vean apagados.
+               Variables del propio tema de Radzen redefinidas en línea, sin CSS propio. *@
+            <RadzenSteps SelectedIndex="@PasoActual" ShowStepsButtons="false" AllowStepSelect="false"
+                         Style="--rz-steps-number-width:1.5rem;--rz-steps-number-height:1.5rem;--rz-steps-number-line-height:1.5rem;--rz-steps-number-padding-block:0;--rz-steps-title-margin-inline:0.4rem 0.75rem;--rz-steps-title-selected-color:var(--rz-steps-color);--rz-text-disabled-color:var(--rz-steps-color);user-select:none;--rz-steps-number-selected-background:var(--rz-text-color);--rz-steps-number-selected-color:var(--rz-base-background-color);--rz-steps-number-background-color:var(--rz-base-300);--rz-steps-number-color:var(--rz-text-secondary-color);font-size:0.85rem">
+                <Steps>
+                    <RadzenStepsItem Text="@(vm.Estado == EstadoPlanificacion.EnRevision ? "En revisión" : "Pendiente")" Disabled="true" />
+                    <RadzenStepsItem Text="Cargada" Disabled="true" />
+                    <RadzenStepsItem Text="Aprobada" Disabled="true" />
+                    <RadzenStepsItem Text="Conocida" Disabled="true" />
+                </Steps>
+            </RadzenSteps>
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                @if (vm.Estado is EstadoPlanificacion.Pendiente or EstadoPlanificacion.EnRevision)
+                {
+                    <AuthorizeView Roles="@Roles.PlanificacionCarga" Context="authCtx">
+                        @* Success sólido: transición que consolida (regla de color de la app). *@
+                        <RadzenButton Text="Marcar como Cargada" Icon="task_alt" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success"
+                                      Disabled="@procesando" Click="@MarcarCargadaAsync" />
+                    </AuthorizeView>
+                }
+                @if (vm.Estado == EstadoPlanificacion.Cargada)
+                {
+                    <AuthorizeView Roles="@Roles.PlanificacionAprobacion" Context="authCtx">
+                        <RadzenButton Text="Aprobar" Icon="check" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success"
+                                      Disabled="@procesando" Click="@AprobarAsync" />
+                    </AuthorizeView>
+                }
+                @if (vm.Estado is EstadoPlanificacion.Cargada or EstadoPlanificacion.Aprobada)
+                {
+                    <AuthorizeView Roles="@Roles.PlanificacionAprobacion" Context="authCtx">
+                        <RadzenButton Text="Enviar a revisión" Icon="undo" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Warning" Variant="Variant.Flat"
+                                      Disabled="@procesando" Click="@(() => showRevision = !showRevision)" />
+                    </AuthorizeView>
+                }
+                @if (vm.Estado == EstadoPlanificacion.Aprobada && vm.FechaTomaConocimiento is null)
+                {
+                    <AuthorizeView Roles="@Roles.PlanificacionConocimiento" Context="authCtx">
+                        <RadzenButton Text="Tomar conocimiento" Icon="fact_check" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat"
+                                      Disabled="@procesando" Click="@TomarConocimientoAsync" />
+                    </AuthorizeView>
+                }
+                @if (puedeEditar)
+                {
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem" class="rz-ml-2">
+                        <RadzenSwitch Value="@vm.ObraFinalizada" Disabled="@procesando"
+                                      ValueChanged="@((bool v) => MarcarFinalizadaAsync(v))" />
+                        <RadzenText TextStyle="TextStyle.Caption" class="rz-mb-0">Obra finalizada (sin ciclo mensual)</RadzenText>
+                    </RadzenStack>
+                }
             </RadzenStack>
+        </RadzenStack>
+        @{ var pendientes = PendientesCircuito(); }
+        @if (pendientes.Count > 0)
+        {
+            @* Mismas reglas que exige el servicio al marcar Cargada (PlanificacionValidator),
+               evaluadas en vivo sobre lo tipeado: el director ve qué falta antes de apretar. *@
+            <RadzenAlert AlertStyle="AlertStyle.Base" Variant="Variant.Flat" Shade="Shade.Lighter" Size="AlertSize.Small"
+                         AllowClose="false" class="rz-mt-2 rz-mb-0">
+                <b>Para marcar como Cargada falta:</b>
+                @foreach (var p in pendientes)
+                {
+                    <div>@p</div>
+                }
+            </RadzenAlert>
         }
-    </RadzenStack>
+    </RadzenCard>
 
     @if ((vm.Estado is EstadoPlanificacion.Cargada or EstadoPlanificacion.Aprobada) && showRevision)
     {
@@ -140,220 +190,349 @@ else
         </RadzenCard>
     }
 
-    @* ── Agregar bloque (Gerente y Presupuesto son solo lectura) ── *@
-    @if (puedeEditar)
-    {
-    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.End" Gap="0.5rem" Wrap="FlexWrap.Wrap" class="rz-mb-3" style="max-width:720px">
-        <RadzenFormField Text="Tipo de bloque" Variant="Variant.Outlined">
-            <RadzenDropDown @bind-Value="nuevoTipo" Data="@TiposBloque" TValue="TipoAutorizante" style="min-width:160px">
-                <Template Context="t">@TipoTexto((TipoAutorizante)t)</Template>
-            </RadzenDropDown>
-        </RadzenFormField>
-        @if (nuevoTipo != TipoAutorizante.Basica)
-        {
-            <RadzenFormField Text="Denominación (opcional)" Variant="Variant.Outlined" style="flex:1;min-width:180px">
-                <RadzenTextBox @bind-Value="nuevaDenominacion" style="width:100%" />
-            </RadzenFormField>
-        }
-        <RadzenButton Text="Agregar bloque" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
-                      Disabled="@procesando" Click="@AgregarBloqueAsync" />
-    </RadzenStack>
-    }
-
     @if (vm.Bloques.Count == 0)
     {
-        <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+        <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false" class="rz-mb-3">
             Agregá al menos un bloque (Obra Básica, Adicional o BED) para empezar a planificar.
         </RadzenAlert>
+        @if (puedeEditar)
+        {
+            <RadzenButton Text="Agregar bloque" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Outlined"
+                          Disabled="@procesando" Click="@AgregarBloqueAsync" />
+        }
     }
     else
     {
-        @foreach (var bloque in vm.Bloques)
-        {
-            @* @key: sin esto, al quitar un bloque Blazor puede reutilizar los inputs del bloque equivocado. *@
-            <RadzenCard @key="bloque.AutorizanteId" Variant="Variant.Outlined" class="rz-mb-3">
-                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
-                             AlignItems="AlignItems.Center" class="rz-mb-2">
-                    <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-0" style="font-weight:600">@bloque.Titulo</RadzenText>
-                    @if (puedeEditar)
-                    {
-                        <RadzenButton Text="Quitar bloque" Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
-                                      Disabled="@procesando" Click="@(() => QuitarBloqueAsync(bloque))" />
-                    }
-                </RadzenStack>
-                @{ var fueraHorizonte = Totales.FueraDeHorizonte(bloque.AutorizanteId); }
-                @if (fueraHorizonte.Count > 0)
+        @* ── Pestañas: una por bloque, más Totales y Versiones ──
+           RenderMode Client: las grillas de todas las pestañas quedan en el DOM, así lo
+           tipeado en una no se pierde al cambiar a otra. El índice se conserva al guardar
+           o al agregar/quitar bloques (BuildStateAsync lo acota). *@
+        <RadzenTabs RenderMode="TabRenderMode.Client" SelectedIndex="@pestana" SelectedIndexChanged="@((int i) => pestana = i)" class="rz-mb-3"
+                    Style="--rz-tabs-tab-text-transform:none;--rz-tabs-tab-letter-spacing:0">
+            <Tabs>
+                @foreach (var bloque in vm.Bloques)
                 {
-                    @* Montos guardados cuyo período quedó fuera del plazo actual de la obra
-                       (típicamente un fin de contrato adelantado): no tienen celda en la
-                       grilla, pero suman en los totales, el balance, el export y el snapshot,
-                       y el guardado los preserva. Sin este aviso solo se notaban porque el
-                       total no cuadraba con las celdas. *@
-                    <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter"
-                                 AllowClose="false" class="rz-mb-2">
-                        Incluye @string.Join("; ", fueraHorizonte.Select(f =>
-                            $"{Fmt.Simbolo(f.Moneda)} {Fmt.Pesos(f.Monto)} ({PeriodoFuera(f.Anio, f.Mes)})"))
-                        planificados fuera del plazo actual de la obra. Suman en los totales y en el balance,
-                        y se conservan al guardar; para editarlos, corregí la fecha de fin de la obra para que
-                        esos períodos vuelvan a la grilla.
-                    </RadzenAlert>
-                }
-                <div class="cert-scroll">
-                    <table class="cert-grid">
-                        <caption class="sr-only">Montos planificados por período y moneda — @bloque.Titulo</caption>
-                        <thead>
-                            <tr>
-                                <th scope="col" style="text-align:left;min-width:270px">Concepto / Período</th>
+                    var id = bloque.AutorizanteId;
+                    var estado = EstadoBloque(id);
+                    var fueraHorizonte = Totales.FueraDeHorizonte(id);
+                    @* @key: sin esto, al quitar un bloque Blazor puede reutilizar los inputs del bloque equivocado. *@
+                    <RadzenTabsItem @key="id" Text="@bloque.Titulo">
+                        <Template>
+                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem">
+                                <span>@bloque.Titulo</span>
+                                @* Solo el nombre; ícono + texto únicamente si el bloque necesita atención
+                                   (el color nunca es la única señal: convenciones-ui.md). *@
+                                @if (estado.Estilo is BadgeStyle.Danger or BadgeStyle.Warning)
+                                {
+                                    <RadzenIcon Icon="error" Style="@($"font-size:1rem;color:var(--rz-{(estado.Estilo == BadgeStyle.Danger ? "danger" : "warning-dark")})")" />
+                                    <RadzenText TextStyle="TextStyle.Caption" class="rz-mb-0"
+                                                Style="@($"color:var(--rz-{(estado.Estilo == BadgeStyle.Danger ? "danger" : "warning-dark")})")">@estado.Texto</RadzenText>
+                                }
+                            </RadzenStack>
+                        </Template>
+                        <ChildContent>
+                            @if (fueraHorizonte.Count > 0)
+                            {
+                                @* Montos guardados cuyo período quedó fuera del plazo actual de la obra
+                                   (típicamente un fin de contrato adelantado): no tienen celda en la
+                                   grilla, pero suman en los totales, el balance, el export y el snapshot,
+                                   y el guardado los preserva. Sin este aviso solo se notaban porque el
+                                   total no cuadraba con las celdas. *@
+                                <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter"
+                                             AllowClose="false" class="rz-mb-2">
+                                    Incluye @string.Join("; ", fueraHorizonte.Select(f =>
+                                        $"{Fmt.Simbolo(f.Moneda)} {Fmt.Pesos(f.Monto)} ({PeriodoFuera(f.Anio, f.Mes)})"))
+                                    planificados fuera del plazo actual de la obra. Suman en los totales y en el balance,
+                                    y se conservan al guardar; para editarlos, corregí la fecha de fin de la obra para que
+                                    esos períodos vuelvan a la grilla.
+                                </RadzenAlert>
+                            }
+                            @* ── Autorizado y anticipo: valores únicos por bloque, fuera de la grilla ── *@
+                            <RadzenRow Gap="0.75rem" RowGap="0.5rem" class="rz-mb-3">
                                 @foreach (var m in vm.Monedas)
                                 {
-                                    <th scope="col" style="min-width:140px">@m</th>
+                                    <RadzenColumn Size="6" SizeMD="4" SizeLG="2" @key="@($"aut-{m}")">
+                                        <RadzenFormField Text="@($"Autorizado · {Fmt.Simbolo(m)}")" title="Monto autorizado del bloque en esta moneda" Variant="Variant.Outlined" Style="width:100%">
+                                            @Celda(id, ConceptoPlanMonto.MontoAutorizado, null, null, m)
+                                        </RadzenFormField>
+                                    </RadzenColumn>
                                 }
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td style="font-weight:600">Monto Autorizado</td>
                                 @foreach (var m in vm.Monedas)
                                 {
-                                    <td>@Celda(bloque.AutorizanteId, ConceptoPlanMonto.MontoAutorizado, null, null, m)</td>
+                                    <RadzenColumn Size="6" SizeMD="4" SizeLG="2" @key="@($"ant-{m}")">
+                                        <RadzenFormField Text="@($"Anticipo · {Fmt.Simbolo(m)}")" title="Importe del anticipo financiero en esta moneda" Variant="Variant.Outlined" Style="width:100%">
+                                            @CeldaAnticipo(id, m)
+                                        </RadzenFormField>
+                                    </RadzenColumn>
                                 }
-                            </tr>
-                            <tr>
-                                <td style="white-space:nowrap">
-                                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
-                                                 JustifyContent="JustifyContent.SpaceBetween" Gap="0.5rem" Wrap="FlexWrap.NoWrap">
-                                        <span>Anticipo Financiero</span>
-                                        @* Mes de pago del anticipo (puede ser anterior al inicio de la obra; uno posterior
-                                           al primer mes del plan se guarda con aviso y bloquea el pase a Cargada). Se muestran
-                                           los días a propósito: el click en un día ES la selección (ValueChanged), y se
-                                           normaliza al día 1. Así navegar mes/año/flechas NO confirma nada hasta el click
-                                           —hay "cancelar" real cerrando el popup—. AllowClear permite volver a "sin mes".
-                                           El mes solo tiene sentido con importe: sin importe el picker se deshabilita y
-                                           AnticipoFechaDe devuelve null, para no mostrar/aprobar un mes que no se persiste. *@
+                                <RadzenColumn Size="6" SizeMD="4" SizeLG="2">
+                                    @* Mes de pago del anticipo (puede ser anterior al inicio de la obra; uno posterior
+                                       al primer mes del plan se guarda con aviso y bloquea el pase a Cargada). Se muestran
+                                       los días a propósito: el click en un día ES la selección (ValueChanged), y se
+                                       normaliza al día 1. Así navegar mes/año/flechas NO confirma nada hasta el click
+                                       —hay "cancelar" real cerrando el popup—. AllowClear permite volver a "sin mes".
+                                       El mes solo tiene sentido con importe: sin importe el picker se deshabilita y
+                                       AnticipoFechaDe devuelve null, para no mostrar/aprobar un mes que no se persiste. *@
+                                    <RadzenFormField Text="Mes del anticipo" Variant="Variant.Outlined" Style="width:100%"
+                                                     title="Mes en que se paga el anticipo (no posterior al primer mes del plan)">
                                         <RadzenDatePicker TValue="DateTime?" ShowTime="false" DateFormat="MM/yyyy"
                                                           AllowClear="true" Placeholder="Sin mes"
-                                                          Disabled="@(!puedeEditar || !TieneImporteAnticipo(bloque.AutorizanteId))"
-                                                          Value="@AnticipoFechaDe(bloque.AutorizanteId)"
-                                                          ValueChanged="@((DateTime? d) => anticipoFecha[bloque.AutorizanteId] = d.HasValue ? new DateTime(d.Value.Year, d.Value.Month, 1) : null)"
-                                                          Style="width:150px;flex-shrink:0" title="Mes en que se paga el anticipo (no posterior al primer mes del plan)" />
-                                    </RadzenStack>
-                                </td>
-                                @foreach (var m in vm.Monedas)
-                                {
-                                    <td>@CeldaAnticipo(bloque.AutorizanteId, m)</td>
-                                }
-                            </tr>
-                            @foreach (var p in vm.Periodos)
+                                                          Disabled="@(!puedeEditar || !TieneImporteAnticipo(id))"
+                                                          Value="@AnticipoFechaDe(id)"
+                                                          ValueChanged="@((DateTime? d) => anticipoFecha[id] = d.HasValue ? new DateTime(d.Value.Year, d.Value.Month, 1) : null)" />
+                                    </RadzenFormField>
+                                </RadzenColumn>
+                            </RadzenRow>
+
+                            @* ── Herramientas de carga (secundarias: Light flat, convenciones-ui.md) ── *@
+                            @if (puedeEditar)
                             {
-                                var concepto = p.EsAnual ? ConceptoPlanMonto.CalculoAnual : ConceptoPlanMonto.Mensual;
-                                <tr @key="p">
-                                    @* "(a redistribuir)": bucket anual huérfano — el año también tiene filas
-                                       mensuales porque el plazo se extendió después de planificarlo anual.
-                                       El monto se edita acá (o se lleva a 0 tras repartirlo en los meses). *@
-                                    <td style="@(p.EsAnual ? "font-style:italic" : "")">@(p.EsAnual ? $"Año {p.Anio}{(AnioTambienMensual(p.Anio) ? " (a redistribuir)" : "")}" : $"{Fmt.MesCorto(p.Mes!.Value)} {p.Anio}")</td>
+                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" Wrap="FlexWrap.Wrap" class="rz-mb-2">
+                                    <RadzenButton Text="Repartir lo que resta en los meses vacíos" Icon="call_split" Size="ButtonSize.ExtraSmall"
+                                                  ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Disabled="@procesando"
+                                                  title="Divide en partes iguales, por moneda, la diferencia entre lo autorizado y lo planificado entre los meses sin monto"
+                                                  Click="@(() => RepartirRestante(id))" />
+                                    <RadzenButton Text="Completar con el mes anterior" Icon="south" Size="ButtonSize.ExtraSmall"
+                                                  ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Disabled="@procesando"
+                                                  title="Cada mes sin monto toma el valor del mes anterior"
+                                                  Click="@(() => CompletarConMesAnterior(id))" />
+                                    <RadzenButton Text="Limpiar meses" Icon="backspace" Size="ButtonSize.ExtraSmall"
+                                                  ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Disabled="@procesando"
+                                                  title="Deja en blanco todos los meses del bloque (los años planificados como total no se tocan)"
+                                                  Click="@(() => LimpiarMesesAsync(id))" />
+                                </RadzenStack>
+                            }
+
+                            @* ── Grilla: períodos como filas, una columna por moneda. Las celdas muestran el
+                               número como texto y se editan al hacer click (Enter baja a la fila siguiente,
+                               Escape cancela): una sola caja con borde en pantalla en vez de una por celda.
+                               Las filas de año son datos (EsSubtotal) y pliegan sus meses. ── *@
+                            <RadzenDataGrid TItem="FilaPlan" Data="@FilasDe(id)" Density="Density.Compact" GridLines="DataGridGridLines.Both"
+                                            AllowPaging="false" AllowSorting="false" AllowFiltering="false" AllowColumnResize="false"
+                                            Style="height:min(60vh, 560px)" class="rz-shadow-0"
+                                            RowRender="@FilaRender" CellRender="@((DataGridCellRenderEventArgs<FilaPlan> args) => CeldaRender(id, args))"
+                                            CellClick="@((DataGridCellMouseEventArgs<FilaPlan> args) => CeldaClick(id, args))">
+                                <Columns>
+                                    <RadzenDataGridColumn TItem="FilaPlan" Title="Período" Frozen="true" Width="240px" Sortable="false" Filterable="false">
+                                        <Template Context="f">
+                                            @if (f.EsSubtotal)
+                                            {
+                                                var plegado = aniosPlegados.Contains((id, f.Anio));
+                                                var cantidad = vm.Periodos.Count(p => !p.EsAnual && p.Anio == f.Anio);
+                                                <RadzenButton Variant="Variant.Text" ButtonStyle="ButtonStyle.Base" Size="ButtonSize.ExtraSmall"
+                                                              Icon="@(plegado ? "chevron_right" : "expand_more")"
+                                                              Text="@($"{f.Anio} · {cantidad} {(cantidad == 1 ? "mes" : "meses")}")"
+                                                              aria-expanded="@(!plegado)" title="@($"{(plegado ? "Mostrar" : "Ocultar")} los meses de {f.Anio}")"
+                                                              Click="@(() => AlternarAnio(id, f.Anio))" />
+                                            }
+                                            else if (f.EsAnual)
+                                            {
+                                                @* "(a redistribuir)": bucket anual huérfano — el año también tiene filas
+                                                   mensuales porque el plazo se extendió después de planificarlo anual.
+                                                   El monto se edita acá (o se lleva a 0 tras repartirlo en los meses). *@
+                                                <span style="font-style:italic">Año @f.Anio@(AnioTambienMensual(f.Anio) ? " (a redistribuir)" : "")</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="rz-pl-4">@Fmt.MesCorto(f.Mes!.Value) @f.Anio</span>
+                                            }
+                                        </Template>
+                                    </RadzenDataGridColumn>
                                     @foreach (var m in vm.Monedas)
                                     {
-                                        <td>@Celda(bloque.AutorizanteId, concepto, p.Anio, p.Mes, m)</td>
+                                        var mon = m;
+                                        <RadzenDataGridColumn TItem="FilaPlan" Title="@mon.ToString()" CssClass="rz-text-align-end" MinWidth="150px"
+                                                              Sortable="false" Filterable="false" @key="mon">
+                                            <Template Context="f">
+                                                @if (f.EsSubtotal)
+                                                {
+                                                    <span style="font-weight:500">@Fmt.Simbolo(mon) @Fmt.Pesos(SumaAnio(id, f.Anio, mon))</span>
+                                                }
+                                                else if (EnEdicion(id, f, mon))
+                                                {
+                                                    <div @oninput="@((ChangeEventArgs e) => textoEnEdicion = e.Value?.ToString())"
+                                                         @onfocusout="@(() => ConfirmarCelda(id, f, mon, cerrar: true))"
+                                                         @onkeydown="@(e => TeclaCelda(e, id, f, mon))">@CeldaGrilla(id, f, mon)</div>
+                                                }
+                                                else
+                                                {
+                                                    var v = ValorCelda(id, f, mon);
+                                                    <span class="@(v is null ? "app-muted" : null)">@(v is null ? "—" : Fmt.Pesos(v.Value))</span>
+                                                }
+                                            </Template>
+                                        </RadzenDataGridColumn>
                                     }
-                                </tr>
-                            }
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td class="num">Suma Planificado</td>
-                                @foreach (var m in vm.Monedas)
-                                {
-                                    <td class="num">@Fmt.Simbolo(m) @Fmt.Pesos(SumaPlanificado(bloque.AutorizanteId, m))</td>
-                                }
-                            </tr>
-                            <tr>
-                                <td class="num">Autorizado vs Planificado</td>
-                                @foreach (var m in vm.Monedas)
-                                {
-                                    var d = AutorizadoVsPlanificado(bloque.AutorizanteId, m);
-                                    <td class="num" style="@(d < 0 ? "color:var(--rz-danger)" : "")">@Fmt.Simbolo(m) @Fmt.Pesos(d)</td>
-                                }
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-            </RadzenCard>
-        }
+                                </Columns>
+                            </RadzenDataGrid>
 
-        @* ── Totales del plan ── *@
-        <RadzenCard Variant="Variant.Outlined">
-            <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-2" style="font-weight:600">Totales del plan</RadzenText>
-            <div class="cert-scroll">
-                <table class="cert-grid">
-                    <caption class="sr-only">Totales del plan por moneda</caption>
-                    <thead>
-                        <tr>
-                            <th scope="col" style="text-align:left">Concepto</th>
-                            @foreach (var m in vm.Monedas)
-                            {
-                                <th scope="col">@m</th>
-                            }
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var (label, valor) in FilasTotales())
-                        {
-                            <tr>
-                                <td>@label</td>
-                                @foreach (var m in vm.Monedas)
+                            @* Resumen del bloque por moneda: reemplaza al pie de dos líneas de la grilla, que
+                               quedaba apretado y tapaba la última fila. Solo las monedas con montos. *@
+                            @{ var monedasBloque = vm.Monedas.Where(m => Totales.Valor(id, ConceptoPlanMonto.MontoAutorizado, null, null, m) != 0 || SumaPlanificado(id, m) != 0).ToList(); }
+                            <RadzenStack AlignItems="AlignItems.End" Gap="0" class="rz-mt-2">
+                                @if (monedasBloque.Count == 0)
                                 {
-                                    <td class="num">@Fmt.Simbolo(m) @Fmt.Pesos(valor(m))</td>
+                                    <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">Sin montos en este bloque.</RadzenText>
                                 }
-                            </tr>
-                        }
-                        <tr style="font-weight:700">
-                            <td>Autorizado vs Planificado</td>
-                            @foreach (var m in vm.Monedas)
+                                @foreach (var m in monedasBloque)
+                                {
+                                    var d = AutorizadoVsPlanificado(id, m);
+                                    <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0" @key="m">
+                                        Planificado <b>@Fmt.Simbolo(m) @Fmt.Pesos(SumaPlanificado(id, m))</b>
+                                        de <b>@Fmt.Simbolo(m) @Fmt.Pesos(Totales.Valor(id, ConceptoPlanMonto.MontoAutorizado, null, null, m))</b> autorizados ·
+                                        <b style="@ColorDiferencia(d)">@TextoDiferencia(d, m)</b>
+                                    </RadzenText>
+                                }
+                            </RadzenStack>
+                            @if (puedeEditar)
                             {
-                                var d = TotalAutorizado(m) - TotalPlanificado(m);
-                                <td class="num" style="@(d < 0 ? "color:var(--rz-danger)" : "")">@Fmt.Simbolo(m) @Fmt.Pesos(d)</td>
+                                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="rz-mt-2">
+                                    <RadzenButton Text="Agregar bloque" Icon="add" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
+                                                  Disabled="@procesando" Click="@AgregarBloqueAsync" />
+                                    @* En texto y al pie: en el encabezado, en rojo, competía con el título y quedaba
+                                       a un click de una acción destructiva. *@
+                                    <RadzenButton Text="Quitar bloque" Icon="delete" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
+                                                  Disabled="@procesando" Click="@(() => QuitarBloqueAsync(bloque))" />
+                                </RadzenStack>
                             }
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </RadzenCard>
-    }
+                        </ChildContent>
+                    </RadzenTabsItem>
+                }
 
-    @* ── Historial de versiones (snapshots de cada toma de conocimiento) ── *@
-    @if (versiones.Count > 0)
-    {
-        <RadzenCard Variant="Variant.Outlined" class="rz-mt-3">
-            <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-2" style="font-weight:600">Versiones anteriores</RadzenText>
-            <div class="cert-scroll">
-                <table class="cert-grid">
-                    <caption class="sr-only">Versiones anteriores del plan (snapshots de cada toma de conocimiento)</caption>
-                    <thead>
-                        <tr>
-                            <th scope="col" style="text-align:left">Versión (mes)</th>
-                            <th scope="col" style="text-align:left">Toma de conocimiento</th>
-                            <th scope="col" style="text-align:left">Por</th>
-                            <th scope="col"><span class="sr-only">Exportar</span></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var v in versiones)
-                        {
-                            <tr>
-                                <td>@Fmt.MesCorto(v.Mes) @v.Anio</td>
-                                <td>@v.FechaTomaConocimiento.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
-                                <td>@v.TomadaConocimientoPor</td>
-                                <td>
-                                    <RadzenButton Text="Excel" Icon="download" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text"
-                                                  Click="@(() => Nav.NavigateTo($"PlanificacionExport/Obra/{ObraId}?modo=corte&anio={v.Anio}&mes={v.Mes}", forceLoad: true))" />
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        </RadzenCard>
+                <RadzenTabsItem Text="Totales del plan" Icon="functions">
+                    @* Autorizado, planificado y diferencia de cada bloque por moneda, con subtotales
+                       por tipo y el total de la obra: reemplaza al resumen que estaba arriba de las
+                       pestañas y a la tabla de totales por tipo. Solo las monedas con montos. *@
+                    @{ var monedasTotales = vm.Monedas.Where(m => TotalAutorizado(m) != 0 || TotalPlanificado(m) != 0).ToList(); }
+                    @if (monedasTotales.Count == 0)
+                    {
+                        <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">Sin montos cargados.</RadzenText>
+                    }
+                    else
+                    {
+                        <div class="cert-scroll">
+                            <table class="cert-grid">
+                                <caption class="sr-only">Autorizado, planificado y diferencia por bloque y moneda, con totales</caption>
+                                <thead>
+                                    <tr>
+                                        <th scope="col" rowspan="2" style="text-align:left;vertical-align:bottom">Bloque</th>
+                                        @foreach (var m in monedasTotales)
+                                        {
+                                            <th scope="colgroup" colspan="3">@m</th>
+                                        }
+                                        <th scope="col" rowspan="2" style="text-align:left;vertical-align:bottom">Estado</th>
+                                    </tr>
+                                    <tr>
+                                        @foreach (var m in monedasTotales)
+                                        {
+                                            <th scope="col">Autorizado</th>
+                                            <th scope="col">Planificado</th>
+                                            <th scope="col">Diferencia</th>
+                                        }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var bloque in vm.Bloques)
+                                    {
+                                        var estado = EstadoBloque(bloque.AutorizanteId);
+                                        <tr @key="bloque.AutorizanteId">
+                                            <td>@bloque.Titulo</td>
+                                            @foreach (var m in monedasTotales)
+                                            {
+                                                var aut = Totales.Valor(bloque.AutorizanteId, ConceptoPlanMonto.MontoAutorizado, null, null, m);
+                                                var plan = SumaPlanificado(bloque.AutorizanteId, m);
+                                                var dif = aut - plan;
+                                                <td class="num">@Fmt.Simbolo(m) @Fmt.Pesos(aut)</td>
+                                                <td class="num">@Fmt.Simbolo(m) @Fmt.Pesos(plan)</td>
+                                                <td class="num" style="@ColorDiferencia(dif)">@Fmt.Simbolo(m) @Fmt.Pesos(dif)</td>
+                                            }
+                                            <td>
+                                                @* Color solo para lo que necesita atención; lo que está bien va en gris. *@
+                                                @if (estado.Estilo is BadgeStyle.Danger or BadgeStyle.Warning)
+                                                {
+                                                    <RadzenBadge Text="@estado.Texto" IsPill="true" BadgeStyle="@estado.Estilo" Shade="Shade.Lighter" />
+                                                }
+                                                else
+                                                {
+                                                    <span class="app-muted">@estado.Texto</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    @* Subtotal por tipo solo cuando el tipo tiene más de un bloque (si tiene uno,
+                                       repetiría su fila). *@
+                                    @foreach (var tipo in new[] { TipoAutorizante.Adicional, TipoAutorizante.BED })
+                                    {
+                                        var cantidad = vm.Bloques.Count(b => b.Tipo == tipo);
+                                        if (cantidad < 2) continue;
+                                        <tr>
+                                            <td>Total @(tipo == TipoAutorizante.Adicional ? "Adicionales" : "BED") (@cantidad)</td>
+                                            @foreach (var m in monedasTotales)
+                                            {
+                                                var aut = AutorizadoPorTipo(tipo, m);
+                                                var plan = PlanificadoPorTipo(tipo, m);
+                                                <td class="num">@Fmt.Simbolo(m) @Fmt.Pesos(aut)</td>
+                                                <td class="num">@Fmt.Simbolo(m) @Fmt.Pesos(plan)</td>
+                                                <td class="num" style="@ColorDiferencia(aut - plan)">@Fmt.Simbolo(m) @Fmt.Pesos(aut - plan)</td>
+                                            }
+                                            <td></td>
+                                        </tr>
+                                    }
+                                    <tr>
+                                        <td>Total obra</td>
+                                        @foreach (var m in monedasTotales)
+                                        {
+                                            var difTotal = TotalAutorizado(m) - TotalPlanificado(m);
+                                            <td class="num">@Fmt.Simbolo(m) @Fmt.Pesos(TotalAutorizado(m))</td>
+                                            <td class="num">@Fmt.Simbolo(m) @Fmt.Pesos(TotalPlanificado(m))</td>
+                                            <td class="num" style="@ColorDiferencia(difTotal)">@Fmt.Simbolo(m) @Fmt.Pesos(difTotal)</td>
+                                        }
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    }
+                </RadzenTabsItem>
+
+                @* ── Historial de versiones (snapshots de cada toma de conocimiento) ── *@
+                @if (versiones.Count > 0)
+                {
+                    <RadzenTabsItem Text="@($"Versiones anteriores ({versiones.Count})")" Icon="history">
+                        <div class="cert-scroll">
+                            <table class="cert-grid">
+                                <caption class="sr-only">Versiones anteriores del plan (snapshots de cada toma de conocimiento)</caption>
+                                <thead>
+                                    <tr>
+                                        <th scope="col" style="text-align:left">Versión (mes)</th>
+                                        <th scope="col" style="text-align:left">Toma de conocimiento</th>
+                                        <th scope="col" style="text-align:left">Por</th>
+                                        <th scope="col"><span class="sr-only">Exportar</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var v in versiones)
+                                    {
+                                        <tr>
+                                            <td>@Fmt.MesCorto(v.Mes) @v.Anio</td>
+                                            <td>@v.FechaTomaConocimiento.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                                            <td>@v.TomadaConocimientoPor</td>
+                                            <td>
+                                                <RadzenButton Text="Excel" Icon="download" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text"
+                                                              Click="@(() => Nav.NavigateTo($"PlanificacionExport/Obra/{ObraId}?modo=corte&anio={v.Anio}&mes={v.Mes}", forceLoad: true))" />
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </RadzenTabsItem>
+                }
+            </Tabs>
+        </RadzenTabs>
     }
+    </div>
 }
 
 @code {
@@ -362,9 +541,6 @@ else
 
     // Presupuesto es solo lectura: sin guardar, sin bloques, celdas deshabilitadas.
     private bool puedeEditar;
-
-    private static readonly TipoAutorizante[] TiposBloque =
-        { TipoAutorizante.Basica, TipoAutorizante.Adicional, TipoAutorizante.BED };
 
     private PlanificacionVM? vm;
     private bool noEncontrada;
@@ -380,8 +556,11 @@ else
     // anticipo (celdas con período null); el mes se aplica al guardar.
     private readonly Dictionary<int, DateTime?> anticipoFecha = new();
 
-    private TipoAutorizante nuevoTipo = TipoAutorizante.Basica;
-    private string? nuevaDenominacion;
+    // Estado de la UI que sobrevive a BuildStateAsync (guardar, agregar/quitar bloque):
+    // la pestaña activa y qué años están plegados en cada grilla.
+    private int pestana;
+    private readonly HashSet<(int AutorizanteId, int Anio)> aniosPlegados = new();
+
     private bool showRevision;
     private string motivoRevision = string.Empty;
     private string? correcciones;
@@ -433,6 +612,8 @@ else
 
         celdas.Clear();
         anticipoFecha.Clear();
+        filasPorBloque.Clear();
+        enEdicion = null;
         foreach (var bloque in vm.Bloques)
         {
             foreach (var m in vm.Monedas)
@@ -456,6 +637,10 @@ else
         foreach (var kv in tipeado)
             if (celdas.ContainsKey(kv.Key))
                 celdas[kv.Key] = kv.Value;
+
+        // Al quitar el último bloque la pestaña activa podría apuntar más allá de las
+        // pestañas de bloque; se acota al último bloque (las de Totales/Versiones van después).
+        if (pestana > vm.Bloques.Count) pestana = Math.Max(0, vm.Bloques.Count - 1);
     }
 
     private void Set(int autId, ConceptoPlanMonto c, int? anio, int? mes, Moneda mon, decimal v)
@@ -465,6 +650,81 @@ else
     // de un plazo extendido). O(períodos) por fila anual: son 2-4 filas, sin caché.
     private bool AnioTambienMensual(int anio) =>
         vm!.Periodos.Any(p => !p.EsAnual && p.Anio == anio);
+
+    private void AlternarAnio(int autorizanteId, int anio)
+    {
+        if (!aniosPlegados.Remove((autorizanteId, anio)))
+            aniosPlegados.Add((autorizanteId, anio));
+        filasPorBloque.Remove(autorizanteId);
+        IrA(null);
+    }
+
+    /// <summary>Subtotal de las filas mensuales de un año (sobre lo tipeado, como el resto de los totales).</summary>
+    private decimal SumaAnio(int autorizanteId, int anio, Moneda mon) =>
+        vm!.Periodos.Where(p => !p.EsAnual && p.Anio == anio)
+            .Sum(p => celdas.TryGetValue((autorizanteId, ConceptoPlanMonto.Mensual, p.Anio, p.Mes, mon), out var v) ? v ?? 0m : 0m);
+
+    /// <summary>Monedas en las que el bloque tiene algo cargado (autorizado o planificado).</summary>
+    private List<Moneda> MonedasConMontos(int autorizanteId) =>
+        vm!.Monedas.Where(m =>
+            Totales.Valor(autorizanteId, ConceptoPlanMonto.MontoAutorizado, null, null, m) != 0
+            || SumaPlanificado(autorizanteId, m) != 0).ToList();
+
+    /// <summary>
+    /// Estado de balance del bloque, en el orden en que importa: excede (bloquea Cargada) >
+    /// falta planificar > sin montos > cuadra.
+    /// </summary>
+    private (string Texto, BadgeStyle Estilo) EstadoBloque(int autorizanteId)
+    {
+        var totales = Totales;
+        var diferencias = vm!.Monedas.Select(m => totales.AutorizadoVsPlanificado(autorizanteId, m)).ToList();
+        if (diferencias.Any(d => d < 0)) return ("Excede lo autorizado", BadgeStyle.Danger);
+        if (diferencias.Any(d => d > 0)) return ("Falta planificar", BadgeStyle.Warning);
+        if (MonedasConMontos(autorizanteId).Count == 0) return ("Sin montos", BadgeStyle.Secondary);
+        return ("Cuadra", BadgeStyle.Success);
+    }
+
+    /// <summary>Color de una diferencia: solo cuando hay algo que corregir (rojo excede, ámbar falta).</summary>
+    private static string ColorDiferencia(decimal dif) =>
+        dif < 0 ? "color:var(--rz-danger)" : dif > 0 ? "color:var(--rz-warning-dark)" : "";
+
+    private static string EstadoTexto(EstadoPlanificacion e) =>
+        e == EstadoPlanificacion.EnRevision ? "En revisión" : e.ToString();
+
+    /// <summary>Paso del circuito para el stepper: Pendiente/En revisión → Cargada → Aprobada → Conocida.</summary>
+    private int PasoActual => vm!.Estado switch
+    {
+        EstadoPlanificacion.Cargada => 1,
+        EstadoPlanificacion.Aprobada => vm.FechaTomaConocimiento is null ? 2 : 3,
+        _ => 0
+    };
+
+    /// <summary>
+    /// Reglas que el servicio exige para marcar Cargada, evaluadas en vivo sobre lo tipeado
+    /// (mismas que AvisarReglasDelCircuito tras guardar). Vacío fuera de Pendiente/En revisión
+    /// o para quien no edita.
+    /// </summary>
+    private List<string> PendientesCircuito()
+    {
+        var lista = new List<string>();
+        if (!puedeEditar || vm!.Estado is not (EstadoPlanificacion.Pendiente or EstadoPlanificacion.EnRevision)) return lista;
+
+        var totales = Totales;
+        var balance = PlanificacionValidator.Balanceado(
+            vm.Bloques.SelectMany(b => vm.Monedas.Select(m =>
+                (b.Titulo, m, totales.AutorizadoVsPlanificado(b.AutorizanteId, m)))));
+        if (balance is not null) lista.Add(balance);
+
+        var primerMes = vm.Periodos.FirstOrDefault(p => !p.EsAnual);
+        if (primerMes is not null)
+        {
+            var anticipo = PlanificacionValidator.MesAnticipo(
+                vm.Bloques.Select(b => (b.Titulo, MesAnticipoDe(b.AutorizanteId)?.Anio, MesAnticipoDe(b.AutorizanteId)?.Mes)),
+                primerMes.Anio, primerMes.Mes!.Value);
+            if (anticipo is not null) lista.Add(anticipo);
+        }
+        return lista;
+    }
 
     // Nombre accesible de una celda de la grilla: sin él, para un lector de pantalla
     // la planilla es una secuencia de spinbuttons anónimos (Radzen lo pasa al <input>).
@@ -500,6 +760,234 @@ else
             aria-label="@EtiquetaCelda(autId, ConceptoPlanMonto.AnticipoFinanciero, null, null, mon)" />;
     }
 
+    // ── Grilla por bloque (RadzenDataGrid) ─────────────────────────────────────────
+
+    /// <summary>
+    /// Fila de la grilla de un bloque: un período (mes o año planificado como total) o la
+    /// fila de subtotal de un año, que además pliega sus meses. Record: la igualdad por valor
+    /// es lo que permite comparar la celda en edición.
+    /// </summary>
+    public sealed record FilaPlan(int Anio, int? Mes, bool EsAnual, bool EsSubtotal)
+    {
+        public ConceptoPlanMonto Concepto => EsAnual ? ConceptoPlanMonto.CalculoAnual : ConceptoPlanMonto.Mensual;
+    }
+
+    // Filas por bloque, cacheadas: si Data cambiara de instancia en cada render, la grilla
+    // recargaría su vista en cada tecla. Se invalidan en BuildStateAsync y al plegar un año.
+    private readonly Dictionary<int, List<FilaPlan>> filasPorBloque = new();
+
+    private List<FilaPlan> FilasDe(int autId)
+    {
+        if (!filasPorBloque.TryGetValue(autId, out var filas))
+        {
+            filas = new List<FilaPlan>();
+            foreach (var grupo in vm!.Periodos.GroupBy(p => (p.Anio, p.EsAnual)))
+            {
+                if (grupo.Key.EsAnual)
+                {
+                    foreach (var p in grupo) filas.Add(new FilaPlan(p.Anio, null, true, false));
+                    continue;
+                }
+                filas.Add(new FilaPlan(grupo.Key.Anio, null, false, true));
+                if (aniosPlegados.Contains((autId, grupo.Key.Anio))) continue;
+                foreach (var p in grupo) filas.Add(new FilaPlan(p.Anio, p.Mes, false, false));
+            }
+            filasPorBloque[autId] = filas;
+        }
+        return filas;
+    }
+
+    private static (int, ConceptoPlanMonto, int?, int?, Moneda) Clave(int autId, FilaPlan f, Moneda mon) =>
+        (autId, f.Concepto, f.Anio, f.Mes, mon);
+
+    private decimal? ValorCelda(int autId, FilaPlan f, Moneda mon) =>
+        celdas.TryGetValue(Clave(autId, f, mon), out var v) ? v : null;
+
+    private void FilaRender(RowRenderEventArgs<FilaPlan> args)
+    {
+        // Fila de subtotal de año: fondo de página (neutro en ambos temas), sin edición.
+        // Data es anulable en los args de Radzen (filas de grupo/pie): se filtra con patrón.
+        if (args.Data is { EsSubtotal: true })
+            args.Attributes["style"] = "background:var(--rz-body-background-color)";
+    }
+
+    private void CeldaRender(int autId, DataGridCellRenderEventArgs<FilaPlan> args)
+    {
+        if (args.Data is not { } fila || fila.EsSubtotal || !Enum.TryParse<Moneda>(args.Column?.Title, out var mon)) return;
+        // Celda que difiere de lo guardado: tinte primario (translúcido en ambos temas).
+        if (EsCeldaModificada(Clave(autId, fila, mon)))
+            args.Attributes["class"] = "rz-background-color-primary-lighter";
+        if (puedeEditar)
+            args.Attributes["style"] = "cursor:text";
+    }
+
+    // Edición en celda: una sola celda con input a la vez. Click la abre; Enter guarda y baja
+    // a la fila siguiente; Escape cancela; salir del input (blur) guarda y cierra.
+    private (int Aut, FilaPlan Fila, Moneda Mon)? enEdicion;
+    private bool enfocarCelda;
+    private RadzenNumeric<decimal?>? numericoEnEdicion;
+
+    private bool EnEdicion(int autId, FilaPlan f, Moneda mon) =>
+        enEdicion is { } e && e.Aut == autId && e.Fila == f && e.Mon == mon;
+
+    private void CeldaClick(int autId, DataGridCellMouseEventArgs<FilaPlan> args)
+    {
+        if (!puedeEditar || args.Data is not { } fila || fila.EsSubtotal || !Enum.TryParse<Moneda>(args.Column?.Title, out var mon)) return;
+        IrA((autId, fila, mon));
+    }
+
+    private void IrA((int Aut, FilaPlan Fila, Moneda Mon)? destino)
+    {
+        if (Equals(enEdicion, destino)) return;
+        textoEnEdicion = null;
+        enEdicion = destino;
+        enfocarCelda = destino is not null;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (enfocarCelda && numericoEnEdicion is not null)
+        {
+            enfocarCelda = false;
+            await numericoEnEdicion.FocusAsync();
+        }
+    }
+
+    // El Change de RadzenNumeric puede llegar DESPUÉS del focusout que ya confirmó y cerró la
+    // celda (Blazor no garantiza el orden change/focusout), y en ese caso trae null porque el
+    // input ya no existe: solo se toma si la celda sigue en edición.
+    private RenderFragment CeldaGrilla(int autId, FilaPlan f, Moneda mon)
+    {
+        var key = Clave(autId, f, mon);
+        return @<RadzenNumeric @ref="numericoEnEdicion" TValue="decimal?" Value="@(celdas.TryGetValue(key, out var v) ? v : null)"
+            Change="@((decimal? nv) => { if (EnEdicion(autId, f, mon)) { celdas[key] = nv; IrA(null); } })" Step="0.01" ShowUpDown="false" style="width:100%"
+            aria-label="@EtiquetaCelda(autId, f.Concepto, f.Anio, f.Mes, mon)" />;
+    }
+
+    // Lo tipeado en la celda (oninput), sin parsear todavía: el change del input no llega
+    // al presionar Enter, y al quitar el input del DOM se perdería. Null = no se tipeó nada.
+    private string? textoEnEdicion;
+
+    private void TeclaCelda(KeyboardEventArgs e, int autId, FilaPlan f, Moneda mon)
+    {
+        if (e.Key == "Escape") { textoEnEdicion = null; IrA(null); return; }
+        if (e.Key != "Enter") return;
+        ConfirmarCelda(autId, f, mon, cerrar: false);
+        IrA(SiguienteFila(autId, f, mon));
+    }
+
+    /// <summary>
+    /// Guarda en `celdas` lo tipeado (misma cultura con la que RadzenNumeric parsea) y,
+    /// si corresponde, cierra la edición. Texto inválido: se conserva el valor anterior.
+    /// </summary>
+    private void ConfirmarCelda(int autId, FilaPlan f, Moneda mon, bool cerrar)
+    {
+        if (textoEnEdicion is { } texto)
+        {
+            textoEnEdicion = null;
+            var key = Clave(autId, f, mon);
+            if (string.IsNullOrWhiteSpace(texto))
+                celdas[key] = null;
+            else if (decimal.TryParse(texto, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.CurrentCulture, out var valor))
+                celdas[key] = valor;
+        }
+        if (cerrar && EnEdicion(autId, f, mon)) IrA(null);
+    }
+
+    /// <summary>Siguiente fila editable del bloque, misma moneda (null si era la última).</summary>
+    private (int Aut, FilaPlan Fila, Moneda Mon)? SiguienteFila(int autId, FilaPlan f, Moneda mon)
+    {
+        var filas = FilasDe(autId);
+        var siguiente = filas.SkipWhile(x => x != f).Skip(1).FirstOrDefault(x => !x.EsSubtotal);
+        return siguiente is null ? null : (autId, siguiente, mon);
+    }
+
+    /// <summary>Períodos mensuales del plan (los años planificados como total no entran en las herramientas).</summary>
+    private IEnumerable<PeriodoVM> Mensuales => vm!.Periodos.Where(p => !p.EsAnual);
+
+    /// <summary>"Restan $ X por planificar", "Excede en $ X" o "cuadra", según el signo de la diferencia.</summary>
+    private static string TextoDiferencia(decimal d, Moneda m) =>
+        d > 0 ? $"Restan {Fmt.Simbolo(m)} {Fmt.Pesos(d)} por planificar"
+        : d < 0 ? $"Excede en {Fmt.Simbolo(m)} {Fmt.Pesos(-d)}"
+        : "cuadra";
+
+    private void RepartirRestante(int autId)
+    {
+        var repartos = new List<string>();
+        foreach (var m in vm!.Monedas)
+        {
+            var resto = AutorizadoVsPlanificado(autId, m);
+            if (resto <= 0) continue;
+            var vacios = Mensuales
+                .Where(p => (celdas.TryGetValue((autId, ConceptoPlanMonto.Mensual, p.Anio, p.Mes, m), out var v) ? v : null) is null or 0)
+                .ToList();
+            if (vacios.Count == 0) continue;
+
+            // Partes iguales a dos decimales; el redondeo va al último mes para que la suma cierre exacta.
+            var cuota = Math.Round(resto / vacios.Count, 2, MidpointRounding.AwayFromZero);
+            for (var i = 0; i < vacios.Count; i++)
+            {
+                var monto = i == vacios.Count - 1 ? resto - cuota * (vacios.Count - 1) : cuota;
+                celdas[(autId, ConceptoPlanMonto.Mensual, vacios[i].Anio, vacios[i].Mes, m)] = monto;
+            }
+            repartos.Add($"{Fmt.Simbolo(m)} {Fmt.Pesos(resto)} en {vacios.Count} {(vacios.Count == 1 ? "mes" : "meses")}");
+        }
+
+        if (repartos.Count == 0)
+            Notifications.Notify(NotificationSeverity.Info, "Nada que repartir",
+                "No hay resto por planificar o no quedan meses vacíos para repartirlo.", 5000);
+        else
+            Notifications.Notify(NotificationSeverity.Success, "Repartido", string.Join("; ", repartos) + ". Revisá y guardá.", 5000);
+    }
+
+    private void CompletarConMesAnterior(int autId)
+    {
+        var completados = 0;
+        foreach (var m in vm!.Monedas)
+        {
+            decimal? anterior = null;
+            foreach (var p in Mensuales)
+            {
+                var key = (autId, ConceptoPlanMonto.Mensual, p.Anio, p.Mes, m);
+                var actual = celdas.TryGetValue(key, out var v) ? v : null;
+                if (actual is null or 0)
+                {
+                    if (anterior is not null) { celdas[key] = anterior; completados++; }
+                }
+                else
+                {
+                    anterior = actual;
+                }
+            }
+        }
+
+        if (completados == 0)
+            Notifications.Notify(NotificationSeverity.Info, "Nada que completar",
+                "No hay meses vacíos después de un mes con monto.", 5000);
+        else
+            Notifications.Notify(NotificationSeverity.Success, "Completado",
+                $"{completados} {(completados == 1 ? "celda tomó" : "celdas tomaron")} el valor del mes anterior. Revisá y guardá.", 5000);
+    }
+
+    private async Task LimpiarMesesAsync(int autId)
+    {
+        if (procesando) return;
+        procesando = true;
+        try
+        {
+            var ok = await DialogService.Confirm(
+                "Se dejan en blanco todos los meses del bloque (los años planificados como total no se tocan). El cambio queda pendiente hasta guardar. ¿Continuar?",
+                "Limpiar meses", new ConfirmOptions { OkButtonText = "Limpiar", CancelButtonText = "Cancelar" });
+            if (ok != true) return;
+
+            foreach (var m in vm!.Monedas)
+                foreach (var p in Mensuales)
+                    celdas[(autId, ConceptoPlanMonto.Mensual, p.Anio, p.Mes, m)] = null;
+            IrA(null);
+        }
+        finally { procesando = false; }
+    }
+
     /// <summary>true si el bloque tiene importe de anticipo ≠ 0 en alguna moneda (lo único que persiste el mes).</summary>
     private bool TieneImporteAnticipo(int autId) =>
         vm is not null && vm.Monedas.Any(m =>
@@ -521,18 +1009,13 @@ else
 
     private decimal PlanificadoPorTipo(TipoAutorizante tipo, Moneda mon) => Totales.PlanificadoPorTipo(tipo, mon);
 
+    /// <summary>Monto autorizado sumado de los bloques de un tipo (sobre lo tipeado).</summary>
+    private decimal AutorizadoPorTipo(TipoAutorizante tipo, Moneda mon) =>
+        vm!.Bloques.Where(b => b.Tipo == tipo).Sum(b => Totales.Valor(b.AutorizanteId, ConceptoPlanMonto.MontoAutorizado, null, null, mon));
+
     private decimal TotalPlanificado(Moneda mon) => Totales.TotalPlanificado(mon);
 
     private decimal TotalAutorizado(Moneda mon) => Totales.TotalAutorizado(mon);
-
-    private (string, Func<Moneda, decimal>)[] FilasTotales() =>
-    [
-        ("Total Obra Base", m => PlanificadoPorTipo(TipoAutorizante.Basica, m)),
-        ("Total Adicionales", m => PlanificadoPorTipo(TipoAutorizante.Adicional, m)),
-        ("Total BED", m => PlanificadoPorTipo(TipoAutorizante.BED, m)),
-        ("Suma Planificado", TotalPlanificado),
-        ("Total Autorizado", TotalAutorizado),
-    ];
 
     // La etiqueta del tipo vive en PlanificacionService (única implementación).
     private static string TipoTexto(TipoAutorizante t) => PlanificacionService.TipoTexto(t);
@@ -554,33 +1037,42 @@ else
         TieneImporteAnticipo(autorizanteId) && anticipoFecha.TryGetValue(autorizanteId, out var d) && d.HasValue
             ? new PeriodoVM(d.Value.Year, d.Value.Month) : null;
 
-    /// <summary>
-    /// true si la grilla tiene valores tipeados que difieren de lo guardado en la DB.
-    /// Las transiciones lo usan: sin este control, tipear y avanzar el circuito sin
-    /// apretar Guardar hacía parecer que los montos "se borraban" (nunca se guardaron).
-    /// </summary>
-    private bool HayCambiosSinGuardar()
+    /// <summary>Valor guardado en la DB para una clave de celda (0 si el bloque ya no existe).</summary>
+    private decimal ValorGuardado((int, ConceptoPlanMonto, int?, int?, Moneda) key)
     {
-        if (vm is null) return false;
-        var bloques = vm.Bloques.ToDictionary(b => b.AutorizanteId);
-        foreach (var kv in celdas)
-        {
-            // El anticipo se compara sin período: la celda de la UI siempre va con
-            // (null, null) aunque en la DB tenga mes asignado.
-            var guardado = !bloques.TryGetValue(kv.Key.Item1, out var b) ? 0m
-                : kv.Key.Item2 == ConceptoPlanMonto.AnticipoFinanciero ? b.ValorAnticipo(kv.Key.Item5)
-                : b.Valor(kv.Key.Item2, kv.Key.Item3, kv.Key.Item4, kv.Key.Item5);
-            if ((kv.Value ?? 0m) != guardado) return true;
-        }
+        var b = vm?.Bloques.FirstOrDefault(x => x.AutorizanteId == key.Item1);
+        if (b is null) return 0m;
+        // El anticipo se compara sin período: la celda de la UI siempre va con
+        // (null, null) aunque en la DB tenga mes asignado.
+        return key.Item2 == ConceptoPlanMonto.AnticipoFinanciero
+            ? b.ValorAnticipo(key.Item5)
+            : b.Valor(key.Item2, key.Item3, key.Item4, key.Item5);
+    }
+
+    private bool EsCeldaModificada((int, ConceptoPlanMonto, int?, int?, Moneda) key) =>
+        celdas.TryGetValue(key, out var v) && (v ?? 0m) != ValorGuardado(key);
+
+    /// <summary>
+    /// Cantidad de valores tipeados que difieren de lo guardado en la DB (celdas + mes del
+    /// anticipo). Alimenta el contador junto a Guardar; las transiciones usan
+    /// HayCambiosSinGuardar: sin ese control, tipear y avanzar el circuito sin apretar
+    /// Guardar hacía parecer que los montos "se borraban" (nunca se guardaron).
+    /// </summary>
+    private int CambiosSinGuardar()
+    {
+        if (vm is null) return 0;
+        var cambios = celdas.Keys.Count(EsCeldaModificada);
         foreach (var b in vm.Bloques)
         {
             // El mes solo se persiste si hay importe de anticipo (el guardado filtra Monto != 0).
             // Sin importe, MesAnticipoDe ya devuelve null y elegir un mes no genera fila: no es un
             // cambio pendiente. Con importe, un mes distinto al de la DB sí es un cambio real.
-            if (TieneImporteAnticipo(b.AutorizanteId) && !Equals(MesAnticipoDe(b.AutorizanteId), b.MesAnticipo())) return true;
+            if (TieneImporteAnticipo(b.AutorizanteId) && !Equals(MesAnticipoDe(b.AutorizanteId), b.MesAnticipo())) cambios++;
         }
-        return false;
+        return cambios;
     }
+
+    private bool HayCambiosSinGuardar() => CambiosSinGuardar() > 0;
 
     private bool AvisarSiHayCambiosSinGuardar()
     {
@@ -660,16 +1152,27 @@ else
     {
         if (procesando) return;
 
+        // Con la obra básica ya cargada, lo próximo que se agrega es un adicional o un BED.
+        var preseleccion = vm!.Bloques.Any(b => b.Tipo == TipoAutorizante.Basica)
+            ? TipoAutorizante.Adicional : TipoAutorizante.Basica;
+        var elegido = await DialogService.OpenAsync<AgregarBloqueDialog>("Agregar bloque",
+            new Dictionary<string, object?> { [nameof(AgregarBloqueDialog.Tipo)] = preseleccion },
+            new DialogOptions { Width = "min(420px, 92vw)" });
+        if (elegido is not AgregarBloqueDialog.Resultado r) return;
+
         procesando = true;
         try
         {
             if (await Persistencia.EjecutarAsync(
-                    () => Service.AgregarAutorizanteAsync(vm!.PlanificacionId, nuevoTipo, null,
-                        nuevoTipo == TipoAutorizante.Basica ? null : nuevaDenominacion),
+                    () => Service.AgregarAutorizanteAsync(vm!.PlanificacionId, r.Tipo, null, r.Denominacion),
                     Notifications))
-                Notifications.Notify(NotificationSeverity.Success, "Bloque agregado", TipoTexto(nuevoTipo), 3000);
-
-            nuevaDenominacion = null;
+            {
+                Notifications.Notify(NotificationSeverity.Success, "Bloque agregado", TipoTexto(r.Tipo), 3000);
+                await BuildStateAsync();
+                // El bloque nuevo es el último: se abre su pestaña para cargarlo enseguida.
+                pestana = vm!.Bloques.Count - 1;
+                return;
+            }
             await BuildStateAsync();
         }
         finally { procesando = false; }
