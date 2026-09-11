@@ -175,14 +175,29 @@ public class PlanificacionSnapshotTests(LocalDbFixture fx) : IClassFixture<Local
     // ── Rollover mensual ─────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Rollover_ReseteaLasTomasSalvoObraFinalizada_YEsIdempotente()
+    public async Task Rollover_DevuelveAPendienteConLaGrillaIntactaSalvoObraFinalizada_YEsIdempotente()
     {
-        var (obraActivaId, planActivoId, _) = await CrearPlanAprobadoAsync();
+        var (obraActivaId, planActivoId, autActivoId) = await CrearPlanAprobadoAsync();
         var (obraFinalId, planFinalizadoId, _) = await CrearPlanAprobadoAsync();
         var presupuesto = Crear(Roles.Presupuesto);
+        var admin = Crear(Roles.Admin);
         await presupuesto.TomarConocimientoAsync(planActivoId);
         await presupuesto.TomarConocimientoAsync(planFinalizadoId);
-        await Crear(Roles.Admin).MarcarObraFinalizadaAsync(planFinalizadoId, true);
+        await admin.MarcarObraFinalizadaAsync(planFinalizadoId, true);
+
+        // Un plan estancado a mitad del circuito (En revisión, sin toma) también se reinicia.
+        var (_, planEstancadoId, _) = await CrearPlanAprobadoAsync();
+        await admin.EnviarARevisionAsync(planEstancadoId, "corregir", "meses 2 y 3");
+
+        // Una obra que salió de Planificación (Proyectada: sin plazo) no cicla: su plan
+        // queda como estaba hasta que la obra vuelva al módulo.
+        var (obraFueraId, planFueraId, _) = await CrearPlanAprobadoAsync();
+        await presupuesto.TomarConocimientoAsync(planFueraId);
+        await using (var db = fx.CrearContexto())
+        {
+            (await db.Obras.SingleAsync(o => o.Id == obraFueraId)).FechaFinalContrato = null;
+            await db.SaveChangesAsync();
+        }
 
         // Un mes ficticio para no chocar con otros tests que corran el mes real.
         var diaRollover = new DateTime(2091, 5, 9);
@@ -191,21 +206,48 @@ public class PlanificacionSnapshotTests(LocalDbFixture fx) : IClassFixture<Local
         await using (var db = fx.CrearContexto())
             reiniciados = await PlanificacionRolloverService.EjecutarAsync(db, diaRollover);
 
-        // Al menos el plan activo (la fixture es compartida: otros tests pueden
-        // haber dejado más planes con toma registrada).
-        Assert.True(reiniciados >= 1);
+        // Al menos los dos planes no finalizados (la fixture es compartida: otros tests
+        // pueden haber dejado más planes con el circuito iniciado).
+        Assert.True(reiniciados >= 2);
 
         await using (var db = fx.CrearContexto())
         {
             var activo = await db.Planificaciones.SingleAsync(p => p.Id == planActivoId);
+            var estancado = await db.Planificaciones.SingleAsync(p => p.Id == planEstancadoId);
             var finalizado = await db.Planificaciones.SingleAsync(p => p.Id == planFinalizadoId);
-            Assert.Null(activo.FechaTomaConocimiento);        // ciclo nuevo
-            Assert.NotNull(finalizado.FechaTomaConocimiento); // fuera del ciclo
 
-            // La historia no se toca: los snapshots de ambos siguen.
+            // Ciclo nuevo: vuelven a Pendiente sin rastro del circuito anterior.
+            Assert.Equal(EstadoPlanificacion.Pendiente, activo.Estado);
+            Assert.Null(activo.FechaCarga);
+            Assert.Null(activo.FechaAprobacion);
+            Assert.Null(activo.FechaTomaConocimiento);
+            Assert.Null(activo.TomadaConocimientoPor);
+            Assert.Equal(EstadoPlanificacion.Pendiente, estancado.Estado);
+            Assert.Null(estancado.MotivoRevision);
+            Assert.Null(estancado.Correcciones);
+
+            // Fuera del ciclo: la obra finalizada y la que salió del módulo conservan todo.
+            Assert.Equal(EstadoPlanificacion.Aprobada, finalizado.Estado);
+            Assert.NotNull(finalizado.FechaTomaConocimiento);
+            var fuera = await db.Planificaciones.SingleAsync(p => p.Id == planFueraId);
+            Assert.Equal(EstadoPlanificacion.Aprobada, fuera.Estado);
+            Assert.NotNull(fuera.FechaTomaConocimiento);
+
+            // La grilla queda precargada con los montos del mes anterior...
+            Assert.Equal(1, await db.PlanMontos.CountAsync(m => m.AutorizanteId == autActivoId
+                && m.Concepto == ConceptoPlanMonto.Mensual && m.Monto == 100m));
+            // ...y la historia no se toca: los snapshots de ambos siguen.
             Assert.Equal(1, await db.PlanificacionSnapshots.CountAsync(s => s.ObraId == obraActivaId));
             Assert.Equal(1, await db.PlanificacionSnapshots.CountAsync(s => s.ObraId == obraFinalId));
         }
+
+        // El circuito se repite sobre lo precargado: Cargada → Aprobada → toma del mes nuevo.
+        await admin.MarcarCargadaAsync(planActivoId);
+        await admin.AprobarAsync(planActivoId);
+        await presupuesto.TomarConocimientoAsync(planActivoId);
+        await using (var db = fx.CrearContexto())
+            Assert.Equal(EstadoPlanificacion.Aprobada,
+                (await db.Planificaciones.SingleAsync(p => p.Id == planActivoId)).Estado);
 
         // Segunda corrida del mismo mes: idempotente.
         await using (var db = fx.CrearContexto())

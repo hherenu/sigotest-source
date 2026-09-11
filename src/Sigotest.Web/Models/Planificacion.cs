@@ -27,8 +27,9 @@ public class Planificacion : BaseEntity
 
     // ── Toma de conocimiento (Presupuesto) ───────────────────────────────────────
     // Cierra el ciclo mensual: al tomar conocimiento de un plan Aprobado se genera el
-    // snapshot del mes. El rollover del día Correo:DiaRollover resetea estos campos
-    // (salvo obra finalizada) para que el ciclo del mes nuevo vuelva a requerirla.
+    // snapshot del mes. El rollover del día Correo:DiaRollover devuelve el plan a
+    // Pendiente y limpia estos campos (salvo obra finalizada) para que el mes nuevo
+    // vuelva a recorrer el circuito; la grilla queda como estaba.
     public DateTime? FechaTomaConocimiento { get; set; }
     public string? TomadaConocimientoPor { get; set; }
 
