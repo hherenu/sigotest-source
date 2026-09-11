@@ -71,7 +71,9 @@ public class PlanificacionExportController(IDbContextFactory<AppDbContext> dbFac
         var soloDirector = Roles.SoloDirector(User.IsInRole);
         var wu = User.Identity?.Name;
 
-        // Mismo universo que la lista: una obra "Proyectada" no participa de Planificación.
+        // Mismo universo que la lista para el plan VIGENTE: una obra "Proyectada" no
+        // participa de Planificación. Las versiones (snapshots) son historia y se
+        // exportan aunque la obra haya salido después del módulo.
         var enPlanificacion = db.Obras.Where(ObraValidator.EnPlanificacion(DateTime.Today)).Select(o => o.Id);
 
         if (modo == "vigente")
@@ -89,8 +91,10 @@ public class PlanificacionExportController(IDbContextFactory<AppDbContext> dbFac
                 p.Obra.DirectorUsuario != null && p.Obra.DirectorUsuario.WindowsUser == wu);
 
             var hoy = DateTime.Today;
+            // Montos efectivos: el autorizado de la Obra Básica es el presupuesto de la obra
+            // (adjudicado u oficial), no una fila del plan.
             return (await query.ToListAsync())
-                .SelectMany(p => p.Autorizantes.SelectMany(a => a.Montos.Select(m => new Fila(
+                .SelectMany(p => p.Autorizantes.SelectMany(a => PlanificacionService.MontosEfectivos(a, p.Obra.Presupuestos).Select(m => new Fila(
                     hoy.Month, hoy.Year,
                     p.Obra.NumeroLicitacion, p.Obra.Nombre, p.Obra.Contratista, p.Obra.DirectorNombre,
                     p.Obra.FechaActaInicio ?? p.Obra.FechaContrato, p.Obra.FechaFinalContrato,
@@ -103,7 +107,7 @@ public class PlanificacionExportController(IDbContextFactory<AppDbContext> dbFac
         var snaps = db.PlanificacionSnapshots.AsNoTracking()
             .Include(s => s.Obra).ThenInclude(o => o.DirectorUsuario)
             .Include(s => s.Montos)
-            .Where(s => enPlanificacion.Contains(s.ObraId));
+            .AsQueryable();
         if (obraId is int oid2) snaps = snaps.Where(s => s.ObraId == oid2);
         if (idsFiltro is not null) snaps = snaps.Where(s => idsFiltro.Contains(s.ObraId));
         if (soloDirector) snaps = snaps.Where(s =>

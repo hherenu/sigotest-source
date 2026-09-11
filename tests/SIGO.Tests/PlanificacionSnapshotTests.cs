@@ -50,17 +50,21 @@ public class PlanificacionSnapshotTests(LocalDbFixture fx) : IClassFixture<Local
     private async Task<(int ObraId, int PlanId, int AutorizanteId)> CrearPlanAprobadoAsync(decimal montoMensual = 100m)
     {
         await using var db = fx.CrearContexto();
-        var obra = new Obra { Nombre = $"Obra snap {Guid.NewGuid():N}", NumeroLicitacion = "LP SNAP" };
+        // Presupuesto oficial = curva: el circuito exige el balance de la básica contra
+        // el presupuesto de la obra.
+        var obra = new Obra
+        {
+            Nombre = $"Obra snap {Guid.NewGuid():N}", NumeroLicitacion = "LP SNAP",
+            PresupuestoOficial = montoMensual, FechaFinalContrato = new DateTime(2030, 12, 1)
+        };
         db.Obras.Add(obra);
         await db.SaveChangesAsync();
 
         var admin = Crear(Roles.Admin);
         var plan = await admin.GetOrCreateAsync(obra.Id);
         var basica = await admin.AgregarAutorizanteAsync(plan.Id, TipoAutorizante.Basica, null, null);
-        // Autorizado = curva: la regla Autorizado vs Planificado = 0 exige el balance.
         await admin.GuardarGrillaAsync(plan.Id,
-            [new PlanMontoInput(basica.Id, ConceptoPlanMonto.MontoAutorizado, null, null, Moneda.Pesos, montoMensual),
-             new PlanMontoInput(basica.Id, ConceptoPlanMonto.Mensual, 2030, 1, Moneda.Pesos, montoMensual)],
+            [new PlanMontoInput(basica.Id, ConceptoPlanMonto.Mensual, 2030, 1, Moneda.Pesos, montoMensual)],
             PeriodosTest);
         await admin.MarcarCargadaAsync(plan.Id);
         await admin.AprobarAsync(plan.Id);
@@ -86,9 +90,12 @@ public class PlanificacionSnapshotTests(LocalDbFixture fx) : IClassFixture<Local
         var snap = await db.PlanificacionSnapshots.Include(s => s.Montos)
             .SingleAsync(s => s.ObraId == obraId);
         Assert.Equal((hoy.Year, hoy.Month), (snap.Anio, snap.Mes));
-        Assert.Equal(2, snap.Montos.Count); // autorizado + mensual, denormalizados
+        Assert.Equal(2, snap.Montos.Count); // autorizado (presupuesto de la obra) + mensual, denormalizados
         Assert.Contains(snap.Montos, m =>
             m.Tipo == TipoAutorizante.Basica && m.Concepto == ConceptoPlanMonto.Mensual && m.Monto == 100m);
+        Assert.Contains(snap.Montos, m =>
+            m.Tipo == TipoAutorizante.Basica && m.Concepto == ConceptoPlanMonto.MontoAutorizado
+            && m.Moneda == Moneda.Pesos && m.Monto == 100m);
     }
 
     [Fact]
@@ -132,11 +139,16 @@ public class PlanificacionSnapshotTests(LocalDbFixture fx) : IClassFixture<Local
 
         await presupuesto.TomarConocimientoAsync(planId);
 
-        // Loop de revisión dentro del mismo mes: corrige la curva y re-aprueba.
+        // Loop de revisión dentro del mismo mes: se adjudica por 250, se corrige la curva
+        // y se re-aprueba (la básica balancea contra el adjudicado).
         await admin.EnviarARevisionAsync(planId, "monto mal", null);
+        await using (var dbObra = fx.CrearContexto())
+        {
+            (await dbObra.Obras.SingleAsync(o => o.Id == obraId)).PresupuestoAdjudicado = 250m;
+            await dbObra.SaveChangesAsync();
+        }
         await admin.GuardarGrillaAsync(planId,
-            [new PlanMontoInput(autId, ConceptoPlanMonto.MontoAutorizado, null, null, Moneda.Pesos, 250m),
-             new PlanMontoInput(autId, ConceptoPlanMonto.Mensual, 2030, 1, Moneda.Pesos, 250m)],
+            [new PlanMontoInput(autId, ConceptoPlanMonto.Mensual, 2030, 1, Moneda.Pesos, 250m)],
             PeriodosTest);
         await admin.MarcarCargadaAsync(planId);
         await admin.AprobarAsync(planId);

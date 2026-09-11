@@ -88,6 +88,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
 
         // Textos largos que sí necesitan más que la convención de 250.
         modelBuilder.Entity<Obra>().Property(o => o.CorreoDirectorObra).HasMaxLength(500);
+        // Misma precisión que PlanMonto.Monto: el presupuesto es el autorizado de la Obra Básica.
+        modelBuilder.Entity<Obra>(b =>
+        {
+            b.Property(o => o.PresupuestoOficial).HasPrecision(18, 4);
+            b.Property(o => o.PresupuestoOficialUSD).HasPrecision(18, 4);
+            b.Property(o => o.PresupuestoOficialEUR).HasPrecision(18, 4);
+            b.Property(o => o.PresupuestoAdjudicado).HasPrecision(18, 4);
+            b.Property(o => o.PresupuestoAdjudicadoUSD).HasPrecision(18, 4);
+            b.Property(o => o.PresupuestoAdjudicadoEUR).HasPrecision(18, 4);
+        });
         modelBuilder.Entity<ItemEstructura>().Property(i => i.Descripcion).HasMaxLength(500);
         modelBuilder.Entity<ItemPonderacion>().Property(i => i.DescripcionINDEC).HasMaxLength(500);
         modelBuilder.Entity<RedeterminacionGuardadaItem>().Property(i => i.DescripcionINDEC).HasMaxLength(500);

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SIGO.Data;
 
@@ -11,9 +12,11 @@ using SIGO.Data;
 namespace SIGO.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260911185729_BackfillPresupuestoBasica")]
+    partial class BackfillPresupuestoBasica
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1171,6 +1174,65 @@ namespace SIGO.Migrations
                     b.ToTable("PlanificacionSnapshots");
                 });
 
+            modelBuilder.Entity("SIGO.Models.ProrrogaObra", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime?>("FechaActo")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FechaFinAnterior")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FechaFinNueva")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("IFActo")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<int>("Numero")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ObraId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Observaciones")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ObraId", "Numero")
+                        .IsUnique();
+
+                    b.ToTable("ProrrogasObra");
+                });
+
             modelBuilder.Entity("SIGO.Models.RedeterminacionGuardada", b =>
                 {
                     b.Property<int>("Id")
@@ -1717,6 +1779,17 @@ namespace SIGO.Migrations
                     b.Navigation("Obra");
                 });
 
+            modelBuilder.Entity("SIGO.Models.ProrrogaObra", b =>
+                {
+                    b.HasOne("SIGO.Models.Obra", "Obra")
+                        .WithMany("Prorrogas")
+                        .HasForeignKey("ObraId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Obra");
+                });
+
             modelBuilder.Entity("SIGO.Models.RedeterminacionGuardada", b =>
                 {
                     b.HasOne("SIGO.Models.Obra", "Obra")
@@ -1833,6 +1906,8 @@ namespace SIGO.Migrations
             modelBuilder.Entity("SIGO.Models.Obra", b =>
                 {
                     b.Navigation("EstructurasCostos");
+
+                    b.Navigation("Prorrogas");
 
                     b.Navigation("TablasPonderacion");
                 });

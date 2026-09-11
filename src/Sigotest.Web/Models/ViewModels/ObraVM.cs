@@ -27,6 +27,19 @@ public class ObraVM
     public string? PlazoObra { get; set; }
     public DateTime? FechaFinalContrato { get; set; }
     public string? DirectorObra { get; set; }
+    /// <summary>Presupuesto oficial en pesos (obligatorio, mayor a cero); US$ y € opcionales.</summary>
+    public decimal PresupuestoOficial { get; set; }
+    public decimal? PresupuestoOficialUSD { get; set; }
+    public decimal? PresupuestoOficialEUR { get; set; }
+    /// <summary>Presupuesto adjudicado por moneda (opcional; cargado, manda sobre el oficial en Planificación).</summary>
+    public decimal? PresupuestoAdjudicado { get; set; }
+    public decimal? PresupuestoAdjudicadoUSD { get; set; }
+    public decimal? PresupuestoAdjudicadoEUR { get; set; }
+
+    /// <summary>Los seis importes con la regla de referencia (ver <see cref="PresupuestosObra"/>).</summary>
+    public PresupuestosObra Presupuestos => new(
+        PresupuestoOficial, PresupuestoOficialUSD, PresupuestoOficialEUR,
+        PresupuestoAdjudicado, PresupuestoAdjudicadoUSD, PresupuestoAdjudicadoEUR);
     public int? DirectorUsuarioId { get; set; }
     /// <summary>Nombre del director para mostrar (usuario asignado, o el texto libre). Solo lectura del detalle.</summary>
     public string? DirectorNombre { get; set; }

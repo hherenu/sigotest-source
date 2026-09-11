@@ -36,6 +36,8 @@ else
                 @Dato("Antecedentes", obra.Antecedentes)
                 @Dato("Contratista", obra.Contratista)
                 @Dato("PUByC", obra.PUByC)
+                @Dato("Presupuesto oficial", Importes(obra.PresupuestoOficial, obra.PresupuestoOficialUSD, obra.PresupuestoOficialEUR))
+                @Dato("Presupuesto adjudicado", Importes(obra.PresupuestoAdjudicado, obra.PresupuestoAdjudicadoUSD, obra.PresupuestoAdjudicadoEUR))
                 @Dato("Director de Obra", obra.DirectorNombre)
                 @Dato("IF Designación", obra.IFDesignacion)
                 <RadzenRow class="rz-mt-1">
@@ -193,6 +195,16 @@ else
         // El servicio ya devuelve estructuras (por fecha) e ítems (por número) ordenados.
         obra = await ObraService.ObtenerDetalleAsync(Id);
         noEncontrada = obra is null;
+    }
+
+    /// <summary>"$ 1.000,00 · US$ 50,00" con solo las monedas cargadas (null si ninguna: el Dato queda vacío).</summary>
+    private static string? Importes(decimal? pesos, decimal? usd, decimal? eur)
+    {
+        var partes = new List<string>();
+        if (pesos is > 0) partes.Add($"{Fmt.Simbolo(Moneda.Pesos)} {Fmt.Pesos(pesos.Value)}");
+        if (usd is > 0) partes.Add($"{Fmt.Simbolo(Moneda.USD)} {Fmt.Pesos(usd.Value)}");
+        if (eur is > 0) partes.Add($"{Fmt.Simbolo(Moneda.EUR)} {Fmt.Pesos(eur.Value)}");
+        return partes.Count > 0 ? string.Join(" · ", partes) : null;
     }
 
     private RenderFragment Dato(string label, string? value) =>@<RadzenRow class="rz-mt-1">

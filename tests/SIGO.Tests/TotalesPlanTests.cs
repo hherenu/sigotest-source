@@ -113,10 +113,28 @@ public class TotalesPlanTests
         var celdas = Celdas(
             (1, ConceptoPlanMonto.MontoAutorizado, null, null, Moneda.Pesos, 1000m),
             (1, ConceptoPlanMonto.Mensual, 2030, 1, Moneda.Pesos, 300m));
-        var t = new TotalesPlan(celdas, [Bloque(1, TipoAutorizante.Basica)], Periodos);
+        var t = new TotalesPlan(celdas, [Bloque(1, TipoAutorizante.Adicional)], Periodos);
 
         Assert.Equal(1000m, t.MontoAutorizado(1, Moneda.Pesos));
         Assert.Equal(700m, t.AutorizadoVsPlanificado(1, Moneda.Pesos));
+    }
+
+    [Fact]
+    public void MontoAutorizado_ObraBasica_EsElPresupuestoDelBloqueNoLaCelda()
+    {
+        // La básica no tiene celda de Monto Autorizado: su autorizado es el presupuesto de
+        // la obra, que el VM deja en los Valores del bloque. Una celda así (no debería
+        // existir) se ignora, y en otra moneda que Pesos no hay autorizado.
+        var celdas = Celdas(
+            (1, ConceptoPlanMonto.MontoAutorizado, null, null, Moneda.Pesos, 5000m),
+            (1, ConceptoPlanMonto.Mensual, 2030, 1, Moneda.Pesos, 300m));
+        var basica = Bloque(1, TipoAutorizante.Basica,
+            (ConceptoPlanMonto.MontoAutorizado, null, null, Moneda.Pesos, 1000m));
+        var t = new TotalesPlan(celdas, [basica], Periodos);
+
+        Assert.Equal(1000m, t.MontoAutorizado(1, Moneda.Pesos));
+        Assert.Equal(700m, t.AutorizadoVsPlanificado(1, Moneda.Pesos));
+        Assert.Equal(0m, t.MontoAutorizado(1, Moneda.USD));
     }
 
     [Fact]
@@ -164,10 +182,10 @@ public class TotalesPlanTests
     public void AutorizadoVsPlanificado_Sobreplanificado_EsNegativo()
     {
         // La grilla pinta en rojo cuando la diferencia es < 0.
-        var celdas = Celdas(
-            (1, ConceptoPlanMonto.MontoAutorizado, null, null, Moneda.Pesos, 100m),
-            (1, ConceptoPlanMonto.Mensual, 2030, 1, Moneda.Pesos, 250m));
-        var t = new TotalesPlan(celdas, [Bloque(1, TipoAutorizante.Basica)], Periodos);
+        var celdas = Celdas((1, ConceptoPlanMonto.Mensual, 2030, 1, Moneda.Pesos, 250m));
+        var basica = Bloque(1, TipoAutorizante.Basica,
+            (ConceptoPlanMonto.MontoAutorizado, null, null, Moneda.Pesos, 100m)); // presupuesto de la obra
+        var t = new TotalesPlan(celdas, [basica], Periodos);
 
         Assert.Equal(-150m, t.AutorizadoVsPlanificado(1, Moneda.Pesos));
     }
@@ -176,11 +194,15 @@ public class TotalesPlanTests
     public void Totales_SumanTodosLosBloques()
     {
         var celdas = Celdas(
-            (1, ConceptoPlanMonto.MontoAutorizado, null, null, Moneda.Pesos, 1000m),
             (1, ConceptoPlanMonto.Mensual, 2030, 1, Moneda.Pesos, 100m),
             (2, ConceptoPlanMonto.MontoAutorizado, null, null, Moneda.Pesos, 500m),
             (2, ConceptoPlanMonto.AnticipoFinanciero, null, null, Moneda.Pesos, 30m));
-        var bloques = new[] { Bloque(1, TipoAutorizante.Basica), Bloque(2, TipoAutorizante.BED) };
+        var bloques = new[]
+        {
+            // El autorizado de la básica es el presupuesto de la obra (Valores del bloque).
+            Bloque(1, TipoAutorizante.Basica, (ConceptoPlanMonto.MontoAutorizado, null, null, Moneda.Pesos, 1000m)),
+            Bloque(2, TipoAutorizante.BED),
+        };
         var t = new TotalesPlan(celdas, bloques, Periodos);
 
         Assert.Equal(130m, t.TotalPlanificado(Moneda.Pesos));

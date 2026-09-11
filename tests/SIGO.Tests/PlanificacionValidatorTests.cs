@@ -1,3 +1,4 @@
+using SIGO.Models;
 using SIGO.Models.Enums;
 using SIGO.Services.Validaciones;
 
@@ -65,6 +66,38 @@ public class PlanificacionValidatorTests
         Assert.Equal("La toma de conocimiento de este ciclo ya fue registrada.",
             PlanificacionValidator.TomarConocimiento(EstadoPlanificacion.Aprobada, DateTime.UtcNow));
     }
+
+    // ── Presupuesto de la obra y tope del 50% para adicionales/BED ─────────────
+
+    [Fact]
+    public void ObraEnPlanificacion_SoloRechazaProyectada()
+    {
+        Assert.Contains("Proyectada", PlanificacionValidator.ObraEnPlanificacion("Proyectada"));
+        Assert.Null(PlanificacionValidator.ObraEnPlanificacion("Vigente"));
+        Assert.Null(PlanificacionValidator.ObraEnPlanificacion("Proceso Licitatorio"));
+    }
+
+    [Fact]
+    public void PresupuestoObra_SinPresupuesto_Rechaza()
+    {
+        Assert.Contains("no tiene presupuesto oficial",
+            PlanificacionValidator.PresupuestoObra(new PresupuestosObra(0m, null, null, null, null, null)));
+        Assert.Null(PlanificacionValidator.PresupuestoObra(new PresupuestosObra(1m, null, null, null, null, null)));
+    }
+
+    [Fact]
+    public void AdicionalSobreLimite_AvisaSoloPorEncimaDel50PorCiento()
+    {
+        // Hasta el 50% inclusive no avisa; por encima, avisa con el bloque, la moneda, el importe y el tope.
+        Assert.Null(PlanificacionValidator.AdicionalSobreLimite("Adicional N°1", Moneda.Pesos, 500m, 1000m, "Presupuesto oficial"));
+        var aviso = PlanificacionValidator.AdicionalSobreLimite("Adicional N°1", Moneda.USD, 500.01m, 1000m, "Presupuesto adjudicado");
+        Assert.Contains("Adicional N°1 en USD", aviso);
+        Assert.Contains("supera el 50% del presupuesto adjudicado", aviso);
+    }
+
+    [Fact]
+    public void AdicionalSobreLimite_SinPresupuestoEnLaMoneda_NoCompara() =>
+        Assert.Null(PlanificacionValidator.AdicionalSobreLimite("BED N°1", Moneda.EUR, 999m, 0m, "Presupuesto oficial"));
 
     // ── Mes del anticipo ≤ primer mes del plan ─────────────────────────────────
 

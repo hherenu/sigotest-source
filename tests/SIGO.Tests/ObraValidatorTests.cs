@@ -1,4 +1,5 @@
 using SIGO.Models;
+using SIGO.Models.Enums;
 using SIGO.Services.Validaciones;
 
 namespace SIGO.Tests;
@@ -95,17 +96,76 @@ public class ObraValidatorTests
 
     // ── Guardar (campos mínimos) ─────────────────────────────────────────────────
 
+    private static PresupuestosObra Presupuestos(decimal oficial = 1000m, decimal? adjudicado = null,
+        decimal? oficialUsd = null, decimal? adjudicadoUsd = null) =>
+        new(oficial, oficialUsd, null, adjudicado, adjudicadoUsd, null);
+
     [Fact]
-    public void Guardar_ConNombreYLicitacion_Pasa() =>
-        Assert.Null(ObraValidator.Guardar("Estación Sáenz", "LP 123/25"));
+    public void Guardar_ConNombreLicitacionYPresupuesto_Pasa()
+    {
+        Assert.Null(ObraValidator.Guardar("Estación Sáenz", "LP 123/25", Presupuestos()));
+        Assert.Null(ObraValidator.Guardar("Estación Sáenz", "LP 123/25", Presupuestos(adjudicado: 950m, oficialUsd: 10m)));
+    }
 
     [Fact]
     public void Guardar_SinNombre_Rechaza() =>
-        Assert.Equal("El nombre es obligatorio", ObraValidator.Guardar("  ", "LP 123/25"));
+        Assert.Equal("El nombre es obligatorio", ObraValidator.Guardar("  ", "LP 123/25", Presupuestos()));
 
     [Fact]
     public void Guardar_SinLicitacion_Rechaza() =>
-        Assert.Equal("La licitación es obligatoria", ObraValidator.Guardar("Estación Sáenz", null));
+        Assert.Equal("La licitación es obligatoria", ObraValidator.Guardar("Estación Sáenz", null, Presupuestos()));
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Guardar_SinPresupuestoOficialEnPesos_Rechaza(int oficial) =>
+        Assert.Equal("El presupuesto oficial en pesos es obligatorio (mayor a cero)",
+            ObraValidator.Guardar("Estación Sáenz", "LP 123/25", Presupuestos(oficial)));
+
+    [Fact]
+    public void Guardar_PresupuestoOpcionalEnCero_Rechaza()
+    {
+        // Los demás importes son opcionales (null), pero cargados tienen que ser reales.
+        const string error = "Los demás presupuestos deben ser mayores a cero (o quedar vacíos)";
+        Assert.Equal(error, ObraValidator.Guardar("Estación Sáenz", "LP 123/25", Presupuestos(adjudicado: 0m)));
+        Assert.Equal(error, ObraValidator.Guardar("Estación Sáenz", "LP 123/25", Presupuestos(oficialUsd: -5m)));
+    }
+
+    // ── Presupuesto de referencia (adjudicado, si no oficial) ────────────────────
+
+    [Fact]
+    public void PresupuestosObra_AdjudicadoCargadoMandaEnTodasLasMonedas()
+    {
+        // Sin adjudicado: aplica el oficial moneda por moneda.
+        var oficial = Presupuestos(1000m, oficialUsd: 50m);
+        Assert.False(oficial.Adjudicado);
+        Assert.Equal(1000m, oficial.Referencia(Moneda.Pesos));
+        Assert.Equal(50m, oficial.Referencia(Moneda.USD));
+        Assert.Equal(0m, oficial.Referencia(Moneda.EUR));
+        Assert.Equal("Presupuesto oficial", oficial.Etiqueta);
+
+        // Con adjudicado (aunque sea en una sola moneda): manda en TODAS; la moneda sin
+        // importe adjudicado es 0, no cae al oficial.
+        var adjudicado = Presupuestos(1000m, adjudicado: 950m, oficialUsd: 50m);
+        Assert.True(adjudicado.Adjudicado);
+        Assert.Equal(950m, adjudicado.Referencia(Moneda.Pesos));
+        Assert.Equal(0m, adjudicado.Referencia(Moneda.USD));
+        Assert.Equal("Presupuesto adjudicado", adjudicado.Etiqueta);
+
+        var soloUsd = Presupuestos(1000m, adjudicadoUsd: 20m);
+        Assert.True(soloUsd.Adjudicado);
+        Assert.Equal(0m, soloUsd.Referencia(Moneda.Pesos));
+        Assert.Equal(20m, soloUsd.Referencia(Moneda.USD));
+    }
+
+    [Fact]
+    public void PresupuestosObra_TieneReferencia_SoloConAlgunImporte()
+    {
+        Assert.False(Presupuestos(0m).TieneReferencia);
+        Assert.True(Presupuestos(1m).TieneReferencia);
+        Assert.True(Presupuestos(0m, adjudicadoUsd: 1m).TieneReferencia);
+    }
+
 
     // ── Eliminar (mensaje de dependencias) ───────────────────────────────────────
 

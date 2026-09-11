@@ -103,7 +103,7 @@ public class ObraService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser
     public async Task CrearAsync(ObraVM vm)
     {
         ExigirRol("crear la obra");
-        Validacion.Exigir(ObraValidator.Guardar(vm.Nombre, vm.NumeroLicitacion));
+        Validacion.Exigir(ObraValidator.Guardar(vm.Nombre, vm.NumeroLicitacion, vm.Presupuestos));
 
         await using var db = await dbFactory.CreateDbContextAsync();
         var obra = new Obra();
@@ -119,7 +119,7 @@ public class ObraService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser
     public async Task ActualizarAsync(ObraVM vm)
     {
         ExigirRol("modificar la obra");
-        Validacion.Exigir(ObraValidator.Guardar(vm.Nombre, vm.NumeroLicitacion));
+        Validacion.Exigir(ObraValidator.Guardar(vm.Nombre, vm.NumeroLicitacion, vm.Presupuestos));
 
         await using var db = await dbFactory.CreateDbContextAsync();
         var obra = await db.Obras.FirstOrDefaultAsync(o => o.Id == vm.Id)
@@ -194,8 +194,14 @@ public class ObraService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser
         vm.FechaActaInicio = o.FechaActaInicio;
         vm.IFActaInicio = o.IFActaInicio;
         vm.PlazoObra = o.PlazoObra;
-        vm.FechaFinalContrato = o.FechaFinalContrato;
+        vm.FechaFinalContrato = o.FechaFinalContrato; // vigente (ver Obra.FechaFinalContrato)
         vm.DirectorObra = o.DirectorObra;
+        vm.PresupuestoOficial = o.PresupuestoOficial;
+        vm.PresupuestoOficialUSD = o.PresupuestoOficialUSD;
+        vm.PresupuestoOficialEUR = o.PresupuestoOficialEUR;
+        vm.PresupuestoAdjudicado = o.PresupuestoAdjudicado;
+        vm.PresupuestoAdjudicadoUSD = o.PresupuestoAdjudicadoUSD;
+        vm.PresupuestoAdjudicadoEUR = o.PresupuestoAdjudicadoEUR;
         vm.DirectorUsuarioId = o.DirectorUsuarioId;
         vm.DirectorNombre = o.DirectorNombre;
         vm.IFDesignacion = o.IFDesignacion;
@@ -225,6 +231,12 @@ public class ObraService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser
         o.PlazoObra = vm.PlazoObra;
         o.FechaFinalContrato = vm.FechaFinalContrato;
         o.DirectorObra = vm.DirectorObra;
+        o.PresupuestoOficial = vm.PresupuestoOficial;
+        o.PresupuestoOficialUSD = vm.PresupuestoOficialUSD;
+        o.PresupuestoOficialEUR = vm.PresupuestoOficialEUR;
+        o.PresupuestoAdjudicado = vm.PresupuestoAdjudicado;
+        o.PresupuestoAdjudicadoUSD = vm.PresupuestoAdjudicadoUSD;
+        o.PresupuestoAdjudicadoEUR = vm.PresupuestoAdjudicadoEUR;
         o.DirectorUsuarioId = vm.DirectorUsuarioId;
         o.IFDesignacion = vm.IFDesignacion;
     }
