@@ -293,6 +293,7 @@ public class PlanificacionService(
             .Include(p => p.Autorizantes)
             .FirstOrThrowAsync(p => p.Id == planificacionId, "Planificación no encontrada.");
         await ExigirObraAsignadaAsync(db, plan.ObraId);
+        Validacion.Exigir(PlanificacionValidator.EditarGrilla(plan.Estado));
 
         // La básica es única; los adicionales/BED autonumeran si no viene número.
         Validacion.Exigir(PlanificacionValidator.AgregarBloque(
@@ -326,6 +327,7 @@ public class PlanificacionService(
             .Include(a => a.Planificacion).ThenInclude(p => p.Autorizantes)
             .FirstOrThrowAsync(a => a.Id == autorizanteId, "Bloque no encontrado.");
         await ExigirObraAsignadaAsync(db, aut.Planificacion.ObraId);
+        Validacion.Exigir(PlanificacionValidator.EditarGrilla(aut.Planificacion.Estado));
 
         var plan = aut.Planificacion;
         db.Autorizantes.Remove(aut); // cascade borra sus PlanMonto
@@ -355,10 +357,10 @@ public class PlanificacionService(
     /// Reemplaza los montos del plan por los recibidos (solo celdas ≠ 0), acotado a los
     /// períodos que la grilla estaba editando: un monto de un período fuera del horizonte
     /// renderizado (obra muy larga, fin de contrato adelantado) se preserva en vez de
-    /// borrarse silenciosamente. El plan es editable en cualquier estado; guardar la
-    /// grilla no cambia el estado ni exige las reglas del circuito (presupuesto, balance
-    /// y mes del anticipo): las devuelve como avisos sobre lo que quedó guardado, y el
-    /// cambio de paso las exige.
+    /// borrarse silenciosamente. Solo en Pendiente o En revisión (ver
+    /// PlanificacionValidator.EditarGrilla); guardar no cambia el estado ni exige las
+    /// reglas del circuito (presupuesto, balance y mes del anticipo): las devuelve como
+    /// avisos sobre lo que quedó guardado, y el cambio de paso las exige.
     /// </summary>
     public async Task<IReadOnlyList<string>> GuardarGrillaAsync(int planificacionId, IEnumerable<PlanMontoInput> montos,
         IReadOnlyCollection<PeriodoVM> periodosEditados, byte[]? rowVersionSesion = null)
@@ -369,6 +371,7 @@ public class PlanificacionService(
         var plan = await GetConMontosAsync(db, planificacionId);
         await ExigirObraAsignadaAsync(db, plan.ObraId);
 
+        Validacion.Exigir(PlanificacionValidator.EditarGrilla(plan.Estado));
         Validacion.Exigir(PlanificacionValidator.GuardarGrilla(plan.Autorizantes.Count));
 
         var autIds = plan.Autorizantes.Select(a => a.Id).ToHashSet();

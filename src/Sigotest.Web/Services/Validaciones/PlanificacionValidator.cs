@@ -10,6 +10,24 @@ namespace SIGO.Services.Validaciones;
 /// </summary>
 public static class PlanificacionValidator
 {
+    /// <summary>
+    /// La grilla (montos, mes del anticipo y bloques) solo se modifica en la primera
+    /// instancia (Pendiente) y En revisión. Cargada, Aprobada y con toma de conocimiento
+    /// son de solo lectura: lo que el Gerente controla y Presupuesto toma es lo que se
+    /// ve. Para corregir, hay que volver a una instancia anterior (el Gerente envía a
+    /// revisión, o el rollover mensual devuelve a Pendiente).
+    /// </summary>
+    public static string? EditarGrilla(EstadoPlanificacion estado) =>
+        estado is EstadoPlanificacion.Pendiente or EstadoPlanificacion.EnRevision
+            ? null
+            : $"El plan está {EstadoTexto(estado)} y no se puede modificar. Solo se edita Pendiente o En revisión: para corregirlo, el Gerente debe enviarlo a revisión.";
+
+    private static string EstadoTexto(EstadoPlanificacion estado) => estado switch
+    {
+        EstadoPlanificacion.EnRevision => "En revisión",
+        _ => estado.ToString()
+    };
+
     /// <summary>La obra básica es única en el plan; adicionales/BED autonumeran.</summary>
     public static string? AgregarBloque(TipoAutorizante tipo, bool yaTieneBasica) =>
         tipo == TipoAutorizante.Basica && yaTieneBasica

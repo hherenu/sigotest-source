@@ -277,6 +277,11 @@ public class PlanificacionServiceTests(LocalDbFixture fx) : IClassFixture<LocalD
         var (_, plan, basica) = await CrearPlanBalanceadoAsync(servicio);
         await servicio.MarcarCargadaAsync(plan.Id);
 
+        // Cargada es de solo lectura: ni siquiera se quitan bloques. Vuelve por revisión.
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.EliminarAutorizanteAsync(basica.Id));
+        Assert.Contains("no se puede modificar", ex.Message);
+        await servicio.EnviarARevisionAsync(plan.Id, "rehacer", null);
+
         await servicio.EliminarAutorizanteAsync(basica.Id);
 
         await using var db = fx.CrearContexto();
@@ -578,6 +583,33 @@ public class PlanificacionServiceTests(LocalDbFixture fx) : IClassFixture<LocalD
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.MarcarCargadaAsync(plan.Id));
         Assert.Contains("no tiene presupuesto oficial", ex.Message);
+    }
+
+    [Fact]
+    public async Task GrillaSoloEditableEnPendienteOEnRevision()
+    {
+        var (servicio, _) = Crear(Roles.Admin);
+        var (_, plan, basica) = await CrearPlanBalanceadoAsync(servicio);
+        var celda = new PlanMontoInput(basica.Id, ConceptoPlanMonto.Mensual, 2030, 1, Moneda.Pesos, 100m);
+
+        // Cargada: ni montos ni bloques.
+        await servicio.MarcarCargadaAsync(plan.Id);
+        var exGuardar = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            servicio.GuardarGrillaAsync(plan.Id, [celda], PeriodosTest));
+        Assert.Contains("está Cargada", exGuardar.Message);
+        var exBloque = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            servicio.AgregarAutorizanteAsync(plan.Id, TipoAutorizante.Adicional, null, "Extra"));
+        Assert.Contains("no se puede modificar", exBloque.Message);
+
+        // Aprobada: tampoco.
+        await servicio.AprobarAsync(plan.Id);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            servicio.GuardarGrillaAsync(plan.Id, [celda], PeriodosTest));
+
+        // Vuelve a una instancia permitida (En revisión): se edita de nuevo.
+        await servicio.EnviarARevisionAsync(plan.Id, "corregir", null);
+        await servicio.GuardarGrillaAsync(plan.Id, [celda], PeriodosTest);
+        await servicio.AgregarAutorizanteAsync(plan.Id, TipoAutorizante.Adicional, null, "Extra");
     }
 
     [Fact]

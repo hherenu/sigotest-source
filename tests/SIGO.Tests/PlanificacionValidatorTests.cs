@@ -9,6 +9,22 @@ namespace SIGO.Tests;
 /// </summary>
 public class PlanificacionValidatorTests
 {
+    [Theory]
+    [InlineData(EstadoPlanificacion.Pendiente, true)]
+    [InlineData(EstadoPlanificacion.EnRevision, true)]
+    [InlineData(EstadoPlanificacion.Cargada, false)]
+    [InlineData(EstadoPlanificacion.Aprobada, false)]
+    public void EditarGrilla_SoloPendienteOEnRevision(EstadoPlanificacion estado, bool pasa) =>
+        Assert.Equal(pasa, PlanificacionValidator.EditarGrilla(estado) is null);
+
+    [Fact]
+    public void EditarGrilla_Rechazo_NombraElEstadoYElCaminoDeVuelta()
+    {
+        var error = PlanificacionValidator.EditarGrilla(EstadoPlanificacion.Aprobada);
+        Assert.Contains("está Aprobada", error);
+        Assert.Contains("enviarlo a revisión", error);
+    }
+
     [Fact]
     public void AgregarBloque_SegundaBasica_Rechaza()
     {

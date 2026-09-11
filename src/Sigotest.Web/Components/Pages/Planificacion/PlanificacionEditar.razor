@@ -75,6 +75,16 @@ else
         </RadzenAlert>
     }
 
+    @if (tieneRolEdicion && !puedeEditar)
+    {
+        @* Solo lectura por estado (no por rol): decirlo, si no la grilla deshabilitada
+           parece un error. El servicio rechaza igual (EditarGrilla). *@
+        <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false" class="rz-mb-3">
+            El plan está <b>@(vm.Estado == EstadoPlanificacion.EnRevision ? "En revisión" : vm.Estado.ToString())</b> y es de solo lectura.
+            Solo se edita Pendiente o En revisión: para corregirlo, el Gerente debe enviarlo a revisión.
+        </RadzenAlert>
+    }
+
     @* ── Transiciones de estado (cada rol ve solo la acción que le toca del circuito) ── *@
     <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap" class="rz-mb-3">
         @if (vm.Estado is EstadoPlanificacion.Pendiente or EstadoPlanificacion.EnRevision)
@@ -107,8 +117,9 @@ else
                               Disabled="@procesando" Click="@TomarConocimientoAsync" />
             </AuthorizeView>
         }
-        @if (puedeEditar)
+        @if (tieneRolEdicion)
         {
+            @* Flag de la obra, no de la grilla: se puede marcar en cualquier estado del plan. *@
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem" class="rz-ml-2">
                 <RadzenSwitch Value="@vm.ObraFinalizada" Disabled="@procesando"
                               ValueChanged="@((bool v) => MarcarFinalizadaAsync(v))" />
@@ -385,7 +396,15 @@ else
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
 
     // Presupuesto es solo lectura: sin guardar, sin bloques, celdas deshabilitadas.
-    private bool puedeEditar;
+    private bool tieneRolEdicion;
+
+    /// <summary>
+    /// La grilla se edita solo con rol de edición Y en Pendiente / En revisión (misma
+    /// regla que PlanificacionValidator.EditarGrilla, que el servicio exige): Cargada,
+    /// Aprobada y con toma son de solo lectura hasta volver a una instancia anterior.
+    /// </summary>
+    private bool puedeEditar =>
+        tieneRolEdicion && vm?.Estado is EstadoPlanificacion.Pendiente or EstadoPlanificacion.EnRevision;
 
     private static readonly TipoAutorizante[] TiposBloque =
         { TipoAutorizante.Basica, TipoAutorizante.Adicional, TipoAutorizante.BED };
@@ -421,7 +440,7 @@ else
         if (AuthState is not null)
         {
             var user = (await AuthState).User;
-            puedeEditar = Roles.TieneAlguno(user.IsInRole, Roles.PlanificacionEdicion);
+            tieneRolEdicion = Roles.TieneAlguno(user.IsInRole, Roles.PlanificacionEdicion);
         }
 
         // Mismo orden que el markup: primero existencia, después la asignación al
