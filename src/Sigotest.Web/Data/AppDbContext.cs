@@ -51,6 +51,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
 
     public DbSet<Obra> Obras => Set<Obra>();
     public DbSet<TablaPonderacion> TablasPonderacion => Set<TablaPonderacion>();
+    public DbSet<ProrrogaObra> ProrrogasObra => Set<ProrrogaObra>();
     public DbSet<ItemPonderacion> ItemsPonderacion => Set<ItemPonderacion>();
     public DbSet<IndiceINDEC> IndicesINDEC => Set<IndiceINDEC>();
     public DbSet<ValorIndice> ValoresIndice => Set<ValorIndice>();
@@ -172,6 +173,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
         modelBuilder.Entity<TablaPonderacion>()
             .HasIndex(t => t.ObraId)
             .IsUnique();
+
+        // Prórrogas de plazo: dato propio de la obra (a diferencia del historial
+        // contractual de abajo, se van con ella), correlativo único por obra como
+        // backstop del autonumerado Max+1 del servicio.
+        modelBuilder.Entity<ProrrogaObra>(b =>
+        {
+            b.HasOne(p => p.Obra)
+                .WithMany(o => o.Prorrogas)
+                .HasForeignKey(p => p.ObraId)
+                .OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(p => new { p.ObraId, p.Numero }).IsUnique();
+            b.Property(p => p.IFActo).HasMaxLength(250);
+            b.Property(p => p.Observaciones).HasMaxLength(2000);
+        });
 
         // ── Protección del historial contractual ──────────────────────────────────
         // Una obra con certificados, estructuras, ponderaciones o redeterminaciones no

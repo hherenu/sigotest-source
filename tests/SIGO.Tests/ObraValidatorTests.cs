@@ -166,6 +166,40 @@ public class ObraValidatorTests
         Assert.True(Presupuestos(0m, adjudicadoUsd: 1m).TieneReferencia);
     }
 
+    // ── Prórrogas de plazo ───────────────────────────────────────────────────────
+
+    [Fact]
+    public void AgregarProrroga_SinFechaFinVigente_Rechaza() =>
+        Assert.Contains("no tiene fecha de fin de contrato", ObraValidator.AgregarProrroga(null, Hoy));
+
+    [Fact]
+    public void AgregarProrroga_SinFechaNueva_Rechaza() =>
+        Assert.Equal("La nueva fecha de fin es obligatoria.", ObraValidator.AgregarProrroga(Hoy, null));
+
+    [Theory]
+    [InlineData(0)]   // misma fecha
+    [InlineData(-1)]  // anterior
+    public void AgregarProrroga_FechaNoPosterior_Rechaza(int dias) =>
+        Assert.Equal(
+            $"La nueva fecha de fin ({Hoy.AddDays(dias):dd/MM/yyyy}) debe ser posterior a la vigente ({Hoy:dd/MM/yyyy}).",
+            ObraValidator.AgregarProrroga(Hoy, Hoy.AddDays(dias)));
+
+    [Fact]
+    public void AgregarProrroga_FechaPosterior_Pasa()
+    {
+        Assert.Null(ObraValidator.AgregarProrroga(Hoy, Hoy.AddDays(1)));
+        // Por fecha calendario: la hora no cuenta.
+        Assert.Null(ObraValidator.AgregarProrroga(new DateTime(2026, 7, 27, 23, 0, 0), new DateTime(2026, 7, 28, 0, 0, 0)));
+    }
+
+    [Fact]
+    public void EliminarProrroga_SoloLaUltima()
+    {
+        Assert.Null(ObraValidator.EliminarProrroga(2, hayPosterior: false));
+        Assert.Equal(
+            "Solo se puede eliminar la última prórroga de la obra. La prórroga N°1 tiene posteriores que parten de su fecha.",
+            ObraValidator.EliminarProrroga(1, hayPosterior: true));
+    }
 
     // ── Eliminar (mensaje de dependencias) ───────────────────────────────────────
 

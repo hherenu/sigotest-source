@@ -46,7 +46,11 @@ public class ObraService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser
     {
         await using var db = await dbFactory.CreateDbContextAsync();
         var obra = await db.Obras.AsNoTracking().FirstOrDefaultAsync(o => o.Id == id);
-        return obra is null ? null : Mapear(obra, new ObraVM());
+        if (obra is null) return null;
+
+        var vm = Mapear(obra, new ObraVM());
+        vm.TieneProrrogas = await db.ProrrogasObra.AnyAsync(p => p.ObraId == id);
+        return vm;
     }
 
     /// <summary>
@@ -60,11 +64,18 @@ public class ObraService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser
             .Include(o => o.TablasPonderacion)
                 .ThenInclude(t => t.Items)
             .Include(o => o.EstructurasCostos)
+            .Include(o => o.Prorrogas)
             .Include(o => o.DirectorUsuario)
             .FirstOrDefaultAsync(o => o.Id == id);
         if (obra is null) return null;
 
         var vm = Mapear(obra, new ObraDetalleVM());
+        vm.Prorrogas = obra.Prorrogas
+            .OrderBy(p => p.Numero)
+            .Select(p => new ProrrogaObraVM(p.Id, p.Numero, p.FechaFinAnterior, p.FechaFinNueva,
+                p.FechaActo, p.IFActo, p.Observaciones))
+            .ToList();
+        vm.TieneProrrogas = vm.Prorrogas.Count > 0;
         vm.EstructurasCostos = obra.EstructurasCostos
             .OrderBy(e => e.FechaCreacion)
             .Select(e => new EstructuraObraVM(e.Id, e.Nombre, e.FechaCreacion))
@@ -129,7 +140,13 @@ public class ObraService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser
             ?? throw new DbUpdateConcurrencyException(
                 "La obra fue eliminada por otro usuario mientras la editabas.");
 
+        // Con prórrogas registradas la fecha de fin vigente la gobiernan ellas: el
+        // formulario la muestra deshabilitada y acá se conserva la de la DB (espejo
+        // server de esa regla, por si el VM llega de otro lado).
+        var finVigente = obra.FechaFinalContrato;
         Aplicar(vm, obra);
+        if (await db.ProrrogasObra.AnyAsync(p => p.ObraId == obra.Id))
+            obra.FechaFinalContrato = finVigente;
         // Entidad completa como Modified (no solo las propiedades cambiadas): replica el
         // guardado anterior de la página — siempre emite el UPDATE, así el RowVersion de
         // la sesión se verifica aunque el usuario guarde sin cambios.
@@ -170,6 +187,59 @@ public class ObraService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser
 
         db.Entry(obra).Property(o => o.RowVersion).OriginalValue = rowVersion;
         db.Obras.Remove(obra);
+        await db.SaveChangesAsync();
+        return true;
+    }
+
+    // ── Prórrogas de plazo ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Registra una prórroga: correlativo Max+1, parte del fin de contrato vigente y lo
+    /// reemplaza por la fecha nueva. Prórroga y fecha de la obra se confirman en un único
+    /// SaveChanges (el rowversion de la obra cambia: una edición concurrente de la ficha
+    /// termina en conflicto, que es lo que corresponde).
+    /// </summary>
+    public async Task AgregarProrrogaAsync(NuevaProrrogaVM vm)
+    {
+        ExigirRol("registrar una prórroga");
+        await using var db = await dbFactory.CreateDbContextAsync();
+
+        var obra = await db.Obras.Include(o => o.Prorrogas)
+            .FirstOrThrowAsync(o => o.Id == vm.ObraId, "Obra no encontrada.");
+
+        Validacion.Exigir(ObraValidator.AgregarProrroga(obra.FechaFinalContrato, vm.FechaFinNueva));
+
+        obra.Prorrogas.Add(new ProrrogaObra
+        {
+            Numero = (obra.Prorrogas.Count == 0 ? 0 : obra.Prorrogas.Max(p => p.Numero)) + 1,
+            FechaFinAnterior = obra.FechaFinalContrato!.Value,
+            FechaFinNueva = vm.FechaFinNueva!.Value.Date,
+            FechaActo = vm.FechaActo?.Date,
+            IFActo = string.IsNullOrWhiteSpace(vm.IFActo) ? null : vm.IFActo.Trim(),
+            Observaciones = string.IsNullOrWhiteSpace(vm.Observaciones) ? null : vm.Observaciones.Trim()
+        });
+        obra.FechaFinalContrato = vm.FechaFinNueva.Value.Date;
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Elimina la última prórroga de la obra y restaura la fecha de fin anterior. false
+    /// si ya no existía (patrón "ya eliminado por otro usuario").
+    /// </summary>
+    public async Task<bool> EliminarProrrogaAsync(int prorrogaId)
+    {
+        ExigirRol("eliminar una prórroga");
+        await using var db = await dbFactory.CreateDbContextAsync();
+
+        var prorroga = await db.ProrrogasObra.Include(p => p.Obra)
+            .FirstOrDefaultAsync(p => p.Id == prorrogaId);
+        if (prorroga is null) return false;
+
+        var hayPosterior = await db.ProrrogasObra.AnyAsync(p => p.ObraId == prorroga.ObraId && p.Numero > prorroga.Numero);
+        Validacion.Exigir(ObraValidator.EliminarProrroga(prorroga.Numero, hayPosterior));
+
+        prorroga.Obra.FechaFinalContrato = prorroga.FechaFinAnterior;
+        db.ProrrogasObra.Remove(prorroga);
         await db.SaveChangesAsync();
         return true;
     }

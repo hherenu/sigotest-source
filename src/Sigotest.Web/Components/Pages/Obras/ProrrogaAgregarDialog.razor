@@ -1,0 +1,64 @@
+@inject ObraService ObraService
+@inject DialogService DialogService
+@inject NotificationService Notifications
+
+@* Alta de una prórroga de plazo desde el detalle de la obra (edición corta → diálogo).
+   La fecha nueva es el dato: no se trabaja en días. Cierra con true si registró (el
+   llamador recarga el detalle); un rechazo de negocio avisa y queda abierto. *@
+
+<RadzenTemplateForm TItem="NuevaProrrogaVM" Data="@nueva" Submit="@AgregarAsync">
+    <RadzenStack Gap="0.75rem">
+        <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
+            Fin de contrato vigente: <b>@FechaFinVigente.ToString("dd/MM/yyyy")</b>
+        </RadzenText>
+        <div>
+            <RadzenFormField Text="Nueva fecha de fin *" Variant="Variant.Outlined" style="width:100%">
+                <RadzenDatePicker @bind-Value="nueva.FechaFinNueva" Name="FechaFinNueva" DateFormat="dd/MM/yyyy" ShowTime="false" style="width:100%" />
+            </RadzenFormField>
+            <RadzenRequiredValidator Component="FechaFinNueva" Text="La nueva fecha de fin es obligatoria" Popup="true" />
+        </div>
+        <RadzenFormField Text="Fecha del acto" Variant="Variant.Outlined" style="width:100%">
+            <RadzenDatePicker @bind-Value="nueva.FechaActo" DateFormat="dd/MM/yyyy" ShowTime="false" style="width:100%" />
+        </RadzenFormField>
+        <RadzenFormField Text="IF del acto" Variant="Variant.Outlined" style="width:100%" title="N° de documento GDE (IF-…)">
+            <RadzenTextBox @bind-Value="nueva.IFActo" style="width:100%" />
+        </RadzenFormField>
+        <RadzenFormField Text="Observaciones" Variant="Variant.Outlined" style="width:100%">
+            <RadzenTextArea @bind-Value="nueva.Observaciones" Rows="2" style="width:100%" />
+        </RadzenFormField>
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+            <RadzenButton Text="Cancelar" Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                          Click="@(() => DialogService.Close(false))" />
+            <RadzenButton ButtonType="ButtonType.Submit" Text="Registrar prórroga" Icon="add" ButtonStyle="ButtonStyle.Primary"
+                          IsBusy="@procesando" BusyText="Registrando..." />
+        </RadzenStack>
+    </RadzenStack>
+</RadzenTemplateForm>
+
+@code {
+    [Parameter] public int ObraId { get; set; }
+    [Parameter] public DateTime FechaFinVigente { get; set; }
+
+    private NuevaProrrogaVM nueva = new();
+    private bool procesando;
+
+    protected override void OnInitialized() => nueva = new NuevaProrrogaVM { ObraId = ObraId };
+
+    private async Task AgregarAsync()
+    {
+        if (procesando) return;
+        procesando = true;
+        try
+        {
+            // Los rechazos de negocio (fecha no posterior a la vigente) llegan como
+            // InvalidOperationException del servicio: Persistencia los notifica.
+            if (!await Persistencia.EjecutarAsync(() => ObraService.AgregarProrrogaAsync(nueva), Notifications))
+                return;
+
+            Notifications.Notify(NotificationSeverity.Success, "Prórroga registrada",
+                $"Nuevo fin de contrato: {nueva.FechaFinNueva:dd/MM/yyyy}.", 4000);
+            DialogService.Close(true);
+        }
+        finally { procesando = false; }
+    }
+}

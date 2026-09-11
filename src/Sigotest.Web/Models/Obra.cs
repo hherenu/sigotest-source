@@ -16,6 +16,11 @@ public class Obra : BaseEntity
     public DateTime? FechaActaInicio { get; set; }
     public string? IFActaInicio { get; set; }
     public string? PlazoObra { get; set; }
+    /// <summary>
+    /// Fin de contrato VIGENTE: el original mientras no haya prórrogas, y la nueva
+    /// fecha de la última prórroga después (ver <see cref="ProrrogaObra"/>). Con
+    /// prórrogas registradas se modifica solo a través de ellas.
+    /// </summary>
     public DateTime? FechaFinalContrato { get; set; }
     public string? DirectorObra { get; set; }
 
@@ -64,4 +69,6 @@ public class Obra : BaseEntity
 
     public ICollection<TablaPonderacion> TablasPonderacion { get; set; } = [];
     public ICollection<EstructuraCostos> EstructurasCostos { get; set; } = [];
+    /// <summary>Prórrogas de plazo, correlativas (ver <see cref="ProrrogaObra"/>).</summary>
+    public ICollection<ProrrogaObra> Prorrogas { get; set; } = [];
 }

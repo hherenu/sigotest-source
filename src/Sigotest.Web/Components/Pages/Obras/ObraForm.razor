@@ -151,8 +151,23 @@ else
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="4">
                         <RadzenFormField Text="Fecha Final Contrato" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenDatePicker @bind-Value="obra.FechaFinalContrato" DateFormat="dd/MM/yyyy" ShowTime="false" style="width:100%" />
+                            <RadzenDatePicker @bind-Value="obra.FechaFinalContrato" DateFormat="dd/MM/yyyy" ShowTime="false" style="width:100%"
+                                              Disabled="@obra.TieneProrrogas" />
                         </RadzenFormField>
+                        @if (obra.TieneProrrogas)
+                        {
+                            @* Deshabilitado de verdad (no es una regla de negocio en el clic): el dato
+                               lo gobiernan las prórrogas y el servicio conserva el vigente. *@
+                            <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mt-1 rz-mb-0">
+                                Es el fin vigente por prórrogas: se modifica agregando o eliminando prórrogas desde el detalle de la obra.
+                            </RadzenText>
+                        }
+                        else
+                        {
+                            <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mt-1 rz-mb-0">
+                                Sin fecha de fin (y sin proceso licitatorio) la obra figura Proyectada y no entra en Planificación.
+                            </RadzenText>
+                        }
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="8">
                         <RadzenFormField Text="Plazo de Obra" Variant="Variant.Outlined" style="width:100%">

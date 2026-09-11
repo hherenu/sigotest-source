@@ -69,6 +69,33 @@ public static class ObraValidator
     }
 
     /// <summary>
+    /// Alta de una prórroga: la obra tiene que tener fin de contrato vigente (es lo que
+    /// se extiende) y la fecha nueva tiene que ser posterior. Se compara por fecha
+    /// calendario, igual que <see cref="Estado"/>.
+    /// </summary>
+    public static string? AgregarProrroga(DateTime? fechaFinVigente, DateTime? fechaFinNueva)
+    {
+        if (fechaFinVigente is null)
+            return "La obra no tiene fecha de fin de contrato: cargala en la ficha antes de registrar una prórroga.";
+        if (fechaFinNueva is null)
+            return "La nueva fecha de fin es obligatoria.";
+        if (fechaFinNueva.Value.Date <= fechaFinVigente.Value.Date)
+            return $"La nueva fecha de fin ({fechaFinNueva:dd/MM/yyyy}) debe ser posterior a la vigente ({fechaFinVigente:dd/MM/yyyy}).";
+        return null;
+    }
+
+    /// <summary>
+    /// Solo la última prórroga de la obra puede eliminarse (restaura su fecha anterior):
+    /// las posteriores parten de su fecha nueva y quitar una intermedia dejaría el
+    /// encadenado y la numeración inconsistentes. Misma regla que los disparos de
+    /// redeterminación.
+    /// </summary>
+    public static string? EliminarProrroga(int numero, bool hayPosterior) =>
+        hayPosterior
+            ? $"Solo se puede eliminar la última prórroga de la obra. La prórroga N°{numero} tiene posteriores que parten de su fecha."
+            : null;
+
+    /// <summary>
     /// Mensaje específico antes de chocar con las FK Restrict al eliminar: qué
     /// historial tiene la obra y por qué no puede eliminarse. Null si no tiene
     /// dependencias y puede borrarse.
