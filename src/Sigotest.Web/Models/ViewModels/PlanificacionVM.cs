@@ -20,6 +20,18 @@ public class PlanificacionVM
     public string ObraNombre { get; set; } = string.Empty;
     public string NumeroLicitacion { get; set; } = string.Empty;
 
+    /// <summary>Presupuestos de la obra por moneda (oficial/adjudicado) con la regla de cuál aplica.</summary>
+    public PresupuestosObra Presupuestos { get; set; } = new(0m, null, null, null, null, null);
+
+    /// <summary>
+    /// Autorizado de la Obra Básica en la moneda: el presupuesto que aplica (regla única
+    /// en <see cref="PresupuestosObra"/>). También es la base del tope del 50% de adicionales/BED.
+    /// </summary>
+    public decimal PresupuestoReferencia(Moneda moneda) => Presupuestos.Referencia(moneda);
+
+    /// <summary>"Presupuesto adjudicado" u "oficial", según cuál aplique.</summary>
+    public string PresupuestoEtiqueta => Presupuestos.Etiqueta;
+
     /// <summary>Token de concurrencia de la sesión de edición (viaja a GuardarGrillaAsync).</summary>
     public byte[] RowVersion { get; set; } = [];
 
@@ -46,7 +58,12 @@ public class BloqueAutorizanteVM
     public string? Denominacion { get; set; }
     public string Titulo { get; set; } = string.Empty;
 
-    /// <summary>Lookup de montos cargados: (Concepto, Anio, Mes, Moneda) → Monto.</summary>
+    /// <summary>
+    /// Lookup de montos EFECTIVOS del bloque: (Concepto, Anio, Mes, Moneda) → Monto
+    /// (ver PlanificacionService.MontosEfectivos). Para la Obra Básica, las claves
+    /// (MontoAutorizado, null, null, moneda) son el presupuesto de la obra por moneda
+    /// —no filas editables ni persistidas en el plan—.
+    /// </summary>
     public Dictionary<(ConceptoPlanMonto Concepto, int? Anio, int? Mes, Moneda Moneda), decimal> Valores { get; set; } = [];
 
     /// <summary>Monto cargado para una celda (0 si no existe).</summary>
@@ -130,8 +147,17 @@ public class TotalesPlan(
         return enVivo + (bloque?.CurvaFueraDeHorizonte(moneda, render) ?? 0m);
     }
 
-    public decimal MontoAutorizado(int autorizanteId, Moneda moneda) =>
-        Valor(autorizanteId, ConceptoPlanMonto.MontoAutorizado, null, null, moneda);
+    /// <summary>
+    /// Autorizado del bloque. La Obra Básica no tiene celda editable: su autorizado es el
+    /// presupuesto de la obra, que viene en los Valores del bloque (no en `celdas`).
+    /// </summary>
+    public decimal MontoAutorizado(int autorizanteId, Moneda moneda)
+    {
+        var bloque = bloques.FirstOrDefault(b => b.AutorizanteId == autorizanteId);
+        return bloque?.Tipo == TipoAutorizante.Basica
+            ? bloque.Valor(ConceptoPlanMonto.MontoAutorizado, null, null, moneda)
+            : Valor(autorizanteId, ConceptoPlanMonto.MontoAutorizado, null, null, moneda);
+    }
 
     public decimal AutorizadoVsPlanificado(int autorizanteId, Moneda moneda) =>
         MontoAutorizado(autorizanteId, moneda) - SumaPlanificado(autorizanteId, moneda);
@@ -152,6 +178,13 @@ public class TotalesPlan(
     public List<(int? Anio, int? Mes, Moneda Moneda, decimal Monto)> FueraDeHorizonte(int autorizanteId) =>
         bloques.FirstOrDefault(b => b.AutorizanteId == autorizanteId)?.DetalleFueraDeHorizonte(render) ?? [];
 }
+
+/// <summary>
+/// Monto "efectivo" de un bloque: lo persistido, salvo que para la Obra Básica el
+/// MontoAutorizado es el presupuesto de la obra (ver PlanificacionService.MontosEfectivos).
+/// Lo consumen balance, VM, snapshot y export para no repetir esa regla.
+/// </summary>
+public record MontoEfectivoVM(ConceptoPlanMonto Concepto, int? Anio, int? Mes, Moneda Moneda, decimal Monto);
 
 /// <summary>Fila de entrada al guardar la grilla (una celda editada).</summary>
 public record PlanMontoInput(
@@ -213,6 +246,9 @@ public enum AccesoPlanObra
 
     /// <summary>La obra no existe.</summary>
     NoEncontrada,
+
+    /// <summary>La obra está "Proyectada" (sin plazo ni expediente): todavía no se planifica.</summary>
+    Proyectada,
 
     /// <summary>El usuario es solo-director y la obra no le está asignada.</summary>
     NoAsignada

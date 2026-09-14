@@ -2,6 +2,8 @@
 @attribute [Authorize(Roles = Roles.Certificaciones)]
 @inject ObraService ObraService
 @inject NavigationManager Nav
+@inject DialogService DialogService
+@inject NotificationService Notifications
 
 <PageTitle>@(obra?.Nombre ?? "Obra")</PageTitle>
 
@@ -36,6 +38,8 @@ else
                 @Dato("Antecedentes", obra.Antecedentes)
                 @Dato("Contratista", obra.Contratista)
                 @Dato("PUByC", obra.PUByC)
+                @Dato("Presupuesto oficial", Importes(obra.PresupuestoOficial, obra.PresupuestoOficialUSD, obra.PresupuestoOficialEUR))
+                @Dato("Presupuesto adjudicado", Importes(obra.PresupuestoAdjudicado, obra.PresupuestoAdjudicadoUSD, obra.PresupuestoAdjudicadoEUR))
                 @Dato("Director de Obra", obra.DirectorNombre)
                 @Dato("IF Designación", obra.IFDesignacion)
                 <RadzenRow class="rz-mt-1">
@@ -43,11 +47,8 @@ else
                         <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">Estado</RadzenText>
                     </RadzenColumn>
                     <RadzenColumn Size="7">
-                        @if (obra.Estado is not null)
-                        {
-                            <RadzenBadge Text="@obra.Estado" IsPill="true"
-                                         BadgeStyle="@EstadoUi.BadgeObra(obra.Estado)" />
-                        }
+                        <RadzenBadge Text="@obra.Estado" IsPill="true"
+                                     BadgeStyle="@EstadoUi.BadgeObra(obra.Estado)" />
                     </RadzenColumn>
                 </RadzenRow>
             </RadzenCard>
@@ -76,9 +77,62 @@ else
                         <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0"
                                     style="@(obra.Estado?.Contains("Vencido") == true ? "font-weight:600;color:var(--rz-danger)" : "font-weight:600")">
                             @obra.FechaFinalContrato?.ToString("dd/MM/yyyy")
+                            @if (obra.Prorrogas.Count > 0)
+                            {
+                                <span class="app-muted" style="font-weight:400"> (con @obra.Prorrogas.Count prórroga@(obra.Prorrogas.Count == 1 ? "" : "s"))</span>
+                            }
                         </RadzenText>
                     </RadzenColumn>
                 </RadzenRow>
+            </RadzenCard>
+        </RadzenColumn>
+
+        @* ── Prórrogas de plazo ── *@
+        <RadzenColumn Size="12">
+            <RadzenCard Variant="Variant.Outlined">
+                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                             AlignItems="AlignItems.Center" class="rz-mb-2">
+                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">
+                        Prórrogas de plazo
+                        <RadzenBadge Text="@obra.Prorrogas.Count.ToString()" BadgeStyle="BadgeStyle.Secondary" class="rz-ml-2" />
+                    </RadzenText>
+                    @* Con la regla de negocio en el clic (sin fecha de fin el servicio rechaza y
+                       se notifica el motivo), no en un Disabled invisible por teclado. *@
+                    <RadzenButton Text="Agregar prórroga" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                                  Disabled="@procesando" Click="@AgregarProrrogaAsync" />
+                </RadzenStack>
+                @if (obra.Prorrogas.Count == 0)
+                {
+                    <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
+                        Sin prórrogas: el fin de contrato vigente es el original.
+                    </RadzenText>
+                }
+                else
+                {
+                    <RadzenDataGrid Data="@obra.Prorrogas" TItem="ProrrogaObraVM" Density="Density.Compact">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="ProrrogaObraVM" Property="Numero" Title="N°" Width="60px" TextAlign="TextAlign.Center" />
+                            <RadzenDataGridColumn TItem="ProrrogaObraVM" Property="FechaFinAnterior" Title="Fin anterior" Width="120px" FormatString="{0:dd/MM/yyyy}" />
+                            <RadzenDataGridColumn TItem="ProrrogaObraVM" Property="FechaFinNueva" Title="Nuevo fin" Width="120px" FormatString="{0:dd/MM/yyyy}" />
+                            <RadzenDataGridColumn TItem="ProrrogaObraVM" Property="FechaActo" Title="Fecha del acto" Width="130px" FormatString="{0:dd/MM/yyyy}" />
+                            <RadzenDataGridColumn TItem="ProrrogaObraVM" Property="IFActo" Title="IF" Width="180px" />
+                            <RadzenDataGridColumn TItem="ProrrogaObraVM" Property="Observaciones" Title="Observaciones" />
+                            <RadzenDataGridColumn TItem="ProrrogaObraVM" Title="" Width="70px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                                <Template Context="p">
+                                    @* Ícono solo, como las filas del listado de obras. Habilitado en todas: si
+                                       no es la última, el servicio rechaza y el clic notifica el motivo
+                                       (convención: regla de negocio ≠ Disabled). *@
+                                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Center">
+                                        <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
+                                                      Disabled="@procesando" title="Eliminar (solo la última prórroga)"
+                                                      aria-label="@($"Eliminar prórroga N°{p.Numero}")"
+                                                      Click="@(() => EliminarProrrogaAsync(p))" />
+                                    </RadzenStack>
+                                </Template>
+                            </RadzenDataGridColumn>
+                        </Columns>
+                    </RadzenDataGrid>
+                }
             </RadzenCard>
         </RadzenColumn>
 
@@ -184,7 +238,55 @@ else
 
     private ObraDetalleVM? obra;
     private bool noEncontrada;
+    private bool procesando;
     private int idCargado;   // 0 = nada cargado; evita recargar si el parámetro no cambió
+
+    private async Task RecargarAsync()
+    {
+        obra = await ObraService.ObtenerDetalleAsync(Id);
+        noEncontrada = obra is null;
+    }
+
+    private async Task AgregarProrrogaAsync()
+    {
+        if (procesando || obra is null) return;
+
+        // Sin fin de contrato no hay qué prorrogar: mismo mensaje que el servicio, sin
+        // abrir un diálogo que va a fallar.
+        if (ObraValidator.AgregarProrroga(obra.FechaFinalContrato, DateTime.MaxValue) is string motivo)
+        {
+            Notifications.Notify(NotificationSeverity.Info, "Sin fecha de fin", motivo, 6000);
+            return;
+        }
+
+        var resultado = await DialogService.OpenAsync<ProrrogaAgregarDialog>(
+            $"Prórroga N°{obra.Prorrogas.Count + 1} — {obra.Nombre}",
+            new Dictionary<string, object?>
+            {
+                [nameof(ProrrogaAgregarDialog.ObraId)] = obra.Id,
+                [nameof(ProrrogaAgregarDialog.FechaFinVigente)] = obra.FechaFinalContrato!.Value
+            },
+            new DialogOptions { Width = "min(520px, 92vw)" });
+
+        if (resultado is true)
+            await RecargarAsync();
+    }
+
+    private async Task EliminarProrrogaAsync(ProrrogaObraVM p)
+    {
+        if (procesando) return;
+        procesando = true;
+        try
+        {
+            await UiAcciones.ConfirmarEliminarYRecargarAsync(DialogService, Notifications,
+                $"Eliminar la prórroga N°{p.Numero} restaura el fin de contrato al {p.FechaFinAnterior:dd/MM/yyyy}. ¿Continuar?",
+                () => ObraService.EliminarProrrogaAsync(p.Id),
+                "Prórroga eliminada", $"Fin de contrato vigente: {p.FechaFinAnterior:dd/MM/yyyy}.",
+                "Ya eliminada", "Otro usuario eliminó esta prórroga; se recargó el detalle.",
+                RecargarAsync);
+        }
+        finally { procesando = false; }
+    }
 
     // OnParametersSetAsync (no OnInitializedAsync): Blazor reutiliza el componente
     // cuando sólo cambia el parámetro de ruta (ej. /obras/1 -> /obras/2).
@@ -193,9 +295,18 @@ else
         if (idCargado == Id) return;
         idCargado = Id;
 
-        // El servicio ya devuelve estructuras (por fecha) e ítems (por número) ordenados.
-        obra = await ObraService.ObtenerDetalleAsync(Id);
-        noEncontrada = obra is null;
+        // El servicio ya devuelve estructuras (por fecha), ítems y prórrogas (por número) ordenados.
+        await RecargarAsync();
+    }
+
+    /// <summary>"$ 1.000,00 · US$ 50,00" con solo las monedas cargadas (null si ninguna: el Dato queda vacío).</summary>
+    private static string? Importes(decimal? pesos, decimal? usd, decimal? eur)
+    {
+        var partes = new List<string>();
+        if (pesos is > 0) partes.Add($"{Fmt.Simbolo(Moneda.Pesos)} {Fmt.Pesos(pesos.Value)}");
+        if (usd is > 0) partes.Add($"{Fmt.Simbolo(Moneda.USD)} {Fmt.Pesos(usd.Value)}");
+        if (eur is > 0) partes.Add($"{Fmt.Simbolo(Moneda.EUR)} {Fmt.Pesos(eur.Value)}");
+        return partes.Count > 0 ? string.Join(" · ", partes) : null;
     }
 
     private RenderFragment Dato(string label, string? value) =>@<RadzenRow class="rz-mt-1">

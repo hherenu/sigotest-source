@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using SIGO.Data;
 using SIGO.Models;
 using SIGO.Models.Enums;
+using SIGO.Services.Validaciones;
 using static System.Net.WebUtility;
 
 namespace SIGO.Services;
@@ -39,6 +40,8 @@ public class PlanificacionDigestService(
             return; // el digest de este mes ya salió
 
         var obras = await db.Obras.AsNoTracking()
+            // Una obra "Proyectada" todavía no se planifica: no entra en el recordatorio.
+            .Where(ObraValidator.EnPlanificacion(hoy))
             // Una obra finalizada (flag del plan) queda fuera del ciclo mensual: ni
             // rollover ni recordatorio.
             .Where(o => !db.Planificaciones.Any(p => p.ObraId == o.Id && p.ObraFinalizada))

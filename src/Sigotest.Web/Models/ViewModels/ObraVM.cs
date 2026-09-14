@@ -27,6 +27,19 @@ public class ObraVM
     public string? PlazoObra { get; set; }
     public DateTime? FechaFinalContrato { get; set; }
     public string? DirectorObra { get; set; }
+    /// <summary>Presupuesto oficial en pesos (obligatorio, mayor a cero); US$ y € opcionales.</summary>
+    public decimal PresupuestoOficial { get; set; }
+    public decimal? PresupuestoOficialUSD { get; set; }
+    public decimal? PresupuestoOficialEUR { get; set; }
+    /// <summary>Presupuesto adjudicado por moneda (opcional; cargado, manda sobre el oficial en Planificación).</summary>
+    public decimal? PresupuestoAdjudicado { get; set; }
+    public decimal? PresupuestoAdjudicadoUSD { get; set; }
+    public decimal? PresupuestoAdjudicadoEUR { get; set; }
+
+    /// <summary>Los seis importes con la regla de referencia (ver <see cref="PresupuestosObra"/>).</summary>
+    public PresupuestosObra Presupuestos => new(
+        PresupuestoOficial, PresupuestoOficialUSD, PresupuestoOficialEUR,
+        PresupuestoAdjudicado, PresupuestoAdjudicadoUSD, PresupuestoAdjudicadoEUR);
     public int? DirectorUsuarioId { get; set; }
     /// <summary>Nombre del director para mostrar (usuario asignado, o el texto libre). Solo lectura del detalle.</summary>
     public string? DirectorNombre { get; set; }
@@ -38,8 +51,15 @@ public class ObraVM
     /// <summary>Cantidad de tablas de ponderación (columna "Tablas"; solo la carga el listado).</summary>
     public int CantidadTablas { get; set; }
 
-    /// <summary>Estado computado ("Vigente"/"Plazo Vencido"); la regla vive en ObraValidator.</summary>
-    public string? Estado => ObraValidator.Estado(FechaFinalContrato, DateTime.Today);
+    /// <summary>
+    /// true si la obra tiene prórrogas registradas: la fecha de fin deja de editarse en
+    /// el formulario (se modifica agregando o eliminando prórrogas). Lo cargan
+    /// ObtenerAsync y ObtenerDetalleAsync.
+    /// </summary>
+    public bool TieneProrrogas { get; set; }
+
+    /// <summary>Estado computado ("Proceso Licitatorio"/"Vigente"/"Plazo Vencido"/"Proyectada"); la regla vive en ObraValidator.</summary>
+    public string Estado => ObraValidator.Estado(Antecedentes, FechaActaInicio, FechaFinalContrato, DateTime.Today);
 }
 
 /// <summary>Detalle de la obra (solo lectura) con los resúmenes de estructuras y tablas.</summary>
@@ -49,6 +69,23 @@ public class ObraDetalleVM : ObraVM
     public List<EstructuraObraVM> EstructurasCostos { get; set; } = [];
 
     public List<TablaPonderacionObraVM> TablasPonderacion { get; set; } = [];
+
+    /// <summary>Prórrogas de plazo ordenadas por número (la última es la única eliminable).</summary>
+    public List<ProrrogaObraVM> Prorrogas { get; set; } = [];
+}
+
+/// <summary>Fila de prórroga en el detalle de la obra.</summary>
+public record ProrrogaObraVM(int Id, int Numero, DateTime FechaFinAnterior, DateTime FechaFinNueva,
+    DateTime? FechaActo, string? IFActo, string? Observaciones);
+
+/// <summary>Alta de una prórroga (diálogo del detalle de la obra). La fecha anterior y el número los pone el servicio.</summary>
+public class NuevaProrrogaVM
+{
+    public int ObraId { get; set; }
+    public DateTime? FechaFinNueva { get; set; }
+    public DateTime? FechaActo { get; set; }
+    public string? IFActo { get; set; }
+    public string? Observaciones { get; set; }
 }
 
 /// <summary>Resumen de una estructura de costos para el detalle de la obra.</summary>

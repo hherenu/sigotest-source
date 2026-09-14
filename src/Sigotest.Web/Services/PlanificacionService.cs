@@ -103,6 +103,7 @@ public class PlanificacionService(
             ObraId = obra.Id,
             ObraNombre = obra.Nombre,
             NumeroLicitacion = obra.NumeroLicitacion,
+            Presupuestos = obra.Presupuestos,
             RowVersion = plan.RowVersion,
             Periodos = PeriodosDe(obra)
         };
@@ -116,7 +117,7 @@ public class PlanificacionService(
                 Numero = aut.Numero,
                 Denominacion = aut.Denominacion,
                 Titulo = TituloBloque(aut),
-                Valores = aut.Montos.ToDictionary(
+                Valores = MontosEfectivos(aut, vm.Presupuestos).ToDictionary(
                     m => (m.Concepto, m.Anio, m.Mes, m.Moneda),
                     m => m.Monto)
             };
@@ -164,7 +165,8 @@ public class PlanificacionService(
         await using var db = await dbFactory.CreateDbContextAsync();
 
         var soloDirector = Roles.SoloDirector(currentUser.IsInRole);
-        var query = db.Obras.AsNoTracking().AsQueryable();
+        // Una obra "Proyectada" (sin plazo ni expediente) todavía no se planifica.
+        var query = db.Obras.AsNoTracking().Where(ObraValidator.EnPlanificacion(DateTime.Today));
         if (soloDirector)
         {
             var wu = currentUser.UserId;
@@ -246,10 +248,23 @@ public class PlanificacionService(
     {
         await using var db = await dbFactory.CreateDbContextAsync();
 
-        if (!await db.Obras.AsNoTracking().AnyAsync(o => o.Id == obraId))
+        // Una sola lectura de la obra: existencia, estado computado (misma regla que el
+        // predicado SQL del listado, ver ObraValidatorTests) y asignación al director.
+        var wu = currentUser.UserId;
+        var o = await db.Obras.AsNoTracking().Where(o => o.Id == obraId)
+            .Select(o => new
+            {
+                o.Antecedentes, o.FechaActaInicio, o.FechaFinalContrato,
+                Asignada = o.DirectorUsuario != null && o.DirectorUsuario.WindowsUser == wu
+            })
+            .FirstOrDefaultAsync();
+        if (o is null)
             return AccesoPlanObra.NoEncontrada;
 
-        if (Roles.SoloDirector(currentUser.IsInRole) && !await ObraAsignadaAsync(db, obraId))
+        if (ObraValidator.Estado(o.Antecedentes, o.FechaActaInicio, o.FechaFinalContrato, DateTime.Today) == "Proyectada")
+            return AccesoPlanObra.Proyectada;
+
+        if (Roles.SoloDirector(currentUser.IsInRole) && !o.Asignada)
             return AccesoPlanObra.NoAsignada;
 
         return AccesoPlanObra.Ok;
@@ -278,6 +293,7 @@ public class PlanificacionService(
             .Include(p => p.Autorizantes)
             .FirstOrThrowAsync(p => p.Id == planificacionId, "Planificación no encontrada.");
         await ExigirObraAsignadaAsync(db, plan.ObraId);
+        Validacion.Exigir(PlanificacionValidator.EditarGrilla(plan.Estado));
 
         // La básica es única; los adicionales/BED autonumeran si no viene número.
         Validacion.Exigir(PlanificacionValidator.AgregarBloque(
@@ -311,6 +327,7 @@ public class PlanificacionService(
             .Include(a => a.Planificacion).ThenInclude(p => p.Autorizantes)
             .FirstOrThrowAsync(a => a.Id == autorizanteId, "Bloque no encontrado.");
         await ExigirObraAsignadaAsync(db, aut.Planificacion.ObraId);
+        Validacion.Exigir(PlanificacionValidator.EditarGrilla(aut.Planificacion.Estado));
 
         var plan = aut.Planificacion;
         db.Autorizantes.Remove(aut); // cascade borra sus PlanMonto
@@ -340,10 +357,12 @@ public class PlanificacionService(
     /// Reemplaza los montos del plan por los recibidos (solo celdas ≠ 0), acotado a los
     /// períodos que la grilla estaba editando: un monto de un período fuera del horizonte
     /// renderizado (obra muy larga, fin de contrato adelantado) se preserva en vez de
-    /// borrarse silenciosamente. El plan es editable en cualquier estado; guardar la
-    /// grilla no cambia el estado.
+    /// borrarse silenciosamente. Solo en Pendiente o En revisión (ver
+    /// PlanificacionValidator.EditarGrilla); guardar no cambia el estado ni exige las
+    /// reglas del circuito (presupuesto, balance y mes del anticipo): las devuelve como
+    /// avisos sobre lo que quedó guardado, y el cambio de paso las exige.
     /// </summary>
-    public async Task GuardarGrillaAsync(int planificacionId, IEnumerable<PlanMontoInput> montos,
+    public async Task<IReadOnlyList<string>> GuardarGrillaAsync(int planificacionId, IEnumerable<PlanMontoInput> montos,
         IReadOnlyCollection<PeriodoVM> periodosEditados, byte[]? rowVersionSesion = null)
     {
         ExigirRol(Roles.PlanificacionEdicion, "editar la planificación");
@@ -352,6 +371,7 @@ public class PlanificacionService(
         var plan = await GetConMontosAsync(db, planificacionId);
         await ExigirObraAsignadaAsync(db, plan.ObraId);
 
+        Validacion.Exigir(PlanificacionValidator.EditarGrilla(plan.Estado));
         Validacion.Exigir(PlanificacionValidator.GuardarGrilla(plan.Autorizantes.Count));
 
         var autIds = plan.Autorizantes.Select(a => a.Id).ToHashSet();
@@ -372,18 +392,18 @@ public class PlanificacionService(
             || (m.Concepto == ConceptoPlanMonto.CalculoAnual && m.Anio.HasValue
                 && aniosEditados.Contains(m.Anio.Value));
 
-        var montosValidos = montos.Where(x => x.Monto != 0 && autIds.Contains(x.AutorizanteId)).ToList();
+        // La Obra Básica no tiene Monto Autorizado propio (es el presupuesto de la obra,
+        // ver MontosEfectivos): una celda así recibida se descarta en vez de persistirse.
+        var basicaIds = plan.Autorizantes.Where(a => a.Tipo == TipoAutorizante.Basica).Select(a => a.Id).ToHashSet();
+        var montosValidos = montos
+            .Where(x => x.Monto != 0 && autIds.Contains(x.AutorizanteId)
+                && !(x.Concepto == ConceptoPlanMonto.MontoAutorizado && basicaIds.Contains(x.AutorizanteId)))
+            .ToList();
 
-        // Autorizado vs Planificado = 0, sobre el estado FINAL que este guardado dejaría:
-        // filas preservadas (fuera del horizonte editado) + celdas recibidas. Un plan
-        // desbalanceado no se registra ni parcialmente.
-        var filasFinales = plan.Autorizantes
-            .SelectMany(a => a.Montos.Where(m => !EnHorizonte(m))
-                .Select(m => (AutorizanteId: a.Id, m.Concepto, m.Moneda, m.Monto)))
-            .Concat(montosValidos.Select(m => (m.AutorizanteId, m.Concepto, m.Moneda, m.Monto)))
-            .ToLookup(f => f.AutorizanteId, f => (f.Concepto, f.Moneda, f.Monto));
-        Validacion.Exigir(PlanificacionValidator.Balanceado(
-            DiferenciasAutorizadoVsPlanificado(plan.Autorizantes, filasFinales)));
+        // Las reglas del circuito (presupuesto de la obra cargado, Autorizado vs
+        // Planificado = 0 y mes del anticipo ≤ primer mes del plan) NO bloquean el
+        // guardado: la grilla se registra tal cual, la página avisa lo incumplido y el
+        // cambio de paso a Cargada/Aprobada lo exige.
 
         foreach (var aut in plan.Autorizantes)
             db.PlanMontos.RemoveRange(aut.Montos.Where(EnHorizonte));
@@ -402,12 +422,18 @@ public class PlanificacionService(
         }
 
         await db.SaveChangesAsync();
+
+        // Avisos sobre lo que quedó registrado: se relee el plan (sin depender del fixup
+        // de navegaciones tras borrar/agregar filas) con los mismos datos de obra que
+        // usa el cambio de paso.
+        db.ChangeTracker.Clear();
+        var guardado = await GetConMontosAsync(db, planificacionId);
+        return ReglasDelCircuito(guardado, await DatosObraAsync(db, guardado.ObraId));
     }
 
     /// <summary>
-    /// Diferencias Autorizado − Planificado por bloque × moneda sobre un conjunto de
-    /// filas de montos (las persistidas, o el estado final que un guardado va a dejar).
-    /// Alimentan <see cref="PlanificacionValidator.Balanceado"/>.
+    /// Diferencias Autorizado − Planificado por bloque × moneda sobre las filas de montos
+    /// persistidas. Alimentan <see cref="PlanificacionValidator.Balanceado"/>.
     /// </summary>
     private static IEnumerable<(string Bloque, Moneda Moneda, decimal Diferencia)> DiferenciasAutorizadoVsPlanificado(
         IEnumerable<Autorizante> autorizantes,
@@ -423,11 +449,57 @@ public class PlanificacionService(
             }
     }
 
-    /// <summary>Filas persistidas de los bloques (con Montos ya cargados por Include) para el chequeo de balance.</summary>
-    private static ILookup<int, (ConceptoPlanMonto Concepto, Moneda Moneda, decimal Monto)> FilasPersistidas(
-        IEnumerable<Autorizante> autorizantes) =>
-        autorizantes.SelectMany(a => a.Montos.Select(m => (AutorizanteId: a.Id, m.Concepto, m.Moneda, m.Monto)))
+    /// <summary>
+    /// Mes asignado al anticipo de cada bloque (el primero por bloque, como
+    /// <see cref="BloqueAutorizanteVM.MesAnticipo"/>; null si no tiene mes), a partir
+    /// de filas de montos. Alimenta <see cref="PlanificacionValidator.MesAnticipo"/>.
+    /// </summary>
+    private static IEnumerable<(string Bloque, int? Anio, int? Mes)> MesesAnticipo(
+        IEnumerable<Autorizante> autorizantes,
+        IEnumerable<(int AutorizanteId, ConceptoPlanMonto Concepto, int? Anio, int? Mes)> filas)
+    {
+        var porBloque = filas
+            .Where(f => f.Concepto == ConceptoPlanMonto.AnticipoFinanciero && f.Anio.HasValue && f.Mes.HasValue)
+            .GroupBy(f => f.AutorizanteId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(f => f.Anio).ThenBy(f => f.Mes).First());
+        foreach (var aut in autorizantes)
+            yield return porBloque.TryGetValue(aut.Id, out var f)
+                ? (TituloBloque(aut), f.Anio, f.Mes)
+                : (TituloBloque(aut), null, null);
+    }
+
+    /// <summary>Filas efectivas de los bloques (con Montos ya cargados por Include) para el chequeo de balance.</summary>
+    private static ILookup<int, (ConceptoPlanMonto Concepto, Moneda Moneda, decimal Monto)> FilasEfectivas(
+        IEnumerable<Autorizante> autorizantes, PresupuestosObra presupuestos) =>
+        autorizantes.SelectMany(a => MontosEfectivos(a, presupuestos)
+                .Select(m => (AutorizanteId: a.Id, m.Concepto, m.Moneda, m.Monto)))
             .ToLookup(f => f.AutorizanteId, f => (f.Concepto, f.Moneda, f.Monto));
+
+    /// <summary>
+    /// Montos efectivos de un bloque (balance, VM, snapshot y export): los persistidos,
+    /// salvo que la Obra Básica no tiene Monto Autorizado propio: su autorizado es el
+    /// presupuesto de la obra que aplica (adjudicado u oficial), moneda por moneda, y
+    /// cualquier fila MontoAutorizado persistida de la básica (datos previos a la regla)
+    /// se ignora. ÚNICA implementación de esa sustitución.
+    /// </summary>
+    public static IEnumerable<MontoEfectivoVM> MontosEfectivos(Autorizante a, PresupuestosObra presupuestos)
+    {
+        if (a.Tipo != TipoAutorizante.Basica)
+        {
+            foreach (var m in a.Montos)
+                yield return new MontoEfectivoVM(m.Concepto, m.Anio, m.Mes, m.Moneda, m.Monto);
+            yield break;
+        }
+
+        foreach (var m in a.Montos.Where(m => m.Concepto != ConceptoPlanMonto.MontoAutorizado))
+            yield return new MontoEfectivoVM(m.Concepto, m.Anio, m.Mes, m.Moneda, m.Monto);
+        foreach (var moneda in Enum.GetValues<Moneda>())
+        {
+            var referencia = presupuestos.Referencia(moneda);
+            if (referencia != 0)
+                yield return new MontoEfectivoVM(ConceptoPlanMonto.MontoAutorizado, null, null, moneda, referencia);
+        }
+    }
 
     // ── Máquina de estados (con los mails del circuito) ─────────────────────────────
 
@@ -441,9 +513,7 @@ public class PlanificacionService(
         await ExigirObraAsignadaAsync(db, plan.ObraId);
 
         Validacion.Exigir(PlanificacionValidator.MarcarCargada(plan.Estado, plan.Autorizantes.Count));
-        ExigirBalanceado(plan);
-
-        var obra = await NombreObraAsync(db, plan.ObraId);
+        var obra = (await ExigirReglasDelCircuitoAsync(db, plan)).NombreCompleto;
 
         plan.Estado = EstadoPlanificacion.Cargada;
         plan.FechaCarga = DateTime.UtcNow;
@@ -498,9 +568,7 @@ public class PlanificacionService(
 
         var plan = await GetConMontosAsync(db, planificacionId);
         Validacion.Exigir(PlanificacionValidator.Aprobar(plan.Estado));
-        ExigirBalanceado(plan);
-
-        var obra = await NombreObraAsync(db, plan.ObraId);
+        var obra = (await ExigirReglasDelCircuitoAsync(db, plan)).NombreCompleto;
 
         plan.Estado = EstadoPlanificacion.Aprobada;
         plan.FechaAprobacion = DateTime.UtcNow;
@@ -510,7 +578,7 @@ public class PlanificacionService(
             await destinatarios.ConRolAsync(RolUsuario.Presupuesto),
             $"Planificación aprobada — {obra}",
             CuerpoMail($"{Quien()} <b>aprobó</b> la planificación de la obra <b>{HtmlEncode(obra)}</b>.",
-                       "Solo para tu conocimiento — no requiere ninguna acción.", plan.ObraId)));
+                       "Tomá conocimiento del plan en el sistema: eso registra la versión del mes.", plan.ObraId)));
     }
 
     /// <summary>
@@ -528,6 +596,10 @@ public class PlanificacionService(
 
         Validacion.Exigir(PlanificacionValidator.TomarConocimiento(plan.Estado, plan.FechaTomaConocimiento));
 
+        // La foto es la versión oficial del mes: backstop de las reglas del circuito
+        // (la grilla ya no se edita en Aprobada, pero puede haber datos previos a la regla).
+        var obra = await ExigirReglasDelCircuitoAsync(db, plan);
+
         var ahora = DateTime.Now;
 
         var previo = await db.PlanificacionSnapshots
@@ -542,8 +614,11 @@ public class PlanificacionService(
             Mes = ahora.Month,
             FechaTomaConocimiento = DateTime.UtcNow,
             TomadaConocimientoPor = currentUser.UserId,
+            // La foto lleva los montos efectivos: el autorizado de la básica es el
+            // presupuesto de la obra al momento de la toma (queda denormalizado como
+            // una fila MontoAutorizado más, para que el export de versiones no cambie).
             Montos = plan.Autorizantes
-                .SelectMany(a => a.Montos.Select(m => new PlanMontoSnapshot
+                .SelectMany(a => MontosEfectivos(a, obra.Presupuestos).Select(m => new PlanMontoSnapshot
                 {
                     Tipo = a.Tipo,
                     Numero = a.Numero,
@@ -621,12 +696,82 @@ public class PlanificacionService(
             .FirstOrThrowAsync(p => p.Id == planificacionId, "Planificación no encontrada.");
 
     /// <summary>
-    /// Backstop del circuito: nada desbalanceado avanza (el guardado ya lo exige, pero
-    /// puede haber montos registrados antes de la regla).
+    /// Reglas del circuito sobre el plan persistido, en orden: presupuesto de la obra
+    /// cargado, Autorizado vs Planificado = 0 (la básica contra ese presupuesto) y mes del
+    /// anticipo ≤ primer mes del plan (solo si la obra tiene fecha de inicio: sin acta ni
+    /// contrato el horizonte arranca en el mes actual y la regla cambiaría sola cada mes).
+    /// ÚNICA implementación: el guardado las devuelve como avisos y el cambio de paso
+    /// (Cargada / Aprobada / toma de conocimiento) las exige vía
+    /// <see cref="ExigirReglasDelCircuitoAsync"/>.
     /// </summary>
-    private static void ExigirBalanceado(Planificacion plan) =>
-        Validacion.Exigir(PlanificacionValidator.Balanceado(
-            DiferenciasAutorizadoVsPlanificado(plan.Autorizantes, FilasPersistidas(plan.Autorizantes))));
+    private static List<string> ReglasDelCircuito(Planificacion plan, DatosObra obra)
+    {
+        var reglas = new List<string?>
+        {
+            PlanificacionValidator.PresupuestoObra(obra.Presupuestos),
+            PlanificacionValidator.Balanceado(
+                DiferenciasAutorizadoVsPlanificado(plan.Autorizantes, FilasEfectivas(plan.Autorizantes, obra.Presupuestos)))
+        };
+        if (obra.Inicio is { } inicio)
+            reglas.Add(PlanificacionValidator.MesAnticipo(
+                MesesAnticipo(plan.Autorizantes, plan.Autorizantes
+                    .SelectMany(a => a.Montos.Select(m => (a.Id, m.Concepto, m.Anio, m.Mes)))),
+                inicio.Year, inicio.Month));
+        return reglas.Where(r => r is not null).Select(r => r!).ToList();
+    }
+
+    /// <summary>
+    /// Cambio de paso: la obra tiene que seguir participando de Planificación (una
+    /// pestaña abierta antes de que pasara a Proyectada no puede avanzar su plan) y las
+    /// <see cref="ReglasDelCircuito"/> tienen que cumplirse. Devuelve los datos de la
+    /// obra para que el llamador no la vuelva a consultar.
+    /// </summary>
+    private static async Task<DatosObra> ExigirReglasDelCircuitoAsync(AppDbContext db, Planificacion plan)
+    {
+        var obra = await DatosObraAsync(db, plan.ObraId);
+        Validacion.Exigir(PlanificacionValidator.ObraEnPlanificacion(obra.Estado));
+        foreach (var regla in ReglasDelCircuito(plan, obra))
+            Validacion.Exigir(regla);
+        return obra;
+    }
+
+    /// <summary>
+    /// Lo que el circuito necesita de la obra: nombre para los mails, estado computado,
+    /// primer mes del horizonte (null si no tiene acta ni contrato) y presupuestos.
+    /// </summary>
+    private sealed record DatosObra(string NombreCompleto, string Estado, DateTime? Inicio, PresupuestosObra Presupuestos);
+
+    /// <summary><see cref="DatosObra"/> leídos por proyección (sin cargar la entidad).</summary>
+    private static async Task<DatosObra> DatosObraAsync(AppDbContext db, int obraId)
+    {
+        var o = await db.Obras.AsNoTracking().Where(o => o.Id == obraId)
+            .Select(o => new
+            {
+                o.Nombre, o.NumeroLicitacion, o.Antecedentes,
+                o.FechaActaInicio, o.FechaContrato, o.FechaFinalContrato,
+                o.PresupuestoOficial, o.PresupuestoOficialUSD, o.PresupuestoOficialEUR,
+                o.PresupuestoAdjudicado, o.PresupuestoAdjudicadoUSD, o.PresupuestoAdjudicadoEUR
+            })
+            .FirstOrDefaultAsync() ?? throw new EntidadNoEncontradaException("Obra no encontrada.");
+        return new DatosObra(
+            $"{o.Nombre} ({o.NumeroLicitacion})",
+            ObraValidator.Estado(o.Antecedentes, o.FechaActaInicio, o.FechaFinalContrato, DateTime.Today),
+            o.FechaActaInicio is null && o.FechaContrato is null ? null : InicioHorizonte(o.FechaActaInicio, o.FechaContrato),
+            new PresupuestosObra(o.PresupuestoOficial, o.PresupuestoOficialUSD, o.PresupuestoOficialEUR,
+                o.PresupuestoAdjudicado, o.PresupuestoAdjudicadoUSD, o.PresupuestoAdjudicadoEUR));
+    }
+
+    /// <summary>
+    /// Primer mes del plan: el del acta de inicio, si no el del contrato, si no el mes
+    /// actual. ÚNICA implementación: el horizonte de la grilla y la regla del mes del
+    /// anticipo parten de acá.
+    /// </summary>
+    private static DateTime InicioHorizonte(DateTime? fechaActaInicio, DateTime? fechaContrato)
+    {
+        var hoy = DateTime.Today;
+        var inicio = fechaActaInicio ?? fechaContrato ?? hoy;
+        return new DateTime(inicio.Year, inicio.Month, 1);
+    }
 
     /// <summary>
     /// Etiqueta del tipo de autorizante para la UI (dropdown y títulos de bloque).
@@ -659,9 +804,7 @@ public class PlanificacionService(
     /// </summary>
     private static List<PeriodoVM> PeriodosDe(Obra obra)
     {
-        var hoy = DateTime.Today;
-        var inicio = (obra.FechaActaInicio ?? obra.FechaContrato ?? new DateTime(hoy.Year, hoy.Month, 1));
-        inicio = new DateTime(inicio.Year, inicio.Month, 1);
+        var inicio = InicioHorizonte(obra.FechaActaInicio, obra.FechaContrato);
 
         var fin = obra.FechaFinalContrato ?? inicio.AddMonths(12);
         fin = new DateTime(fin.Year, fin.Month, 1);

@@ -48,11 +48,57 @@ else
                                          title="N° de expediente electrónico (EX-…)">
                             <RadzenTextBox @bind-Value="obra.Antecedentes" style="width:100%" />
                         </RadzenFormField>
+                        <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mt-1 rz-mb-0">
+                            Con antecedentes y acta de inicio futura, la obra figura en Proceso Licitatorio y entra en Planificación.
+                        </RadzenText>
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="6">
                         <RadzenFormField Text="PUByC" Variant="Variant.Outlined" style="width:100%">
                             <RadzenTextBox @bind-Value="obra.PUByC" style="width:100%" />
                         </RadzenFormField>
+                    </RadzenColumn>
+                </RadzenRow>
+            </RadzenFieldset>
+
+            <RadzenFieldset Text="Presupuesto">
+                <RadzenRow Gap="1rem" RowGap="1rem">
+                    <RadzenColumn Size="12" SizeMD="4">
+                        @* Obligatorio > 0: el numérico no admite RequiredValidator (nunca es null);
+                           lo exige el servicio (ObraValidator.Guardar) con el mismo mensaje. *@
+                        <RadzenFormField Text="Presupuesto oficial ($) *" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenNumeric @bind-Value="obra.PresupuestoOficial" Min="0" Step="0.01" ShowUpDown="false" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="4">
+                        <RadzenFormField Text="Presupuesto oficial (US$)" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoOficialUSD" Min="0" Step="0.01" ShowUpDown="false" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="4">
+                        <RadzenFormField Text="Presupuesto oficial (€)" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoOficialEUR" Min="0" Step="0.01" ShowUpDown="false" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="4">
+                        <RadzenFormField Text="Presupuesto adjudicado ($)" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoAdjudicado" Min="0" Step="0.01" ShowUpDown="false" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="4">
+                        <RadzenFormField Text="Presupuesto adjudicado (US$)" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoAdjudicadoUSD" Min="0" Step="0.01" ShowUpDown="false" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12" SizeMD="4">
+                        <RadzenFormField Text="Presupuesto adjudicado (€)" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoAdjudicadoEUR" Min="0" Step="0.01" ShowUpDown="false" style="width:100%" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="12">
+                        <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">
+                            La planificación de la Obra Básica se controla contra el adjudicado en todas las monedas
+                            si está cargado (una moneda vacía cuenta como 0); si no hay adjudicado, contra el oficial.
+                        </RadzenText>
                     </RadzenColumn>
                 </RadzenRow>
             </RadzenFieldset>
@@ -105,8 +151,23 @@ else
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="4">
                         <RadzenFormField Text="Fecha Final Contrato" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenDatePicker @bind-Value="obra.FechaFinalContrato" DateFormat="dd/MM/yyyy" ShowTime="false" style="width:100%" />
+                            <RadzenDatePicker @bind-Value="obra.FechaFinalContrato" DateFormat="dd/MM/yyyy" ShowTime="false" style="width:100%"
+                                              Disabled="@obra.TieneProrrogas" />
                         </RadzenFormField>
+                        @if (obra.TieneProrrogas)
+                        {
+                            @* Deshabilitado de verdad (no es una regla de negocio en el clic): el dato
+                               lo gobiernan las prórrogas y el servicio conserva el vigente. *@
+                            <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mt-1 rz-mb-0">
+                                Es el fin vigente por prórrogas: se modifica agregando o eliminando prórrogas desde el detalle de la obra.
+                            </RadzenText>
+                        }
+                        else
+                        {
+                            <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mt-1 rz-mb-0">
+                                Sin fecha de fin (y sin proceso licitatorio) la obra figura Proyectada y no entra en Planificación.
+                            </RadzenText>
+                        }
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="8">
                         <RadzenFormField Text="Plazo de Obra" Variant="Variant.Outlined" style="width:100%">

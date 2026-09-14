@@ -4,6 +4,7 @@ using ClosedXML.Excel;
 using SIGO.Data;
 using SIGO.Models.Enums;
 using SIGO.Services;
+using SIGO.Services.Validaciones;
 
 namespace SIGO.Controllers;
 
@@ -70,6 +71,11 @@ public class PlanificacionExportController(IDbContextFactory<AppDbContext> dbFac
         var soloDirector = Roles.SoloDirector(User.IsInRole);
         var wu = User.Identity?.Name;
 
+        // Mismo universo que la lista para el plan VIGENTE: una obra "Proyectada" no
+        // participa de Planificación. Las versiones (snapshots) son historia y se
+        // exportan aunque la obra haya salido después del módulo.
+        var enPlanificacion = db.Obras.Where(ObraValidator.EnPlanificacion(DateTime.Today)).Select(o => o.Id);
+
         if (modo == "vigente")
         {
             // Una sola query a propósito (sin AsSplitQuery): el export debe ser una foto
@@ -78,15 +84,17 @@ public class PlanificacionExportController(IDbContextFactory<AppDbContext> dbFac
             var query = db.Planificaciones.AsNoTracking()
                 .Include(p => p.Obra).ThenInclude(o => o.DirectorUsuario)
                 .Include(p => p.Autorizantes).ThenInclude(a => a.Montos)
-                .AsQueryable();
+                .Where(p => enPlanificacion.Contains(p.ObraId));
             if (obraId is int oid) query = query.Where(p => p.ObraId == oid);
             if (idsFiltro is not null) query = query.Where(p => idsFiltro.Contains(p.ObraId));
             if (soloDirector) query = query.Where(p =>
                 p.Obra.DirectorUsuario != null && p.Obra.DirectorUsuario.WindowsUser == wu);
 
             var hoy = DateTime.Today;
+            // Montos efectivos: el autorizado de la Obra Básica es el presupuesto de la obra
+            // (adjudicado u oficial), no una fila del plan.
             return (await query.ToListAsync())
-                .SelectMany(p => p.Autorizantes.SelectMany(a => a.Montos.Select(m => new Fila(
+                .SelectMany(p => p.Autorizantes.SelectMany(a => PlanificacionService.MontosEfectivos(a, p.Obra.Presupuestos).Select(m => new Fila(
                     hoy.Month, hoy.Year,
                     p.Obra.NumeroLicitacion, p.Obra.Nombre, p.Obra.Contratista, p.Obra.DirectorNombre,
                     p.Obra.FechaActaInicio ?? p.Obra.FechaContrato, p.Obra.FechaFinalContrato,

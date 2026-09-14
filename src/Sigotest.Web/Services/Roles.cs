@@ -17,8 +17,11 @@ public static class Roles
     public const string Certificaciones = $"{Admin},{CCyR}";
     /// <summary>Módulo de planificación (los tres actores del circuito).</summary>
     public const string Planificacion = $"{Admin},{Director},{Gerente},{Presupuesto}";
-    /// <summary>Pueden editar la grilla del plan (Presupuesto es solo lectura).</summary>
-    public const string PlanificacionEdicion = $"{Admin},{Director},{Gerente}";
+    /// <summary>
+    /// Pueden editar la grilla del plan (bloques, montos, obra finalizada). Gerente y
+    /// Presupuesto son solo lectura: el gerente aprueba o envía a revisión, no edita.
+    /// </summary>
+    public const string PlanificacionEdicion = $"{Admin},{Director}";
     /// <summary>Pueden marcar el plan como Cargada (el director es quien carga).</summary>
     public const string PlanificacionCarga = $"{Admin},{Director}";
     /// <summary>Pueden aprobar o enviar a revisión (el gerente controla).</summary>

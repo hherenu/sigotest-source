@@ -220,9 +220,14 @@ public enum ResultadoEliminacion { Cancelado, Eliminado, YaEliminado, Error }
 /// <summary>Mapeo de estados de dominio a estilos de badge de Radzen.</summary>
 public static class EstadoUi
 {
-    /// <summary>Badge del estado computado de la obra ("Vigente"/"Plazo Vencido").</summary>
-    public static BadgeStyle BadgeObra(string? estado) =>
-        estado?.Contains("Vencido") == true ? BadgeStyle.Danger : BadgeStyle.Success;
+    /// <summary>Badge del estado computado de la obra ("Proceso Licitatorio"/"Vigente"/"Plazo Vencido"/"Proyectada").</summary>
+    public static BadgeStyle BadgeObra(string? estado) => estado switch
+    {
+        "Plazo Vencido" => BadgeStyle.Danger,
+        "Proceso Licitatorio" => BadgeStyle.Info,
+        "Proyectada" => BadgeStyle.Secondary,
+        _ => BadgeStyle.Success
+    };
 
     public static BadgeStyle Badge(EstadoCertificado e) => e switch
     {

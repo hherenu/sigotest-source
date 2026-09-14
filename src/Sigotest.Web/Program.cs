@@ -64,7 +64,8 @@ builder.Services.AddScoped<IPlanNotificationRecipients, UsuariosNotificationReci
 // Digest mensual del día 10 (Correo:DiaDigest) a los directores, con idempotencia en DB.
 builder.Services.AddHostedService<PlanificacionDigestService>();
 // Rollover del ciclo mensual el día 9 (Correo:DiaRollover, víspera del digest):
-// resetea las tomas de conocimiento salvo obras finalizadas. Idempotencia en DB.
+// devuelve a Pendiente los planes con circuito iniciado (grilla intacta) salvo obras
+// finalizadas. Idempotencia en DB.
 builder.Services.AddHostedService<PlanificacionRolloverService>();
 
 // La UI es 100% Blazor + Radzen. Solo quedan controllers para las descargas de Excel

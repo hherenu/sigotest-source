@@ -28,9 +28,9 @@ public class CorreoOptions
     public int DiaDigest { get; set; } = 10;
 
     /// <summary>
-    /// Día del mes del rollover del ciclo de planificación (resetea las tomas de
-    /// conocimiento). La víspera del digest: el mail del día siguiente arranca el
-    /// ciclo nuevo con los flags ya limpios.
+    /// Día del mes del rollover del ciclo de planificación (devuelve a Pendiente los
+    /// planes con circuito iniciado, con la grilla intacta). La víspera del digest: el
+    /// mail del día siguiente arranca el ciclo nuevo con los planes ya reiniciados.
     /// </summary>
     public int DiaRollover { get; set; } = 9;
 }

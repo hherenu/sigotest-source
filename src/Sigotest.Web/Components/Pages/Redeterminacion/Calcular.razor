@@ -27,7 +27,7 @@
     <RadzenRow Gap="1.5rem" RowGap="1rem">
         <RadzenColumn Size="12" SizeMD="5">
             <RadzenFormField Text="Obra" Variant="Variant.Outlined" style="width:100%">
-                <RadzenDropDown @bind-Value="selectedObraId" Data="@obras" TextProperty="Nombre" ValueProperty="Id"
+                <RadzenDropDown @bind-Value="selectedObraId" Data="@obras" TextProperty="Etiqueta" ValueProperty="Id"
                                 TValue="int?" AllowClear="true" Placeholder="-- Seleccionar obra --" style="width:100%"
                                 Change="@OnObraChanged" />
             </RadzenFormField>
@@ -37,7 +37,7 @@
                     @obra.NumeroLicitacion &nbsp;·&nbsp; @obra.Contratista &nbsp;·&nbsp;
                     Acta inicio @obra.FechaActaInicio?.ToString("dd/MM/yyyy") &nbsp;·&nbsp;
                     Fin contrato @obra.FechaFinalContrato?.ToString("dd/MM/yyyy")
-                    @if (obra.Estado is not null){<RadzenBadge Text="@obra.Estado" IsPill="true" BadgeStyle="@EstadoUi.BadgeObra(obra.Estado)" class="rz-ml-1" />}
+                    <RadzenBadge Text="@obra.Estado" IsPill="true" BadgeStyle="@EstadoUi.BadgeObra(obra.Estado)" class="rz-ml-1" />
                 </RadzenText>
             }
         </RadzenColumn>
