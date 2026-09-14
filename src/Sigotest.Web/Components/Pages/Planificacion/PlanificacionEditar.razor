@@ -88,6 +88,16 @@ else
         </RadzenAlert>
     }
 
+    @if (tieneRolEdicion && !puedeEditar)
+    {
+        @* Solo lectura por estado (no por rol): decirlo, si no la grilla deshabilitada
+           parece un error. El servicio rechaza igual (EditarGrilla). *@
+        <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false" class="rz-mb-3">
+            El plan está <b>@(vm.Estado == EstadoPlanificacion.EnRevision ? "En revisión" : vm.Estado.ToString())</b> y es de solo lectura.
+            Solo se edita Pendiente o En revisión: para corregirlo, el Gerente debe enviarlo a revisión.
+        </RadzenAlert>
+    }
+
     @* ── Circuito: en qué paso está el plan, qué falta y la acción del rol actual ──
        Antes era una fila de botones sueltos: no se veía el recorrido ni por qué el
        servicio iba a rechazar el pase a Cargada. *@
@@ -141,8 +151,9 @@ else
                                       Disabled="@procesando" Click="@TomarConocimientoAsync" />
                     </AuthorizeView>
                 }
-                @if (puedeEditar)
+                @if (tieneRolEdicion)
                 {
+                    @* Flag de la obra, no de la grilla: se puede marcar en cualquier estado del plan. *@
                     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem" class="rz-ml-2">
                         <RadzenSwitch Value="@vm.ObraFinalizada" Disabled="@procesando"
                                       ValueChanged="@((bool v) => MarcarFinalizadaAsync(v))" />
@@ -231,6 +242,14 @@ else
                             </RadzenStack>
                         </Template>
                         <ChildContent>
+                            @if (AvisoAdicional(bloque) is string avisoAdicional)
+                            {
+                                @* Aviso en vivo, nunca bloquea: el Monto Autorizado del adicional/BED supera
+                                   el 50% del presupuesto de la obra. Acompaña la edición (se recalcula con
+                                   cada celda) para que se vea antes de guardar. *@
+                                <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter"
+                                             AllowClose="false" class="rz-mb-2">@avisoAdicional</RadzenAlert>
+                            }
                             @if (fueraHorizonte.Count > 0)
                             {
                                 @* Montos guardados cuyo período quedó fuera del plazo actual de la obra
@@ -252,9 +271,21 @@ else
                                 @foreach (var m in vm.Monedas)
                                 {
                                     <RadzenColumn Size="6" SizeMD="4" SizeLG="2" @key="@($"aut-{m}")">
-                                        <RadzenFormField Text="@($"Autorizado · {Fmt.Simbolo(m)}")" title="Monto autorizado del bloque en esta moneda" Variant="Variant.Outlined" Style="width:100%">
-                                            @Celda(id, ConceptoPlanMonto.MontoAutorizado, null, null, m)
-                                        </RadzenFormField>
+                                        @if (bloque.Tipo == TipoAutorizante.Basica)
+                                        {
+                                            @* La Obra Básica no carga Monto Autorizado: su autorizado es el presupuesto
+                                               de la obra (adjudicado, si no oficial) por moneda. Solo lectura: se edita
+                                               en la ficha de la obra. *@
+                                            <RadzenFormField Text="@($"{vm.PresupuestoEtiqueta} · {Fmt.Simbolo(m)}")" title="Se carga en la ficha de la obra" Variant="Variant.Outlined" Style="width:100%">
+                                                <RadzenTextBox Value="@Fmt.Pesos(vm.PresupuestoReferencia(m))" ReadOnly="true" style="width:100%" />
+                                            </RadzenFormField>
+                                        }
+                                        else
+                                        {
+                                            <RadzenFormField Text="@($"Autorizado · {Fmt.Simbolo(m)}")" title="Monto autorizado del bloque en esta moneda" Variant="Variant.Outlined" Style="width:100%">
+                                                @Celda(id, ConceptoPlanMonto.MontoAutorizado, null, null, m)
+                                            </RadzenFormField>
+                                        }
                                     </RadzenColumn>
                                 }
                                 @foreach (var m in vm.Monedas)
@@ -367,7 +398,7 @@ else
 
                             @* Resumen del bloque por moneda: reemplaza al pie de dos líneas de la grilla, que
                                quedaba apretado y tapaba la última fila. Solo las monedas con montos. *@
-                            @{ var monedasBloque = vm.Monedas.Where(m => Totales.Valor(id, ConceptoPlanMonto.MontoAutorizado, null, null, m) != 0 || SumaPlanificado(id, m) != 0).ToList(); }
+                            @{ var monedasBloque = vm.Monedas.Where(m => Totales.MontoAutorizado(id, m) != 0 || SumaPlanificado(id, m) != 0).ToList(); }
                             <RadzenStack AlignItems="AlignItems.End" Gap="0" class="rz-mt-2">
                                 @if (monedasBloque.Count == 0)
                                 {
@@ -378,7 +409,7 @@ else
                                     var d = AutorizadoVsPlanificado(id, m);
                                     <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0" @key="m">
                                         Planificado <b>@Fmt.Simbolo(m) @Fmt.Pesos(SumaPlanificado(id, m))</b>
-                                        de <b>@Fmt.Simbolo(m) @Fmt.Pesos(Totales.Valor(id, ConceptoPlanMonto.MontoAutorizado, null, null, m))</b> autorizados ·
+                                        de <b>@Fmt.Simbolo(m) @Fmt.Pesos(Totales.MontoAutorizado(id, m))</b> autorizados ·
                                         <b style="@ColorDiferencia(d)">@TextoDiferencia(d, m)</b>
                                     </RadzenText>
                                 }
@@ -438,7 +469,7 @@ else
                                             <td>@bloque.Titulo</td>
                                             @foreach (var m in monedasTotales)
                                             {
-                                                var aut = Totales.Valor(bloque.AutorizanteId, ConceptoPlanMonto.MontoAutorizado, null, null, m);
+                                                var aut = Totales.MontoAutorizado(bloque.AutorizanteId, m);
                                                 var plan = SumaPlanificado(bloque.AutorizanteId, m);
                                                 var dif = aut - plan;
                                                 <td class="num">@Fmt.Simbolo(m) @Fmt.Pesos(aut)</td>
@@ -540,7 +571,15 @@ else
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
 
     // Presupuesto es solo lectura: sin guardar, sin bloques, celdas deshabilitadas.
-    private bool puedeEditar;
+    private bool tieneRolEdicion;
+
+    /// <summary>
+    /// La grilla se edita solo con rol de edición Y en Pendiente / En revisión (misma
+    /// regla que PlanificacionValidator.EditarGrilla, que el servicio exige): Cargada,
+    /// Aprobada y con toma son de solo lectura hasta volver a una instancia anterior.
+    /// </summary>
+    private bool puedeEditar =>
+        tieneRolEdicion && vm?.Estado is EstadoPlanificacion.Pendiente or EstadoPlanificacion.EnRevision;
 
     private PlanificacionVM? vm;
     private bool noEncontrada;
@@ -576,7 +615,7 @@ else
         if (AuthState is not null)
         {
             var user = (await AuthState).User;
-            puedeEditar = Roles.TieneAlguno(user.IsInRole, Roles.PlanificacionEdicion);
+            tieneRolEdicion = Roles.TieneAlguno(user.IsInRole, Roles.PlanificacionEdicion);
         }
 
         // Mismo orden que el markup: primero existencia, después la asignación al
@@ -618,7 +657,10 @@ else
         {
             foreach (var m in vm.Monedas)
             {
-                Set(bloque.AutorizanteId, ConceptoPlanMonto.MontoAutorizado, null, null, m, bloque.Valor(ConceptoPlanMonto.MontoAutorizado, null, null, m));
+                // La básica no tiene celda de Monto Autorizado (es el presupuesto de la obra,
+                // que TotalesPlan lee del bloque): sin celda, nada viaja al guardar.
+                if (bloque.Tipo != TipoAutorizante.Basica)
+                    Set(bloque.AutorizanteId, ConceptoPlanMonto.MontoAutorizado, null, null, m, bloque.Valor(ConceptoPlanMonto.MontoAutorizado, null, null, m));
                 // El importe del anticipo se edita siempre en la fila sin período,
                 // tenga o no mes asignado en la DB.
                 Set(bloque.AutorizanteId, ConceptoPlanMonto.AnticipoFinanciero, null, null, m, bloque.ValorAnticipo(m));
@@ -667,7 +709,7 @@ else
     /// <summary>Monedas en las que el bloque tiene algo cargado (autorizado o planificado).</summary>
     private List<Moneda> MonedasConMontos(int autorizanteId) =>
         vm!.Monedas.Where(m =>
-            Totales.Valor(autorizanteId, ConceptoPlanMonto.MontoAutorizado, null, null, m) != 0
+            Totales.MontoAutorizado(autorizanteId, m) != 0
             || SumaPlanificado(autorizanteId, m) != 0).ToList();
 
     /// <summary>
@@ -708,6 +750,9 @@ else
     {
         var lista = new List<string>();
         if (!puedeEditar || vm!.Estado is not (EstadoPlanificacion.Pendiente or EstadoPlanificacion.EnRevision)) return lista;
+
+        var presupuesto = PlanificacionValidator.PresupuestoObra(vm.Presupuestos);
+        if (presupuesto is not null) lista.Add(presupuesto);
 
         var totales = Totales;
         var balance = PlanificacionValidator.Balanceado(
@@ -1003,6 +1048,22 @@ else
     // silencio al agregar/quitar un bloque.
     private TotalesPlan Totales => new(celdas, vm!.Bloques, vm.Periodos);
 
+    /// <summary>
+    /// Aviso en vivo (nunca bloquea) de un adicional/BED cuyo Monto Autorizado supera el
+    /// 50% del presupuesto de la obra en alguna moneda. Misma regla que el validador.
+    /// </summary>
+    private string? AvisoAdicional(BloqueAutorizanteVM bloque)
+    {
+        if (bloque.Tipo == TipoAutorizante.Basica) return null;
+        var totales = Totales;
+        var avisos = vm!.Monedas
+            .Select(m => PlanificacionValidator.AdicionalSobreLimite(bloque.Titulo, m,
+                totales.MontoAutorizado(bloque.AutorizanteId, m), vm.PresupuestoReferencia(m), vm.PresupuestoEtiqueta))
+            .Where(a => a is not null)
+            .ToList();
+        return avisos.Count > 0 ? string.Join(" ", avisos) : null;
+    }
+
     private decimal SumaPlanificado(int autId, Moneda mon) => Totales.SumaPlanificado(autId, mon);
 
     private decimal AutorizadoVsPlanificado(int autId, Moneda mon) => Totales.AutorizadoVsPlanificado(autId, mon);
@@ -1011,7 +1072,7 @@ else
 
     /// <summary>Monto autorizado sumado de los bloques de un tipo (sobre lo tipeado).</summary>
     private decimal AutorizadoPorTipo(TipoAutorizante tipo, Moneda mon) =>
-        vm!.Bloques.Where(b => b.Tipo == tipo).Sum(b => Totales.Valor(b.AutorizanteId, ConceptoPlanMonto.MontoAutorizado, null, null, mon));
+        vm!.Bloques.Where(b => b.Tipo == tipo).Sum(b => Totales.MontoAutorizado(b.AutorizanteId, mon));
 
     private decimal TotalPlanificado(Moneda mon) => Totales.TotalPlanificado(mon);
 
@@ -1097,39 +1158,23 @@ else
             })
             .ToList();
 
+        IReadOnlyList<string> advertencias = [];
         var ok = await Persistencia.EjecutarAsync(
-            () => Service.GuardarGrillaAsync(vm!.PlanificacionId, montos, vm.Periodos, vm.RowVersion),
+            async () => advertencias = await Service.GuardarGrillaAsync(vm!.PlanificacionId, montos, vm.Periodos, vm.RowVersion),
             Notifications);
         await BuildStateAsync();
+        if (ok) AvisarReglasDelCircuito(advertencias);
         return ok;
     }
 
     /// <summary>
-    /// Avisos (no bloqueantes) tras guardar: las reglas del circuito —Autorizado vs
-    /// Planificado = 0 y mes del anticipo ≤ primer mes del plan— se aceptan en la grilla,
-    /// pero el servicio las exige al marcar Cargada/Aprobar. Mismas reglas que el servicio
-    /// (PlanificacionValidator) evaluadas sobre lo recién guardado (BuildStateAsync ya
-    /// recargó el VM y las celdas).
+    /// Avisos (no bloqueantes) tras guardar: las reglas del circuito que el servicio
+    /// evaluó sobre lo que quedó registrado (las mismas que exige al cambiar de paso).
     /// </summary>
-    private void AvisarReglasDelCircuito()
+    private void AvisarReglasDelCircuito(IReadOnlyList<string> advertencias)
     {
-        var totales = Totales;
-        var balance = PlanificacionValidator.Balanceado(
-            vm!.Bloques.SelectMany(b => vm.Monedas.Select(m =>
-                (b.Titulo, m, totales.AutorizadoVsPlanificado(b.AutorizanteId, m)))));
-        if (balance is not null)
-            Notifications.Notify(NotificationSeverity.Warning, "Plan desbalanceado",
-                $"{balance} Corregilo antes de marcar el plan como Cargada.", 10000);
-
-        var primerMes = vm.Periodos.FirstOrDefault(p => !p.EsAnual);
-        if (primerMes is null) return;
-
-        var anticipo = PlanificacionValidator.MesAnticipo(
-            vm.Bloques.Select(b => (b.Titulo, b.MesAnticipo()?.Anio, b.MesAnticipo()?.Mes)),
-            primerMes.Anio, primerMes.Mes!.Value);
-        if (anticipo is not null)
-            Notifications.Notify(NotificationSeverity.Warning, "Revisar el mes del anticipo",
-                $"{anticipo} Corregilo antes de marcar el plan como Cargada.", 10000);
+        foreach (var aviso in advertencias)
+            Notifications.Notify(NotificationSeverity.Warning, "Revisar antes de marcar Cargada", aviso, 10000);
     }
 
     private async Task GuardarAsync()
@@ -1140,10 +1185,7 @@ else
         try
         {
             if (await GuardarGrillaCoreAsync())
-            {
                 Notifications.Notify(NotificationSeverity.Success, "Guardado", "Planificación guardada.", 4000);
-                AvisarReglasDelCircuito();
-            }
         }
         finally { procesando = false; }
     }

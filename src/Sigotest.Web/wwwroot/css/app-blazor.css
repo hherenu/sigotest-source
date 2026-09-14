@@ -333,6 +333,25 @@ html, body {
     min-height: 0 !important;
 }
 
+/* (SAF) Validadores Popup dentro de diálogos: Radzen posiciona el globo en absoluto
+   a la derecha del campo (position + transform en .rz-message-popup) y, con el
+   overflow:auto del diálogo, queda cortado a unos píxeles de ancho y fuerza scroll
+   horizontal. Dentro de .rz-dialog se muestran en línea bajo el campo, sin flecha.
+   Los !important pisan internals de Radzen: revisar en cada upgrade del paquete. */
+.rz-dialog .rz-message-popup {
+    position: static !important;
+    display: block !important;
+    transform: none !important;
+    box-shadow: none !important;
+    width: auto !important;
+    max-width: 100% !important;
+    margin-top: .25rem !important;
+}
+
+.rz-dialog .rz-message-popup::before {
+    display: none !important;
+}
+
 /* ===========================================================================
    (SAF) Notificaciones: respetar saltos de línea (\n) en el detalle
    =========================================================================== */

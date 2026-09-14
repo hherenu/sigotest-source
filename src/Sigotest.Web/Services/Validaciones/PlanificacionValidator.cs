@@ -1,3 +1,4 @@
+using SIGO.Models;
 using SIGO.Models.Enums;
 
 namespace SIGO.Services.Validaciones;
@@ -9,6 +10,24 @@ namespace SIGO.Services.Validaciones;
 /// </summary>
 public static class PlanificacionValidator
 {
+    /// <summary>
+    /// La grilla (montos, mes del anticipo y bloques) solo se modifica en la primera
+    /// instancia (Pendiente) y En revisión. Cargada, Aprobada y con toma de conocimiento
+    /// son de solo lectura: lo que el Gerente controla y Presupuesto toma es lo que se
+    /// ve. Para corregir, hay que volver a una instancia anterior (el Gerente envía a
+    /// revisión, o el rollover mensual devuelve a Pendiente).
+    /// </summary>
+    public static string? EditarGrilla(EstadoPlanificacion estado) =>
+        estado is EstadoPlanificacion.Pendiente or EstadoPlanificacion.EnRevision
+            ? null
+            : $"El plan está {EstadoTexto(estado)} y no se puede modificar. Solo se edita Pendiente o En revisión: para corregirlo, el Gerente debe enviarlo a revisión.";
+
+    private static string EstadoTexto(EstadoPlanificacion estado) => estado switch
+    {
+        EstadoPlanificacion.EnRevision => "En revisión",
+        _ => estado.ToString()
+    };
+
     /// <summary>La obra básica es única en el plan; adicionales/BED autonumeran.</summary>
     public static string? AgregarBloque(TipoAutorizante tipo, bool yaTieneBasica) =>
         tipo == TipoAutorizante.Basica && yaTieneBasica
@@ -65,6 +84,40 @@ public static class PlanificacionValidator
             return "La toma de conocimiento de este ciclo ya fue registrada.";
 
         return null;
+    }
+
+    /// <summary>
+    /// La Obra Básica se controla contra el presupuesto de la obra (adjudicado u
+    /// oficial): sin presupuesto cargado no hay contra qué balancear, así que el plan no
+    /// puede avanzar a Cargada/Aprobada. El guardado solo avisa.
+    /// </summary>
+    /// <summary>
+    /// Una obra "Proyectada" no participa de Planificación (listado, digest, export): su
+    /// plan tampoco puede cambiar de paso desde una pestaña abierta antes del cambio.
+    /// </summary>
+    public static string? ObraEnPlanificacion(string estadoObra) =>
+        estadoObra == "Proyectada"
+            ? "La obra está en estado Proyectada (sin antecedentes ni plazo contractual) y no participa de Planificación."
+            : null;
+
+    public static string? PresupuestoObra(PresupuestosObra presupuestos) =>
+        !presupuestos.TieneReferencia
+            ? "La obra no tiene presupuesto oficial cargado. Cargalo en la ficha de la obra para poder controlar la planificación."
+            : null;
+
+    /// <summary>
+    /// Aviso (nunca bloquea) para adicionales/BED: el Monto Autorizado del bloque en una
+    /// moneda no debería superar el 50% del presupuesto de referencia de la obra en esa
+    /// moneda (adjudicado u oficial). Sin presupuesto en la moneda no hay contra qué comparar.
+    /// </summary>
+    public static string? AdicionalSobreLimite(string bloque, Moneda moneda, decimal autorizado,
+        decimal presupuestoReferencia, string etiquetaPresupuesto)
+    {
+        if (presupuestoReferencia <= 0) return null;
+        var limite = presupuestoReferencia * 0.5m;
+        return autorizado > limite
+            ? $"El Monto Autorizado de {bloque} en {moneda} ({autorizado:N2}) supera el 50% del {etiquetaPresupuesto.ToLowerInvariant()} ({limite:N2})."
+            : null;
     }
 
     /// <summary>
