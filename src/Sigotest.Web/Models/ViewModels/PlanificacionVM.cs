@@ -24,6 +24,13 @@ public class PlanificacionVM
     public PresupuestosObra Presupuestos { get; set; } = new(0m, null, null, null, null, null);
 
     /// <summary>
+    /// true si la obra tiene acta de inicio o fecha de contrato. Sin ellas el horizonte
+    /// arranca en el mes actual y el servicio NO exige la regla del mes del anticipo (ver
+    /// PlanificacionService.ReglasDelCircuito); la página usa el mismo criterio.
+    /// </summary>
+    public bool InicioDefinido { get; set; }
+
+    /// <summary>
     /// Autorizado de la Obra Básica en la moneda: el presupuesto que aplica (regla única
     /// en <see cref="PresupuestosObra"/>). También es la base del tope del 50% de adicionales/BED.
     /// </summary>

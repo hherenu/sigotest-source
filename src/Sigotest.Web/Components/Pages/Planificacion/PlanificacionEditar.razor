@@ -88,16 +88,6 @@ else
         </RadzenAlert>
     }
 
-    @if (tieneRolEdicion && !puedeEditar)
-    {
-        @* Solo lectura por estado (no por rol): decirlo, si no la grilla deshabilitada
-           parece un error. El servicio rechaza igual (EditarGrilla). *@
-        <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false" class="rz-mb-3">
-            El plan está <b>@(vm.Estado == EstadoPlanificacion.EnRevision ? "En revisión" : vm.Estado.ToString())</b> y es de solo lectura.
-            Solo se edita Pendiente o En revisión: para corregirlo, el Gerente debe enviarlo a revisión.
-        </RadzenAlert>
-    }
-
     @* ── Circuito: en qué paso está el plan, qué falta y la acción del rol actual ──
        Antes era una fila de botones sueltos: no se veía el recorrido ni por qué el
        servicio iba a rechazar el pase a Cargada. *@
@@ -760,8 +750,10 @@ else
                 (b.Titulo, m, totales.AutorizadoVsPlanificado(b.AutorizanteId, m)))));
         if (balance is not null) lista.Add(balance);
 
+        // Mismo criterio que el servicio: sin fecha de inicio real no hay primer mes contra
+        // el que comparar el anticipo (el horizonte arranca en el mes actual y cambiaría solo).
         var primerMes = vm.Periodos.FirstOrDefault(p => !p.EsAnual);
-        if (primerMes is not null)
+        if (vm.InicioDefinido && primerMes is not null)
         {
             var anticipo = PlanificacionValidator.MesAnticipo(
                 vm.Bloques.Select(b => (b.Titulo, MesAnticipoDe(b.AutorizanteId)?.Anio, MesAnticipoDe(b.AutorizanteId)?.Mes)),

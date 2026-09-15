@@ -104,6 +104,7 @@ public class PlanificacionService(
             ObraNombre = obra.Nombre,
             NumeroLicitacion = obra.NumeroLicitacion,
             Presupuestos = obra.Presupuestos,
+            InicioDefinido = obra.FechaActaInicio is not null || obra.FechaContrato is not null,
             RowVersion = plan.RowVersion,
             Periodos = PeriodosDe(obra)
         };
