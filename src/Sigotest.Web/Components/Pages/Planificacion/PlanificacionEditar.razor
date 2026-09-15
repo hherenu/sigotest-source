@@ -198,7 +198,9 @@ else
         </RadzenAlert>
         @if (puedeEditar)
         {
-            <RadzenButton Text="Agregar bloque" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Outlined"
+            @* Primary sólido: sin bloques es la acción principal de la pantalla (Guardar no
+               se muestra), igual que "Nueva Obra" o "Crear tabla" en sus estados vacíos. *@
+            <RadzenButton Text="Agregar bloque" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
                           Disabled="@procesando" Click="@AgregarBloqueAsync" />
         }
     }
