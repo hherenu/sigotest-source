@@ -104,7 +104,7 @@ public class PlanificacionService(
             ObraNombre = obra.Nombre,
             NumeroLicitacion = obra.NumeroLicitacion,
             Presupuestos = obra.Presupuestos,
-            InicioDefinido = obra.FechaActaInicio is not null || obra.FechaContrato is not null,
+            InicioEtiqueta = EtiquetaInicio(obra.FechaActaInicio, obra.FechaContrato),
             RowVersion = plan.RowVersion,
             Periodos = PeriodosDe(obra)
         };
@@ -402,7 +402,7 @@ public class PlanificacionService(
             .ToList();
 
         // Las reglas del circuito (presupuesto de la obra cargado, Autorizado vs
-        // Planificado = 0 y mes del anticipo ≤ primer mes del plan) NO bloquean el
+        // Planificado = 0 y mes del anticipo ≤ mes de inicio de la obra) NO bloquean el
         // guardado: la grilla se registra tal cual, la página avisa lo incumplido y el
         // cambio de paso a Cargada/Aprobada lo exige.
 
@@ -699,8 +699,8 @@ public class PlanificacionService(
     /// <summary>
     /// Reglas del circuito sobre el plan persistido, en orden: presupuesto de la obra
     /// cargado, Autorizado vs Planificado = 0 (la básica contra ese presupuesto) y mes del
-    /// anticipo ≤ primer mes del plan (solo si la obra tiene fecha de inicio: sin acta ni
-    /// contrato el horizonte arranca en el mes actual y la regla cambiaría sola cada mes).
+    /// anticipo ≤ mes de inicio de la obra (solo si la obra tiene acta o contrato: sin ellos
+    /// el horizonte arranca en el mes actual y la regla cambiaría sola cada mes).
     /// ÚNICA implementación: el guardado las devuelve como avisos y el cambio de paso
     /// (Cargada / Aprobada / toma de conocimiento) las exige vía
     /// <see cref="ExigirReglasDelCircuitoAsync"/>.
@@ -713,11 +713,11 @@ public class PlanificacionService(
             PlanificacionValidator.Balanceado(
                 DiferenciasAutorizadoVsPlanificado(plan.Autorizantes, FilasEfectivas(plan.Autorizantes, obra.Presupuestos)))
         };
-        if (obra.Inicio is { } inicio)
+        if (obra.InicioEtiqueta is { } etiquetaInicio)
             reglas.Add(PlanificacionValidator.MesAnticipo(
                 MesesAnticipo(plan.Autorizantes, plan.Autorizantes
                     .SelectMany(a => a.Montos.Select(m => (a.Id, m.Concepto, m.Anio, m.Mes)))),
-                inicio.Year, inicio.Month));
+                obra.Inicio.Year, obra.Inicio.Month, etiquetaInicio));
         return reglas.Where(r => r is not null).Select(r => r!).ToList();
     }
 
@@ -740,7 +740,13 @@ public class PlanificacionService(
     /// Lo que el circuito necesita de la obra: nombre para los mails, estado computado,
     /// primer mes del horizonte (null si no tiene acta ni contrato) y presupuestos.
     /// </summary>
-    private sealed record DatosObra(string NombreCompleto, string Estado, DateTime? Inicio, PresupuestosObra Presupuestos);
+    /// <summary>
+    /// Lo que el circuito necesita de la obra. <paramref name="InicioEtiqueta"/> null =
+    /// la obra no tiene acta ni contrato: <paramref name="Inicio"/> cae en el mes actual
+    /// y la regla del mes del anticipo no se exige (cambiaría sola cada mes).
+    /// </summary>
+    private sealed record DatosObra(string NombreCompleto, string Estado, DateTime Inicio,
+        string? InicioEtiqueta, PresupuestosObra Presupuestos);
 
     /// <summary><see cref="DatosObra"/> leídos por proyección (sin cargar la entidad).</summary>
     private static async Task<DatosObra> DatosObraAsync(AppDbContext db, int obraId)
@@ -757,7 +763,8 @@ public class PlanificacionService(
         return new DatosObra(
             $"{o.Nombre} ({o.NumeroLicitacion})",
             ObraValidator.Estado(o.Antecedentes, o.FechaActaInicio, o.FechaFinalContrato, DateTime.Today),
-            o.FechaActaInicio is null && o.FechaContrato is null ? null : InicioHorizonte(o.FechaActaInicio, o.FechaContrato),
+            InicioHorizonte(o.FechaActaInicio, o.FechaContrato),
+            EtiquetaInicio(o.FechaActaInicio, o.FechaContrato),
             new PresupuestosObra(o.PresupuestoOficial, o.PresupuestoOficialUSD, o.PresupuestoOficialEUR,
                 o.PresupuestoAdjudicado, o.PresupuestoAdjudicadoUSD, o.PresupuestoAdjudicadoEUR));
     }
@@ -773,6 +780,18 @@ public class PlanificacionService(
         var inicio = fechaActaInicio ?? fechaContrato ?? hoy;
         return new DateTime(inicio.Year, inicio.Month, 1);
     }
+
+    /// <summary>
+    /// Cómo nombrar, en los mensajes del circuito, el dato del que sale el inicio del
+    /// plan: el acta de inicio o, si no hay, la fecha de contrato. Null si la obra no
+    /// tiene ninguna de las dos (el horizonte arranca en el mes actual y la regla del
+    /// mes del anticipo no se exige). ÚNICA implementación: el VM de la grilla y el
+    /// circuito la usan para decir lo mismo.
+    /// </summary>
+    private static string? EtiquetaInicio(DateTime? fechaActaInicio, DateTime? fechaContrato) =>
+        fechaActaInicio is not null ? "mes del acta de inicio"
+        : fechaContrato is not null ? "mes de la fecha de contrato"
+        : null;
 
     /// <summary>
     /// Etiqueta del tipo de autorizante para la UI (dropdown y títulos de bloque).

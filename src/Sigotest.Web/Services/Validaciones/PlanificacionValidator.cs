@@ -87,11 +87,6 @@ public static class PlanificacionValidator
     }
 
     /// <summary>
-    /// La Obra Básica se controla contra el presupuesto de la obra (adjudicado u
-    /// oficial): sin presupuesto cargado no hay contra qué balancear, así que el plan no
-    /// puede avanzar a Cargada/Aprobada. El guardado solo avisa.
-    /// </summary>
-    /// <summary>
     /// Una obra "Proyectada" no participa de Planificación (listado, digest, export): su
     /// plan tampoco puede cambiar de paso desde una pestaña abierta antes del cambio.
     /// </summary>
@@ -100,6 +95,11 @@ public static class PlanificacionValidator
             ? "La obra está en estado Proyectada (sin antecedentes ni plazo contractual) y no participa de Planificación."
             : null;
 
+    /// <summary>
+    /// La Obra Básica se controla contra el presupuesto de la obra (adjudicado u
+    /// oficial): sin presupuesto cargado no hay contra qué balancear, así que el plan no
+    /// puede avanzar a Cargada/Aprobada. El guardado solo avisa.
+    /// </summary>
     public static string? PresupuestoObra(PresupuestosObra presupuestos) =>
         !presupuestos.TieneReferencia
             ? "La obra no tiene presupuesto oficial cargado. Cargalo en la ficha de la obra para poder controlar la planificación."
@@ -121,24 +121,25 @@ public static class PlanificacionValidator
     }
 
     /// <summary>
-    /// El anticipo financiero se paga a más tardar en el primer mes del plan (el inicio
-    /// de la obra): un mes posterior es un error de carga. Recibe el mes asignado al
-    /// anticipo de cada bloque (null = sin mes, datos anteriores a la mejora: no se
-    /// valida) y el primer mes del horizonte. Como <see cref="Balanceado"/>, NO bloquea
-    /// el guardado de la grilla (la página solo avisa); bloquea el cambio de paso a
-    /// Cargada/Aprobada.
+    /// El anticipo financiero se paga a más tardar en el mes en que arranca la obra: un
+    /// mes posterior es un error de carga. Recibe el mes asignado al anticipo de cada
+    /// bloque (null = sin mes, datos anteriores a la mejora: no se valida), el mes de
+    /// inicio y cómo nombrarlo en el mensaje (acta de inicio o, si no hay, fecha de
+    /// contrato: ver PlanificacionService.EtiquetaInicio). Como <see cref="Balanceado"/>,
+    /// NO bloquea el guardado de la grilla (la página solo avisa); bloquea el cambio de
+    /// paso a Cargada/Aprobada.
     /// </summary>
     public static string? MesAnticipo(IEnumerable<(string Bloque, int? Anio, int? Mes)> anticipos,
-        int primerAnio, int primerMes)
+        int inicioAnio, int inicioMes, string etiquetaInicio)
     {
         var tardios = anticipos
             .Where(a => a.Anio.HasValue && a.Mes.HasValue
-                && (a.Anio.Value, a.Mes.Value).CompareTo((primerAnio, primerMes)) > 0)
+                && (a.Anio.Value, a.Mes.Value).CompareTo((inicioAnio, inicioMes)) > 0)
             .Select(a => $"{a.Bloque}: {a.Mes:00}/{a.Anio}")
             .ToList();
         if (tardios.Count == 0) return null;
 
-        return $"El mes del anticipo no puede ser posterior al primer mes del plan ({primerMes:00}/{primerAnio}). "
+        return $"El mes del anticipo no puede ser posterior al {etiquetaInicio} ({inicioMes:00}/{inicioAnio}). "
             + string.Join("; ", tardios) + ".";
     }
 

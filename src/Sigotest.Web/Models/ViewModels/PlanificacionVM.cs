@@ -24,11 +24,13 @@ public class PlanificacionVM
     public PresupuestosObra Presupuestos { get; set; } = new(0m, null, null, null, null, null);
 
     /// <summary>
-    /// true si la obra tiene acta de inicio o fecha de contrato. Sin ellas el horizonte
-    /// arranca en el mes actual y el servicio NO exige la regla del mes del anticipo (ver
-    /// PlanificacionService.ReglasDelCircuito); la página usa el mismo criterio.
+    /// Cómo se nombra el dato del que sale el inicio de la obra ("mes del acta de inicio"
+    /// o "mes de la fecha de contrato"). Null si la obra no tiene ninguna de las dos:
+    /// ahí el horizonte arranca en el mes actual y el servicio NO exige la regla del mes
+    /// del anticipo (ver PlanificacionService.EtiquetaInicio); la página usa el mismo
+    /// criterio y el mismo texto.
     /// </summary>
-    public bool InicioDefinido { get; set; }
+    public string? InicioEtiqueta { get; set; }
 
     /// <summary>
     /// Autorizado de la Obra Básica en la moneda: el presupuesto que aplica (regla única

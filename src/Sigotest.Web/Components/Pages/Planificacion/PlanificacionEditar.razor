@@ -290,14 +290,14 @@ else
                                 }
                                 <RadzenColumn Size="6" SizeMD="4" SizeLG="2">
                                     @* Mes de pago del anticipo (puede ser anterior al inicio de la obra; uno posterior
-                                       al primer mes del plan se guarda con aviso y bloquea el pase a Cargada). Se muestran
+                                       al mes del acta de inicio se guarda con aviso y bloquea el pase a Cargada). Se muestran
                                        los días a propósito: el click en un día ES la selección (ValueChanged), y se
                                        normaliza al día 1. Así navegar mes/año/flechas NO confirma nada hasta el click
                                        —hay "cancelar" real cerrando el popup—. AllowClear permite volver a "sin mes".
                                        El mes solo tiene sentido con importe: sin importe el picker se deshabilita y
                                        AnticipoFechaDe devuelve null, para no mostrar/aprobar un mes que no se persiste. *@
                                     <RadzenFormField Text="Mes del anticipo" Variant="Variant.Outlined" Style="width:100%"
-                                                     title="Mes en que se paga el anticipo (no posterior al primer mes del plan)">
+                                                     title="Mes en que se paga el anticipo (no posterior al mes en que arranca la obra)">
                                         <RadzenDatePicker TValue="DateTime?" ShowTime="false" DateFormat="MM/yyyy"
                                                           AllowClear="true" Placeholder="Sin mes"
                                                           Disabled="@(!puedeEditar || !TieneImporteAnticipo(id))"
@@ -752,14 +752,15 @@ else
                 (b.Titulo, m, totales.AutorizadoVsPlanificado(b.AutorizanteId, m)))));
         if (balance is not null) lista.Add(balance);
 
-        // Mismo criterio que el servicio: sin fecha de inicio real no hay primer mes contra
-        // el que comparar el anticipo (el horizonte arranca en el mes actual y cambiaría solo).
+        // Mismo criterio y mismo texto que el servicio: sin acta ni contrato no hay mes de
+        // inicio contra el que comparar el anticipo (el horizonte arranca en el mes actual
+        // y la regla cambiaría sola cada mes).
         var primerMes = vm.Periodos.FirstOrDefault(p => !p.EsAnual);
-        if (vm.InicioDefinido && primerMes is not null)
+        if (vm.InicioEtiqueta is { } etiquetaInicio && primerMes is not null)
         {
             var anticipo = PlanificacionValidator.MesAnticipo(
                 vm.Bloques.Select(b => (b.Titulo, MesAnticipoDe(b.AutorizanteId)?.Anio, MesAnticipoDe(b.AutorizanteId)?.Mes)),
-                primerMes.Anio, primerMes.Mes!.Value);
+                primerMes.Anio, primerMes.Mes!.Value, etiquetaInicio);
             if (anticipo is not null) lista.Add(anticipo);
         }
         return lista;

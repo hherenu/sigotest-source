@@ -451,7 +451,7 @@ public class PlanificacionServiceTests(LocalDbFixture fx) : IClassFixture<LocalD
         Assert.Contains("permiso", exBloque.Message);
     }
 
-    // ── Mes del anticipo ≤ primer mes del plan (inicio de la obra) ────────────
+    // ── Mes del anticipo ≤ mes de inicio de la obra (acta o contrato) ─────────
 
     [Fact]
     public async Task AnticipoPosteriorAlInicio_SeGuardaPeroNoPasaACargada()
@@ -485,7 +485,7 @@ public class PlanificacionServiceTests(LocalDbFixture fx) : IClassFixture<LocalD
 
         // ...pero el cambio de paso a Cargada lo rechaza y el plan sigue Pendiente.
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.MarcarCargadaAsync(plan.Id));
-        Assert.Contains("primer mes del plan (03/2030)", ex.Message);
+        Assert.Contains("mes del acta de inicio (03/2030)", ex.Message);
         Assert.Contains("Obra Básica: 04/2030", ex.Message);
         Assert.Equal(EstadoPlanificacion.Pendiente, (await servicio.BuildVmAsync(obraId)).Estado);
 
