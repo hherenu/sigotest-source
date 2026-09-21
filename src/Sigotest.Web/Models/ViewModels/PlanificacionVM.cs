@@ -24,12 +24,15 @@ public class PlanificacionVM
     public PresupuestosObra Presupuestos { get; set; } = new(0m, null, null, null, null, null);
 
     /// <summary>
-    /// Cómo se nombra el dato del que sale el inicio de la obra ("mes del acta de inicio"
-    /// o "mes de la fecha de contrato"). Null si la obra no tiene ninguna de las dos:
-    /// ahí el horizonte arranca en el mes actual y el servicio NO exige la regla del mes
-    /// del anticipo (ver PlanificacionService.EtiquetaInicio); la página usa el mismo
-    /// criterio y el mismo texto.
+    /// Mes de inicio de la obra (acta de inicio o, si no hay, fecha de contrato) contra el
+    /// que se compara el mes del anticipo, y cómo se nombra ese dato en los mensajes
+    /// (<see cref="InicioEtiqueta"/>: "mes del acta de inicio" / "mes de la fecha de
+    /// contrato"). Ambos null si la obra no tiene ninguna de las dos fechas: ahí el
+    /// horizonte arranca en el mes actual y el servicio NO exige esa regla (ver
+    /// PlanificacionService.EtiquetaInicio); la página evalúa con estos mismos valores
+    /// para decir exactamente lo que el servicio va a exigir.
     /// </summary>
+    public PeriodoVM? Inicio { get; set; }
     public string? InicioEtiqueta { get; set; }
 
     /// <summary>

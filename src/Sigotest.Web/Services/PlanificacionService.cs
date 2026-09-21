@@ -92,6 +92,11 @@ public class PlanificacionService(
 
         var plan = await GetOrCreateAsync(db, obraId);
 
+        // Mes de inicio y su etiqueta: los mismos que usa el circuito (ReglasDelCircuito),
+        // para que la lista de pendientes de la página diga exactamente lo que se va a exigir.
+        var inicio = InicioHorizonte(obra.FechaActaInicio, obra.FechaContrato);
+        var etiquetaInicio = EtiquetaInicio(obra.FechaActaInicio, obra.FechaContrato);
+
         var vm = new PlanificacionVM
         {
             PlanificacionId = plan.Id,
@@ -104,7 +109,8 @@ public class PlanificacionService(
             ObraNombre = obra.Nombre,
             NumeroLicitacion = obra.NumeroLicitacion,
             Presupuestos = obra.Presupuestos,
-            InicioEtiqueta = EtiquetaInicio(obra.FechaActaInicio, obra.FechaContrato),
+            InicioEtiqueta = etiquetaInicio,
+            Inicio = etiquetaInicio is null ? null : new PeriodoVM(inicio.Year, inicio.Month),
             RowVersion = plan.RowVersion,
             Periodos = PeriodosDe(obra)
         };
@@ -738,10 +744,7 @@ public class PlanificacionService(
 
     /// <summary>
     /// Lo que el circuito necesita de la obra: nombre para los mails, estado computado,
-    /// primer mes del horizonte (null si no tiene acta ni contrato) y presupuestos.
-    /// </summary>
-    /// <summary>
-    /// Lo que el circuito necesita de la obra. <paramref name="InicioEtiqueta"/> null =
+    /// mes de inicio y presupuestos. <paramref name="InicioEtiqueta"/> null =
     /// la obra no tiene acta ni contrato: <paramref name="Inicio"/> cae en el mes actual
     /// y la regla del mes del anticipo no se exige (cambiaría sola cada mes).
     /// </summary>

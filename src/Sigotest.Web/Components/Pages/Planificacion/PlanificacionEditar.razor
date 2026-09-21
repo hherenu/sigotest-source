@@ -47,7 +47,7 @@ else
        visible a la vez (pestañas) que scrollea dentro de su contenedor. *@
     <CabeceraPagina Titulo="Planificación">
         <Badges>
-            <RadzenBadge Text="@EstadoTexto(vm.Estado)" IsPill="true" BadgeStyle="@EstadoUi.Badge(vm.Estado)" Variant="Variant.Outlined" />
+            <RadzenBadge Text="@EstadoTexto(vm.Estado)" IsPill="true" BadgeStyle="@EstadoUi.Badge(vm.Estado)" />
             @if (vm.FechaTomaConocimiento is not null)
             {
                 <RadzenBadge Text="@($"Conocida el {vm.FechaTomaConocimiento:dd/MM/yyyy}")" IsPill="true" BadgeStyle="BadgeStyle.Success" Shade="Shade.Lighter" />
@@ -94,16 +94,11 @@ else
     <RadzenCard Variant="Variant.Outlined" class="rz-mb-3">
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween"
                      Gap="1rem" Wrap="FlexWrap.Wrap">
-            @* Más chico que el default (círculos de 2rem) y sin reacción al pasar el mouse:
-               el tema pinta el título seleccionado Y el hover con --rz-steps-title-selected-color,
-               así que se lleva al mismo gris que los demás títulos y el hover no cambia nada;
-               el paso actual se distingue solo por el círculo. user-select evita que el texto
-               se seleccione al arrastrar. Los pasos van Disabled: es la única forma que da
-               Radzen de que el cursor no sea la mano (no son clickeables, AllowStepSelect=false),
-               y el color de deshabilitado se lleva al mismo gris para que no se vean apagados.
-               Variables del propio tema de Radzen redefinidas en línea, sin CSS propio. *@
-            <RadzenSteps SelectedIndex="@PasoActual" ShowStepsButtons="false" AllowStepSelect="false"
-                         Style="--rz-steps-number-width:1.5rem;--rz-steps-number-height:1.5rem;--rz-steps-number-line-height:1.5rem;--rz-steps-number-padding-block:0;--rz-steps-title-margin-inline:0.4rem 0.75rem;--rz-steps-title-selected-color:var(--rz-steps-color);--rz-text-disabled-color:var(--rz-steps-color);user-select:none;--rz-steps-number-selected-background:var(--rz-text-color);--rz-steps-number-selected-color:var(--rz-base-background-color);--rz-steps-number-background-color:var(--rz-base-300);--rz-steps-number-color:var(--rz-text-secondary-color);font-size:0.85rem">
+            @* Solo informativo: los pasos van Disabled (es la única forma que da Radzen de
+               que el cursor no sea la mano; AllowStepSelect=false no alcanza) y el paso
+               actual se distingue solo por el círculo. El aspecto compacto y sin hover vive
+               en app-blazor.css (.plan-pasos), como todo el CSS de la app. *@
+            <RadzenSteps SelectedIndex="@PasoActual" ShowStepsButtons="false" AllowStepSelect="false" class="plan-pasos">
                 <Steps>
                     <RadzenStepsItem Text="@(vm.Estado == EstadoPlanificacion.EnRevision ? "En revisión" : "Pendiente")" Disabled="true" />
                     <RadzenStepsItem Text="Cargada" Disabled="true" />
@@ -329,7 +324,9 @@ else
                             @* ── Grilla: períodos como filas, una columna por moneda. Las celdas muestran el
                                número como texto y se editan al hacer click (Enter baja a la fila siguiente,
                                Escape cancela): una sola caja con borde en pantalla en vez de una por celda.
-                               Las filas de año son datos (EsSubtotal) y pliegan sus meses. ── *@
+                               Las filas de año son datos (EsSubtotal) y pliegan sus meses. Sin paginado
+                               (convención: PageSize 20) a propósito: es una planilla de 12 a 36 filas que se
+                               lee y carga entera, y scrollea dentro de su alto fijo. ── *@
                             <RadzenDataGrid TItem="FilaPlan" Data="@FilasDe(id)" Density="Density.Compact" GridLines="DataGridGridLines.Both"
                                             AllowPaging="false" AllowSorting="false" AllowFiltering="false" AllowColumnResize="false"
                                             Style="height:min(60vh, 560px)" class="rz-shadow-0"
@@ -390,7 +387,7 @@ else
 
                             @* Resumen del bloque por moneda: reemplaza al pie de dos líneas de la grilla, que
                                quedaba apretado y tapaba la última fila. Solo las monedas con montos. *@
-                            @{ var monedasBloque = vm.Monedas.Where(m => Totales.MontoAutorizado(id, m) != 0 || SumaPlanificado(id, m) != 0).ToList(); }
+                            @{ var monedasBloque = MonedasConMontos(id); }
                             <RadzenStack AlignItems="AlignItems.End" Gap="0" class="rz-mt-2">
                                 @if (monedasBloque.Count == 0)
                                 {
@@ -672,9 +669,11 @@ else
             if (celdas.ContainsKey(kv.Key))
                 celdas[kv.Key] = kv.Value;
 
-        // Al quitar el último bloque la pestaña activa podría apuntar más allá de las
-        // pestañas de bloque; se acota al último bloque (las de Totales/Versiones van después).
-        if (pestana > vm.Bloques.Count) pestana = Math.Max(0, vm.Bloques.Count - 1);
+        // Al quitar un bloque la pestaña activa podría quedar más allá de la última
+        // (bloques, luego Totales y, si hay, Versiones): se acota al último bloque. La cota
+        // es el total de pestañas, no la cantidad de bloques: estar en Versiones es válido.
+        var ultimaPestana = vm.Bloques.Count + (versiones.Count > 0 ? 1 : 0);
+        if (pestana > ultimaPestana) pestana = Math.Max(0, vm.Bloques.Count - 1);
     }
 
     private void Set(int autId, ConceptoPlanMonto c, int? anio, int? mes, Moneda mon, decimal v)
@@ -752,15 +751,13 @@ else
                 (b.Titulo, m, totales.AutorizadoVsPlanificado(b.AutorizanteId, m)))));
         if (balance is not null) lista.Add(balance);
 
-        // Mismo criterio y mismo texto que el servicio: sin acta ni contrato no hay mes de
-        // inicio contra el que comparar el anticipo (el horizonte arranca en el mes actual
-        // y la regla cambiaría sola cada mes).
-        var primerMes = vm.Periodos.FirstOrDefault(p => !p.EsAnual);
-        if (vm.InicioEtiqueta is { } etiquetaInicio && primerMes is not null)
+        // Mismo mes, mismo criterio y mismo texto que el servicio (vienen en el VM): sin
+        // acta ni contrato no hay mes de inicio contra el que comparar el anticipo.
+        if (vm.Inicio is { } inicio && vm.InicioEtiqueta is { } etiquetaInicio)
         {
             var anticipo = PlanificacionValidator.MesAnticipo(
                 vm.Bloques.Select(b => (b.Titulo, MesAnticipoDe(b.AutorizanteId)?.Anio, MesAnticipoDe(b.AutorizanteId)?.Mes)),
-                primerMes.Anio, primerMes.Mes!.Value, etiquetaInicio);
+                inicio.Anio, inicio.Mes!.Value, etiquetaInicio);
             if (anticipo is not null) lista.Add(anticipo);
         }
         return lista;

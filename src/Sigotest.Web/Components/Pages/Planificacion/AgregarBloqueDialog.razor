@@ -4,23 +4,23 @@
    grillas aunque se use una vez por obra). Devuelve el tipo y la denominación
    elegidos, o null si se cancela; la persistencia la hace la página. *@
 
-<RadzenTemplateForm TItem="AgregarBloqueDialog" Data="@this" Submit="@((AgregarBloqueDialog _) => DialogService.Close(new Resultado(Tipo, Tipo == TipoAutorizante.Basica ? null : Denominacion)))">
+<RadzenTemplateForm TItem="AgregarBloqueDialog" Data="@this" Submit="@((AgregarBloqueDialog _) => DialogService.Close(new Resultado(tipo, tipo == TipoAutorizante.Basica ? null : denominacion)))">
     <RadzenStack Gap="0.75rem">
         <RadzenFormField Text="Tipo de bloque" Variant="Variant.Outlined" style="width:100%">
-            <RadzenDropDown @bind-Value="Tipo" Data="@Tipos" TValue="TipoAutorizante" style="width:100%">
+            <RadzenDropDown @bind-Value="tipo" Data="@Tipos" TValue="TipoAutorizante" style="width:100%">
                 <Template Context="t">@PlanificacionService.TipoTexto((TipoAutorizante)t)</Template>
             </RadzenDropDown>
         </RadzenFormField>
-        @if (Tipo != TipoAutorizante.Basica)
+        @if (tipo != TipoAutorizante.Basica)
         {
             <RadzenFormField Text="Denominación (opcional)" Variant="Variant.Outlined" style="width:100%">
-                <RadzenTextBox @bind-Value="Denominacion" style="width:100%" />
+                <RadzenTextBox @bind-Value="denominacion" style="width:100%" />
             </RadzenFormField>
         }
         <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">
-            @(Tipo == TipoAutorizante.Basica
+            @(tipo == TipoAutorizante.Basica
                 ? "La obra básica es única en el plan."
-                : $"Los bloques {PlanificacionService.TipoTexto(Tipo)} se numeran solos (N°1, N°2, …).")
+                : $"Los bloques {PlanificacionService.TipoTexto(tipo)} se numeran solos (N°1, N°2, …).")
         </RadzenText>
         <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
             <RadzenButton Text="Cancelar" Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
@@ -37,8 +37,14 @@
     /// <summary>Tipo preseleccionado (la página pasa Adicional si ya existe la obra básica).</summary>
     [Parameter] public TipoAutorizante Tipo { get; set; } = TipoAutorizante.Basica;
 
-    private string? Denominacion { get; set; }
+    // Copia del parámetro para el @bind: si el desplegable escribiera sobre el parámetro,
+    // un re-render del contenedor del diálogo volvería a aplicar el valor preseleccionado
+    // y pisaría lo que eligió el usuario. Se copia una sola vez (OnInitialized).
+    private TipoAutorizante tipo;
+    private string? denominacion;
 
     private static readonly TipoAutorizante[] Tipos =
         [TipoAutorizante.Basica, TipoAutorizante.Adicional, TipoAutorizante.BED];
+
+    protected override void OnInitialized() => tipo = Tipo;
 }
