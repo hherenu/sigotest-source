@@ -377,7 +377,14 @@ else
                                                 else
                                                 {
                                                     var v = ValorCelda(id, f, mon);
-                                                    <span class="@(v is null ? "app-muted" : null)">@(v is null ? "—" : Fmt.Pesos(v.Value))</span>
+                                                    @* Enfocable por teclado cuando se puede editar: Enter o F2 abren la celda
+                                                       igual que el click. Sin esto la única forma de entrar a editar era el
+                                                       mouse (la grilla anterior tenía un input por celda alcanzable con Tab).
+                                                       El nombre accesible lleva período, moneda, bloque y valor. *@
+                                                    <span class="@("plan-celda" + (v is null ? " app-muted" : ""))"
+                                                          tabindex="@(puedeEditar ? 0 : null)"
+                                                          aria-label="@(puedeEditar ? $"{EtiquetaCelda(id, f.Concepto, f.Anio, f.Mes, mon)}: {(v is null ? "sin monto" : Fmt.Pesos(v.Value))}. Enter para editar" : null)"
+                                                          @onkeydown="@(e => TeclaCeldaCerrada(e, id, f, mon))">@(v is null ? "—" : Fmt.Pesos(v.Value))</span>
                                                 }
                                             </Template>
                                         </RadzenDataGridColumn>
@@ -871,6 +878,13 @@ else
     {
         if (!puedeEditar || args.Data is not { } fila || fila.EsSubtotal || !Enum.TryParse<Moneda>(args.Column?.Title, out var mon)) return;
         IrA((autId, fila, mon));
+    }
+
+    /// <summary>Teclado sobre una celda cerrada (con foco): Enter o F2 la abren, como el click.</summary>
+    private void TeclaCeldaCerrada(KeyboardEventArgs e, int autId, FilaPlan f, Moneda mon)
+    {
+        if (!puedeEditar || e.Key is not ("Enter" or "F2")) return;
+        IrA((autId, f, mon));
     }
 
     private void IrA((int Aut, FilaPlan Fila, Moneda Mon)? destino)

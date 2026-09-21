@@ -544,3 +544,16 @@ html, body {
     font-size: .85rem;
     user-select: none;
 }
+
+/* Celda cerrada (texto) de la grilla de planificación: enfocable por teclado cuando
+   se puede editar. Ocupa la celda entera para que el anillo de foco se vea completo;
+   el anillo es el mismo de los tiles del Home. */
+.plan-celda {
+    display: block;
+}
+
+.plan-celda:focus-visible {
+    outline: 2px solid var(--rz-primary);
+    outline-offset: -2px;
+    border-radius: 2px;
+}
