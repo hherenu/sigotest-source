@@ -204,8 +204,15 @@ else
         @* ── Pestañas: una por bloque, más Totales y Versiones ──
            RenderMode Client: las grillas de todas las pestañas quedan en el DOM, así lo
            tipeado en una no se pierde al cambiar a otra. El índice se conserva al guardar
-           o al agregar/quitar bloques (BuildStateAsync lo acota). *@
-        <RadzenTabs RenderMode="TabRenderMode.Client" SelectedIndex="@pestana" SelectedIndexChanged="@((int i) => pestana = i)" class="rz-mb-3"
+           o al agregar/quitar bloques (BuildStateAsync lo acota).
+           @key con los ids de los bloques: RadzenTabs registra cada RadzenTabsItem al
+           FINAL de su lista interna cuando se inicializa (AddTab), sin mirar su posición
+           en el markup. Un bloque agregado después quedaba registrado detrás de Totales y
+           el índice visual y el interno dejaban de coincidir (dos pestañas marcadas, el
+           contenido de otra). Al cambiar el conjunto de bloques se recrea el componente
+           entero y el orden vuelve a ser el del markup; lo tipeado vive en `celdas` y no
+           se pierde. *@
+        <RadzenTabs @key="@ClaveBloques" RenderMode="TabRenderMode.Client" SelectedIndex="@pestana" SelectedIndexChanged="@((int i) => pestana = i)" class="rz-mb-3"
                     Style="--rz-tabs-tab-text-transform:none;--rz-tabs-tab-letter-spacing:0">
             <Tabs>
                 @foreach (var bloque in vm.Bloques)
@@ -595,6 +602,9 @@ else
     // la pestaña activa y qué años están plegados en cada grilla.
     private int pestana;
     private readonly HashSet<(int AutorizanteId, int Anio)> aniosPlegados = new();
+
+    /// <summary>Identidad del conjunto de bloques (ver el @key de RadzenTabs): cambia al agregar o quitar uno.</summary>
+    private string ClaveBloques => string.Join(",", vm!.Bloques.Select(b => b.AutorizanteId));
 
     private bool showRevision;
     private string motivoRevision = string.Empty;
