@@ -63,10 +63,11 @@ else
             <RadzenFieldset Text="Presupuesto">
                 <RadzenRow Gap="1rem" RowGap="1rem">
                     <RadzenColumn Size="12" SizeMD="4">
-                        @* Obligatorio > 0: el numérico no admite RequiredValidator (nunca es null);
-                           lo exige el servicio (ObraValidator.Guardar) con el mismo mensaje. *@
-                        <RadzenFormField Text="Presupuesto oficial ($) *" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenNumeric @bind-Value="obra.PresupuestoOficial" Min="0" Step="0.01" ShowUpDown="false" style="width:100%" />
+                        @* El oficial es obligatorio en al menos una moneda (hay obras solo en dólares),
+                           no en una en particular: no hay RequiredValidator por campo; lo exige el
+                           servicio (ObraValidator.Guardar) y la leyenda de abajo lo dice. *@
+                        <RadzenFormField Text="Presupuesto oficial ($)" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoOficial" Min="0" Step="0.01" ShowUpDown="false" style="width:100%" />
                         </RadzenFormField>
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="4">
@@ -96,8 +97,9 @@ else
                     </RadzenColumn>
                     <RadzenColumn Size="12">
                         <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">
-                            La planificación de la Obra Básica se controla contra el adjudicado en todas las monedas
-                            si está cargado (una moneda vacía cuenta como 0); si no hay adjudicado, contra el oficial.
+                            El presupuesto oficial es obligatorio en al menos una moneda. La planificación de la Obra
+                            Básica se controla contra el adjudicado en todas las monedas si está cargado (una moneda
+                            vacía cuenta como 0); si no hay adjudicado, contra el oficial.
                         </RadzenText>
                     </RadzenColumn>
                 </RadzenRow>

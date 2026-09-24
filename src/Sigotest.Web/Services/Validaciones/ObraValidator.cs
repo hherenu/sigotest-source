@@ -49,6 +49,8 @@ public static class ObraValidator
     /// Campos mínimos del alta/edición. Defensa en profundidad detrás de los
     /// RequiredValidator del formulario (mismos mensajes): un servicio invocado desde
     /// otro lado no puede guardar una obra sin identificar ni sin presupuesto oficial.
+    /// El oficial es obligatorio en AL MENOS una moneda (hay obras solo en dólares):
+    /// ninguna moneda en particular es obligatoria.
     /// </summary>
     public static string? Guardar(string? nombre, string? numeroLicitacion, PresupuestosObra presupuestos)
     {
@@ -56,15 +58,17 @@ public static class ObraValidator
             return "El nombre es obligatorio";
         if (string.IsNullOrWhiteSpace(numeroLicitacion))
             return "La licitación es obligatoria";
-        if (presupuestos.OficialPesos <= 0)
-            return "El presupuesto oficial en pesos es obligatorio (mayor a cero)";
-        decimal?[] opcionales =
+        // En pesos el oficial no es anulable en la entidad: 0 = vacío, negativo = inválido.
+        decimal?[] cargados =
         [
+            presupuestos.OficialPesos == 0 ? null : presupuestos.OficialPesos,
             presupuestos.OficialUSD, presupuestos.OficialEUR,
             presupuestos.AdjudicadoPesos, presupuestos.AdjudicadoUSD, presupuestos.AdjudicadoEUR
         ];
-        if (opcionales.Any(p => p is <= 0))
-            return "Los demás presupuestos deben ser mayores a cero (o quedar vacíos)";
+        if (cargados.Any(p => p is <= 0))
+            return "Los presupuestos deben ser mayores a cero (o quedar vacíos)";
+        if (!presupuestos.TieneOficial)
+            return "El presupuesto oficial es obligatorio en al menos una moneda";
         return null;
     }
 

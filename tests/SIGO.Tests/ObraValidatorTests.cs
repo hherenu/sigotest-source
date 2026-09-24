@@ -115,18 +115,24 @@ public class ObraValidatorTests
     public void Guardar_SinLicitacion_Rechaza() =>
         Assert.Equal("La licitación es obligatoria", ObraValidator.Guardar("Estación Sáenz", null, Presupuestos()));
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    public void Guardar_SinPresupuestoOficialEnPesos_Rechaza(int oficial) =>
-        Assert.Equal("El presupuesto oficial en pesos es obligatorio (mayor a cero)",
-            ObraValidator.Guardar("Estación Sáenz", "LP 123/25", Presupuestos(oficial)));
+    [Fact]
+    public void Guardar_OficialSoloEnDolares_Pasa() =>
+        // Hay obras solo en dólares: el oficial es obligatorio en alguna moneda, no en pesos.
+        Assert.Null(ObraValidator.Guardar("Estación Sáenz", "LP 123/25", Presupuestos(oficial: 0m, oficialUsd: 500m)));
 
     [Fact]
-    public void Guardar_PresupuestoOpcionalEnCero_Rechaza()
+    public void Guardar_SinPresupuestoOficialEnNingunaMoneda_Rechaza() =>
+        // Un adjudicado cargado no reemplaza al oficial.
+        Assert.Equal("El presupuesto oficial es obligatorio en al menos una moneda",
+            ObraValidator.Guardar("Estación Sáenz", "LP 123/25", Presupuestos(oficial: 0m, adjudicado: 900m)));
+
+    [Fact]
+    public void Guardar_PresupuestoCargadoEnCeroONegativo_Rechaza()
     {
-        // Los demás importes son opcionales (null), pero cargados tienen que ser reales.
-        const string error = "Los demás presupuestos deben ser mayores a cero (o quedar vacíos)";
+        // Cada importe es opcional (vacío), pero cargado tiene que ser real; en pesos el
+        // oficial no es anulable (0 = vacío), así que solo el negativo es inválido.
+        const string error = "Los presupuestos deben ser mayores a cero (o quedar vacíos)";
+        Assert.Equal(error, ObraValidator.Guardar("Estación Sáenz", "LP 123/25", Presupuestos(oficial: -1m)));
         Assert.Equal(error, ObraValidator.Guardar("Estación Sáenz", "LP 123/25", Presupuestos(adjudicado: 0m)));
         Assert.Equal(error, ObraValidator.Guardar("Estación Sáenz", "LP 123/25", Presupuestos(oficialUsd: -5m)));
     }

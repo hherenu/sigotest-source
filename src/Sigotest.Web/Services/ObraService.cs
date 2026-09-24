@@ -266,7 +266,7 @@ public class ObraService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser
         vm.PlazoObra = o.PlazoObra;
         vm.FechaFinalContrato = o.FechaFinalContrato; // vigente (ver Obra.FechaFinalContrato)
         vm.DirectorObra = o.DirectorObra;
-        vm.PresupuestoOficial = o.PresupuestoOficial;
+        vm.PresupuestoOficial = o.PresupuestoOficial > 0 ? o.PresupuestoOficial : null; // 0 en la entidad = vacío
         vm.PresupuestoOficialUSD = o.PresupuestoOficialUSD;
         vm.PresupuestoOficialEUR = o.PresupuestoOficialEUR;
         vm.PresupuestoAdjudicado = o.PresupuestoAdjudicado;
@@ -301,7 +301,7 @@ public class ObraService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser
         o.PlazoObra = vm.PlazoObra;
         o.FechaFinalContrato = vm.FechaFinalContrato;
         o.DirectorObra = vm.DirectorObra;
-        o.PresupuestoOficial = vm.PresupuestoOficial;
+        o.PresupuestoOficial = vm.PresupuestoOficial ?? 0m; // la columna no es anulable: vacío = 0
         o.PresupuestoOficialUSD = vm.PresupuestoOficialUSD;
         o.PresupuestoOficialEUR = vm.PresupuestoOficialEUR;
         o.PresupuestoAdjudicado = vm.PresupuestoAdjudicado;

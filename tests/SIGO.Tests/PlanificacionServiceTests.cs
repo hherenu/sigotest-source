@@ -570,6 +570,41 @@ public class PlanificacionServiceTests(LocalDbFixture fx) : IClassFixture<LocalD
     }
 
     [Fact]
+    public async Task ObraSoloEnDolares_PlanificaContraElOficialEnDolares()
+    {
+        // Camino real de la ficha: alta por ObraService con el oficial solo en US$ (pesos
+        // vacío → 0 en la entidad) y después el plan de esa obra.
+        var obras = new ObraService(new TestDbFactory(fx.Options), new FakeCurrentUser(Roles.Admin));
+        var nombre = $"Obra USD {Guid.NewGuid():N}";
+        await obras.CrearAsync(new ObraVM
+        {
+            Nombre = nombre, NumeroLicitacion = "LP USD",
+            PresupuestoOficial = null, PresupuestoOficialUSD = 500m,
+            FechaFinalContrato = new DateTime(2030, 12, 1)
+        });
+        int obraId;
+        await using (var db = fx.CrearContexto())
+            obraId = (await db.Obras.SingleAsync(o => o.Nombre == nombre)).Id;
+
+        var (servicio, _) = Crear(Roles.Admin);
+        var plan = await servicio.GetOrCreateAsync(obraId);
+        var basica = await servicio.AgregarAutorizanteAsync(plan.Id, TipoAutorizante.Basica, null, null);
+
+        var vm = await servicio.BuildVmAsync(obraId);
+        Assert.Equal("Presupuesto oficial", vm.PresupuestoEtiqueta);
+        Assert.Equal(500m, vm.PresupuestoReferencia(Moneda.USD));
+        Assert.Equal(0m, vm.PresupuestoReferencia(Moneda.Pesos));
+        Assert.True(vm.Presupuestos.TieneReferencia);
+        Assert.Equal(500m, vm.Bloques.Single().Valor(ConceptoPlanMonto.MontoAutorizado, null, null, Moneda.USD));
+
+        // Curva en dólares por el total: el circuito avanza.
+        await servicio.GuardarGrillaAsync(plan.Id,
+            [new PlanMontoInput(basica.Id, ConceptoPlanMonto.Mensual, 2030, 1, Moneda.USD, 500m)],
+            PeriodosTest);
+        await servicio.MarcarCargadaAsync(plan.Id);
+    }
+
+    [Fact]
     public async Task ObraSinPresupuesto_SeGuardaPeroNoPasaACargada()
     {
         var obraId = await CrearObraAsync(); // presupuesto 0: obra anterior a la columna
