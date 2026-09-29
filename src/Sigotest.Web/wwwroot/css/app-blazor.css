@@ -518,3 +518,42 @@ html, body {
     color: var(--rz-on-danger, #fff);
     text-align: center;
 }
+
+/* ===========================================================================
+   (SAF) Planificación: stepper del circuito (RadzenSteps) compacto e informativo
+   =========================================================================== */
+/* Variables del propio tema de Radzen redefinidas en el contenedor: círculos más
+   chicos que el default (2rem), y el título seleccionado, el hover y el color de
+   "deshabilitado" en el mismo gris que los demás títulos —el tema pinta el título
+   seleccionado Y el hover con --rz-steps-title-selected-color, y los pasos van
+   Disabled para que el cursor no sea la mano—: el paso actual se distingue solo
+   por el círculo. user-select evita seleccionar el texto al arrastrar.
+   Nombres de variables internas de Radzen: revisar en cada upgrade del paquete. */
+.plan-pasos {
+    --rz-steps-number-width: 1.5rem;
+    --rz-steps-number-height: 1.5rem;
+    --rz-steps-number-line-height: 1.5rem;
+    --rz-steps-number-padding-block: 0;
+    --rz-steps-title-margin-inline: .4rem .75rem;
+    --rz-steps-title-selected-color: var(--rz-steps-color);
+    --rz-text-disabled-color: var(--rz-steps-color);
+    --rz-steps-number-selected-background: var(--rz-text-color);
+    --rz-steps-number-selected-color: var(--rz-base-background-color);
+    --rz-steps-number-background-color: var(--rz-base-300);
+    --rz-steps-number-color: var(--rz-text-secondary-color);
+    font-size: .85rem;
+    user-select: none;
+}
+
+/* Celda cerrada (texto) de la grilla de planificación: enfocable por teclado cuando
+   se puede editar. Ocupa la celda entera para que el anillo de foco se vea completo;
+   el anillo es el mismo de los tiles del Home. */
+.plan-celda {
+    display: block;
+}
+
+.plan-celda:focus-visible {
+    outline: 2px solid var(--rz-primary);
+    outline-offset: -2px;
+    border-radius: 2px;
+}

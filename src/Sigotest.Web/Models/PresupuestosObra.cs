@@ -3,8 +3,9 @@ using SIGO.Models.Enums;
 namespace SIGO.Models;
 
 /// <summary>
-/// Presupuestos de la obra por moneda: oficial (en pesos obligatorio; US$ y € opcionales)
-/// y adjudicado (opcional). ÚNICA implementación de "qué presupuesto aplica": si hay
+/// Presupuestos de la obra por moneda: oficial (obligatorio en al menos una moneda; en
+/// pesos 0 = vacío porque la columna no es anulable) y adjudicado (opcional). ÚNICA
+/// implementación de "qué presupuesto aplica": si hay
 /// adjudicado cargado (algún importe en cualquier moneda), manda en TODAS las monedas
 /// —una moneda sin importe en el adjudicado es 0, no cae al oficial—; si no, aplica el
 /// oficial. Es el autorizado de la Obra Básica en Planificación y la base del tope del
@@ -16,6 +17,9 @@ public record PresupuestosObra(
 {
     /// <summary>true si el adjudicado está cargado (algún importe en cualquier moneda).</summary>
     public bool Adjudicado => AdjudicadoPesos.HasValue || AdjudicadoUSD.HasValue || AdjudicadoEUR.HasValue;
+
+    /// <summary>true si hay presupuesto oficial en alguna moneda (lo mínimo que exige la ficha).</summary>
+    public bool TieneOficial => OficialPesos > 0 || OficialUSD > 0 || OficialEUR > 0;
 
     public decimal Oficial(Moneda moneda) => moneda switch
     {

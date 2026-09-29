@@ -25,8 +25,9 @@ public class Obra : BaseEntity
     public string? DirectorObra { get; set; }
 
     /// <summary>
-    /// Presupuesto oficial en pesos. Obligatorio (mayor a cero) al guardar la ficha; las
-    /// obras anteriores a la columna quedan en 0 hasta que se editen.
+    /// Presupuesto oficial en pesos; 0 = sin cargar (la columna no es anulable). La ficha
+    /// exige oficial en al menos una moneda, no en pesos en particular (hay obras solo en
+    /// dólares). Las obras anteriores a la columna quedan en 0 hasta que se editen.
     /// </summary>
     public decimal PresupuestoOficial { get; set; }
     /// <summary>Presupuesto oficial en dólares (opcional).</summary>

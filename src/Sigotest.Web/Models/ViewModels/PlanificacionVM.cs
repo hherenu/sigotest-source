@@ -24,6 +24,18 @@ public class PlanificacionVM
     public PresupuestosObra Presupuestos { get; set; } = new(0m, null, null, null, null, null);
 
     /// <summary>
+    /// Mes de inicio de la obra (acta de inicio o, si no hay, fecha de contrato) contra el
+    /// que se compara el mes del anticipo, y cómo se nombra ese dato en los mensajes
+    /// (<see cref="InicioEtiqueta"/>: "mes del acta de inicio" / "mes de la fecha de
+    /// contrato"). Ambos null si la obra no tiene ninguna de las dos fechas: ahí el
+    /// horizonte arranca en el mes actual y el servicio NO exige esa regla (ver
+    /// PlanificacionService.EtiquetaInicio); la página evalúa con estos mismos valores
+    /// para decir exactamente lo que el servicio va a exigir.
+    /// </summary>
+    public PeriodoVM? Inicio { get; set; }
+    public string? InicioEtiqueta { get; set; }
+
+    /// <summary>
     /// Autorizado de la Obra Básica en la moneda: el presupuesto que aplica (regla única
     /// en <see cref="PresupuestosObra"/>). También es la base del tope del 50% de adicionales/BED.
     /// </summary>

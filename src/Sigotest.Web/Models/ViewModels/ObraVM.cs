@@ -27,8 +27,12 @@ public class ObraVM
     public string? PlazoObra { get; set; }
     public DateTime? FechaFinalContrato { get; set; }
     public string? DirectorObra { get; set; }
-    /// <summary>Presupuesto oficial en pesos (obligatorio, mayor a cero); US$ y € opcionales.</summary>
-    public decimal PresupuestoOficial { get; set; }
+    /// <summary>
+    /// Presupuesto oficial por moneda: obligatorio en al menos una (hay obras solo en
+    /// dólares). En el VM las tres son anulables para que el formulario las trate igual;
+    /// en la entidad el de pesos no lo es (null ↔ 0, ver el mapeo en ObraService).
+    /// </summary>
+    public decimal? PresupuestoOficial { get; set; }
     public decimal? PresupuestoOficialUSD { get; set; }
     public decimal? PresupuestoOficialEUR { get; set; }
     /// <summary>Presupuesto adjudicado por moneda (opcional; cargado, manda sobre el oficial en Planificación).</summary>
@@ -38,7 +42,7 @@ public class ObraVM
 
     /// <summary>Los seis importes con la regla de referencia (ver <see cref="PresupuestosObra"/>).</summary>
     public PresupuestosObra Presupuestos => new(
-        PresupuestoOficial, PresupuestoOficialUSD, PresupuestoOficialEUR,
+        PresupuestoOficial ?? 0m, PresupuestoOficialUSD, PresupuestoOficialEUR,
         PresupuestoAdjudicado, PresupuestoAdjudicadoUSD, PresupuestoAdjudicadoEUR);
     public int? DirectorUsuarioId { get; set; }
     /// <summary>Nombre del director para mostrar (usuario asignado, o el texto libre). Solo lectura del detalle.</summary>
