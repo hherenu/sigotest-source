@@ -89,6 +89,8 @@ public static class Fmt
     public static string Qty(decimal v) => v != 0 ? v.ToString("N2", EsAr) : "";
     /// <summary>Número con 2 decimales.</summary>
     public static string N2(decimal v) => v.ToString("N2", EsAr);
+    /// <summary>Número con 4 decimales (cantidades y precios unitarios de estructura).</summary>
+    public static string N4(decimal v) => v.ToString("N4", EsAr);
     /// <summary>Monto con separadores es-AR (grilla de planificación).</summary>
     public static string Pesos(decimal v) => v.ToString("N2", EsAr);
 
@@ -246,6 +248,17 @@ public static class EstadoUi
         EstadoPlanificacion.Aprobada => BadgeStyle.Success,
         _ => BadgeStyle.Secondary
     };
+}
+
+/// <summary>Aspecto de las filas de ítems de estructura en las RadzenDataGrid (ítems y vista previa de la importación).</summary>
+public static class FilaEstructuraUi
+{
+    /// <summary>Estilo del RowRender de un agrupador: fondo de rubro (nivel 0) o sub-rubro, en negrita.</summary>
+    public static string EstiloAgrupador(int nivel) =>
+        $"background:{(nivel == 0 ? "var(--app-agrup-0-bg)" : "var(--app-agrup-1-bg)")};font-weight:600";
+
+    /// <summary>Sangría en px del texto de una fila según su nivel en el árbol.</summary>
+    public static int Sangria(int nivel) => nivel * 16 + 8;
 }
 
 /// <summary>Aplana un árbol auto-referencial (padre → hijos) en orden de visualización, con el nivel de anidamiento.</summary>

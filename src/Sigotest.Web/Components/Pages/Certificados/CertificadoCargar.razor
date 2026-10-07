@@ -33,6 +33,8 @@ else
                ya aplicaba Planificación. *@
             <RadzenButton Text="Guardar certificado" Icon="save" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
                           IsBusy="@procesando" BusyText="Guardando..." Click="@GuardarAsync" />
+            <RadzenButton Text="Importar % desde Excel" Icon="upload" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary"
+                          Variant="Variant.Flat" Disabled="@procesando" Click="@ImportarExcelAsync" />
             <RadzenButton Text="Ver Detalle" Icon="visibility" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info"
                           Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"certificados/{Id}"))" />
             <RadzenButton Text="Volver a Certificados" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
@@ -70,13 +72,16 @@ else
                                   Variant="Variant.Text" Disabled="@procesando" Click="@(() => EliminarBloqueAsync(bloque))" />
                 }
             </RadzenStack>
+            @* Descripción ajustable: por defecto ocupa el ancho libre y corta el texto con «…»
+               (completo en el title), así el ítem y su % del mes se ven sin scroll horizontal;
+               el asa del encabezado cambia el ancho (CSS en app-blazor.css, JS en App.razor). *@
             <div class="cert-scroll">
-                <table class="cert-grid">
+                <table class="cert-grid cert-grid-ajustable">
                     <caption class="sr-only">Carga del % de avance del mes — @bloque.Titulo</caption>
                     <thead>
                         <tr>
                             <th scope="col" style="text-align:left">Cód.</th>
-                            <th scope="col" style="text-align:left;min-width:200px">Descripción</th>
+                            <th scope="col" class="cert-col-desc" style="text-align:left">Descripción<AsaAnchoDescripcion /></th>
                             <th scope="col">Unid.</th>
                             <th scope="col">Cant. Contrato</th>
                             <th scope="col">PU Básico</th>
@@ -95,7 +100,7 @@ else
                             {
                                 <tr @key="item.ItemEstructuraId" class="@(nivel == 0 ? "agrup-0" : "agrup-1")">
                                     <td></td>
-                                    <td style="padding-left:@(pad)px">@item.Descripcion</td>
+                                    <td class="cert-col-desc" style="padding-left:@(pad)px" title="@item.Descripcion">@item.Descripcion</td>
                                     <td></td><td></td><td></td>
                                     <td class="num">@Fmt.Money(item.MontoContrato ?? 0)</td>
                                     <td class="col-warning"></td>
@@ -108,7 +113,7 @@ else
                             {
                                 <tr @key="item.ItemEstructuraId">
                                     <td class="cell-mono" style="padding-left:@(pad)px">@item.Codigo</td>
-                                    <td>@item.Descripcion</td>
+                                    <td class="cert-col-desc" title="@item.Descripcion">@item.Descripcion</td>
                                     <td style="text-align:center">@item.Unidad</td>
                                     <td class="num">@item.CantidadContrato?.ToString("N4")</td>
                                     <td class="num">@(item.PUBasico.HasValue ? "$ " + item.PUBasico.Value.ToString("N4") : "")</td>
@@ -311,6 +316,37 @@ else
             _ => (NotificationSeverity.Warning, "No editable")
         };
         Notifications.Notify(severidad, titulo, res.Rechazo ?? "", 5000);
+    }
+
+    /// <summary>
+    /// Abre el diálogo de importación y vuelca en <c>pct</c> los % que devuelve, bloque
+    /// por bloque. Solo se tocan los ítems con renglón en la planilla; el resto conserva
+    /// lo tipeado. No se guarda: el usuario revisa la grilla y recién entonces guarda,
+    /// con el mismo chequeo de acumulado y token de concurrencia de siempre.
+    /// </summary>
+    private async Task ImportarExcelAsync()
+    {
+        if (procesando || vm is null) return;
+
+        var resultado = await DialogService.OpenAsync<CertificadoImportarDialog>(
+            "Importar % del mes desde Excel",
+            new Dictionary<string, object?> { [nameof(CertificadoImportarDialog.Vm)] = vm },
+            new DialogOptions { Width = "min(1100px, 92vw)" });
+        if (resultado is not List<AplicacionBloque> aplicaciones) return;
+
+        var volcados = 0;
+        foreach (var ap in aplicaciones)
+        {
+            if (!pct.TryGetValue(ap.CertificadoEstructuraId, out var porItem)) continue;
+            foreach (var (itemId, p) in ap.Porcentajes)
+            {
+                if (!porItem.ContainsKey(itemId)) continue;
+                porItem[itemId] = p == 0 ? null : p;
+                volcados++;
+            }
+        }
+        Notifications.Notify(NotificationSeverity.Success, "Porcentajes volcados",
+            $"{volcados} ítems actualizados en la grilla. Revisá y presioná «Guardar certificado».", 4000);
     }
 
     // La regla (umbral y epsilon) vive en CertificadoValidator; acá solo se resuelve

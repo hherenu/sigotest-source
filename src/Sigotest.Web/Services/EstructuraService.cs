@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using SIGO.Data;
 using SIGO.Models;
+using SIGO.Models.Enums;
 using SIGO.Models.ViewModels;
+using SIGO.Services.Importacion;
 using SIGO.Services.Validaciones;
 
 namespace SIGO.Services;
@@ -148,26 +150,7 @@ public class EstructuraService(IDbContextFactory<AppDbContext> dbFactory, ICurre
         var n = EstructuraValidator.Normalizar(nuevo, conservarPadreDeAgrupador: false);
 
         await using var db = await dbFactory.CreateDbContextAsync();
-
-        // Orden desde la DB, no desde la colección en memoria de la página: otro
-        // usuario pudo haber agregado ítems desde que se cargó.
-        var maxOrden = await db.ItemsEstructura
-            .Where(i => i.EstructuraCostosId == estructuraId)
-            .MaxAsync(i => (int?)i.Orden) ?? 0;
-
-        db.ItemsEstructura.Add(new ItemEstructura
-        {
-            EstructuraCostosId = estructuraId,
-            EsAgrupador = nuevo.EsAgrupador,
-            AgrupadorPadreId = n.AgrupadorPadreId,
-            Codigo = n.Codigo,
-            Descripcion = n.Descripcion,
-            Unidad = n.Unidad,
-            Cantidad = n.Cantidad,
-            PUBasico = n.PUBasico,
-            Monto = n.Monto,
-            Orden = maxOrden + 1
-        });
+        db.ItemsEstructura.Add(NuevoItem(estructuraId, nuevo.EsAgrupador, n, await MaxOrdenAsync(db, estructuraId) + 1));
         await db.SaveChangesAsync();
     }
 
@@ -229,7 +212,138 @@ public class EstructuraService(IDbContextFactory<AppDbContext> dbFactory, ICurre
         return true;
     }
 
+    // ── Importación desde Excel ─────────────────────────────────────────────────
+
+    /// <summary>Estrategia sobre los ítems que ya tiene la estructura al importar.</summary>
+    public enum ModoImportacion
+    {
+        /// <summary>Los ítems importados se agregan al final; los existentes no se tocan.</summary>
+        Agregar,
+        /// <summary>Se eliminan todos los ítems existentes y se cargan los importados.</summary>
+        Reemplazar
+    }
+
+    /// <summary>
+    /// Persiste las filas analizadas por <see cref="ImportadorEstructura"/> en una sola
+    /// transacción: rubros y sub-rubros como agrupadores (sin código, como el resto de
+    /// la app), ítems normalizados con el validator y el orden a continuación del
+    /// último. El RowVersion de la página viaja como token del UPDATE de la estructura
+    /// (detecta renombres o borrados concurrentes). Como ese token no cambia cuando otro
+    /// usuario agrega o quita ítems, Reemplazar exige además que el conjunto de ítems
+    /// actual sea el que la página vio (<paramref name="itemsVistos"/>; Agregar no lo
+    /// usa): si difiere, conflicto de concurrencia. Reemplazar solo se admite si ningún
+    /// certificado tiene un bloque sobre la estructura (aunque todavía no haya guardado
+    /// porcentajes) y si ningún ítem de otra estructura (BED) toma uno de estos como origen.
+    /// Devuelve la cantidad de filas creadas (agrupadores incluidos).
+    /// </summary>
+    public async Task<int> ImportarItemsAsync(int estructuraId, IReadOnlyList<FilaEstructuraImport> filas,
+        ModoImportacion modo, byte[] rowVersion, IReadOnlyCollection<int> itemsVistos)
+    {
+        ExigirRol("importar los ítems");
+
+        var aImportar = filas.Where(f => f.SeImporta).ToList();
+        if (aImportar.Count == 0)
+            throw new InvalidOperationException("No hay filas para importar.");
+        foreach (var f in aImportar)
+            Validacion.Exigir(EstructuraValidator.DescripcionItem(f.Descripcion));
+
+        await using var db = await dbFactory.CreateDbContextAsync();
+        var estructura = await db.EstructurasCostos.FirstOrDefaultAsync(e => e.Id == estructuraId)
+            ?? throw new InvalidOperationException("La estructura ya no existe.");
+
+        db.AplicarTokenSesion(estructura, rowVersion, e => e.Nombre);
+
+        // Serializable: los chequeos de Reemplazar (ítems vistos, bloques de certificado,
+        // orígenes de un BED) y el Max+1 de Agregar miran filas que el RowVersion de la
+        // estructura no protege; sin esto, un alta concurrente entre el chequeo y el
+        // borrado se perdería en silencio.
+        await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+        var itemsDeEstructura = db.ItemsEstructura.Where(i => i.EstructuraCostosId == estructuraId);
+
+        var orden = 0;
+        if (modo == ModoImportacion.Reemplazar)
+        {
+            // Bloques, no filas de ítems: un certificado en borrador con el bloque recién
+            // agregado y sin % guardados todavía no tiene ItemsCertificado.
+            var enCertificados = await db.CertificadoEstructuras
+                .AnyAsync(ce => ce.EstructuraCostosId == estructuraId);
+            if (enCertificados)
+                throw new InvalidOperationException(
+                    "No se puede reemplazar: hay certificados con un bloque sobre esta estructura. Importá en modo Agregar o quitá primero esos bloques.");
+
+            var actuales = await itemsDeEstructura.Select(i => i.Id).ToListAsync();
+            if (!actuales.ToHashSet().SetEquals(itemsVistos))
+                throw new DbUpdateConcurrencyException(
+                    "Otro usuario agregó o eliminó ítems de la estructura mientras se analizaba la planilla.");
+
+            var comoOrigen = await db.ItemsEstructura
+                .AnyAsync(i => i.ItemOrigen != null && i.ItemOrigen.EstructuraCostosId == estructuraId
+                               && i.EstructuraCostosId != estructuraId);
+            if (comoOrigen)
+                throw new InvalidOperationException(
+                    "No se puede reemplazar: ítems de otra estructura (BED) referencian a los de esta.");
+
+            // Primero se desarman las dos FK self-referenciales (padre → hijo e ítem origen,
+            // ambas Restrict) y después se borra.
+            await itemsDeEstructura.ExecuteUpdateAsync(s => s
+                .SetProperty(i => i.AgrupadorPadreId, (int?)null)
+                .SetProperty(i => i.ItemOrigenId, (int?)null));
+            await itemsDeEstructura.ExecuteDeleteAsync();
+        }
+        else
+        {
+            orden = await MaxOrdenAsync(db, estructuraId);
+        }
+
+        // El padre se resuelve por índice dentro de la lista: la navegación deja que EF
+        // asigne las FK self-referenciales en el mismo SaveChanges.
+        var entidades = new Dictionary<int, ItemEstructura>();
+        for (var i = 0; i < filas.Count; i++)
+        {
+            var f = filas[i];
+            if (!f.SeImporta) continue;
+
+            var n = EstructuraValidator.Normalizar(f.EsAgrupador, null, f.Codigo, f.Descripcion, f.Unidad, f.Cantidad, f.PUBasico);
+            var item = NuevoItem(estructuraId, f.EsAgrupador, n, ++orden);
+            item.TipoMovimiento = f.TipoMovimiento ?? TipoMovimiento.Normal;
+            if (f.PadreIndice is int p && entidades.TryGetValue(p, out var padre))
+                item.AgrupadorPadre = padre;
+
+            entidades[i] = item;
+            db.ItemsEstructura.Add(item);
+        }
+
+        await db.SaveChangesAsync();
+        await tx.CommitAsync();
+        return entidades.Count;
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Último Orden de la estructura (0 si no tiene ítems), leído de la DB y no de la
+    /// colección en memoria de la página: otro usuario pudo haber agregado ítems desde
+    /// que se cargó.
+    /// </summary>
+    private static async Task<int> MaxOrdenAsync(AppDbContext db, int estructuraId) =>
+        await db.ItemsEstructura
+            .Where(i => i.EstructuraCostosId == estructuraId)
+            .MaxAsync(i => (int?)i.Orden) ?? 0;
+
+    /// <summary>Ítem nuevo con los campos ya normalizados por el validator (el alta manual y la importación lo arman igual).</summary>
+    private static ItemEstructura NuevoItem(int estructuraId, bool esAgrupador, EstructuraValidator.ItemNormalizado n, int orden) => new()
+    {
+        EstructuraCostosId = estructuraId,
+        EsAgrupador = esAgrupador,
+        AgrupadorPadreId = n.AgrupadorPadreId,
+        Codigo = n.Codigo,
+        Descripcion = n.Descripcion,
+        Unidad = n.Unidad,
+        Cantidad = n.Cantidad,
+        PUBasico = n.PUBasico,
+        Monto = n.Monto,
+        Orden = orden
+    };
 
     private static ItemEstructuraVM MapItem(ItemEstructura i) => new()
     {

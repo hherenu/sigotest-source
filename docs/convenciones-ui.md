@@ -61,6 +61,10 @@ regla, dejá el porqué en un comentario al lado (como hace el resto del código
 - Tablas HTML propias (`cert-grid`): `caption` con clase `sr-only` y `scope` en los `th`;
   el encabezado es sticky (los detalles de fondo opaco y dos filas viven en
   `app-blazor.css`, sección cert-grid — no tocar sin leer los comentarios).
+- `cert-grid` con descripciones largas (carga y detalle del certificado): clase
+  `cert-grid-ajustable`, `cert-col-desc` en el th y los td de la descripción (con `title`
+  del texto completo) y `<AsaAnchoDescripcion />` dentro de ese th. La descripción ocupa el
+  ancho libre y el usuario la ajusta arrastrando el asa; el script vive en `App.razor`.
 
 ## Feedback y errores
 

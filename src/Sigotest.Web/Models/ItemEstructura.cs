@@ -4,6 +4,9 @@ namespace SIGO.Models;
 
 public class ItemEstructura
 {
+    /// <summary>Largo de Descripcion: AppDbContext lo amplía sobre la convención de strings.</summary>
+    public const int LargoMaximoDescripcion = 500;
+
     public int Id { get; set; }
     public int EstructuraCostosId { get; set; }
     public EstructuraCostos EstructuraCostos { get; set; } = null!;

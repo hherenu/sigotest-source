@@ -1,0 +1,335 @@
+@inject DialogService DialogService
+@inject NotificationService Notifications
+@inject ILogger<CertificadoImportarDialog> Logger
+
+@* Diálogo de la carga de certificado: lee la hoja CERTIFICADO de CCyR, corta las
+   secciones, las mapea a bloques y devuelve los % del mes a volcar en la grilla. No
+   persiste nada: el guardado sigue siendo el botón «Guardar certificado» de la página. *@
+<RadzenStack Gap="0.75rem">
+    <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
+        Subí la hoja <b>CERTIFICADO</b> del mes. Se toma la columna <b>Actual</b> del acta de medición (% del mes) y se
+        matchea cada renglón por código dentro del bloque elegido. Los valores se vuelcan en la grilla para revisarlos:
+        nada se guarda hasta presionar «Guardar certificado».
+    </RadzenText>
+
+    @* «Volcar» se repite arriba (como «Guardar» en la carga): con dos o tres bloques el de
+       abajo queda lejos, después de las tarjetas de cada bloque. *@
+    <RadzenRow Gap="1rem" RowGap="0.5rem" AlignItems="AlignItems.End">
+        <RadzenColumn Size="12" SizeMD="5">
+            <SelectorPlanilla Cambio="@OnPlanilla" />
+        </RadzenColumn>
+        @if (eleccion is not null)
+        {
+            <RadzenColumn Size="12" SizeMD="4">
+                <RadzenFormField Text="Hoja" Variant="Variant.Outlined" style="width:100%">
+                    <RadzenDropDown @bind-Value="hojaElegida" Data="@eleccion.Opciones" TextProperty="Etiqueta" ValueProperty="Nombre"
+                                    TValue="string" Placeholder="-- Seleccionar hoja --" style="width:100%" Change="@(_ => Analizar())" />
+                </RadzenFormField>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="3" class="rz-text-align-end">
+                <RadzenButton Text="@TextoVolcar" Icon="download_done" ButtonStyle="ButtonStyle.Primary"
+                              Disabled="@(leyendo || totalAplicables == 0)" Click="@Volcar" />
+            </RadzenColumn>
+        }
+    </RadzenRow>
+
+    @if (eleccion?.Elegida is { } elegida && hojaElegida == elegida.Nombre && eleccion.Alternativas.Count > 0)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+            Otras hojas tienen el mismo N° y período y una cantidad parecida de renglones:
+            @(string.Join(", ", eleccion.Alternativas.Select(a => $"«{a.Nombre}»"))). Se preseleccionó «@(elegida.Nombre)»:
+            verificá que sea la versión vigente del certificado.
+        </RadzenAlert>
+    }
+
+    @if (leyendo)
+    {
+        <EstadoCargando Texto="Leyendo la planilla…" />
+    }
+    else if (analisis?.Error is not null)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+            @analisis.Error
+        </RadzenAlert>
+    }
+    else if (analisis is not null)
+    {
+        @if (analisis.Encabezado is not null)
+        {
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0">Planilla: <b>@analisis.Encabezado</b></RadzenText>
+                @if (analisis.CoincideCon(Vm.Numero, Vm.Mes, Vm.Anio))
+                {
+                    <RadzenBadge Text="N° y período coinciden" BadgeStyle="BadgeStyle.Success" />
+                }
+                else
+                {
+                    <RadzenBadge Text="@($"No coincide: este certificado es el N° {Vm.Numero} de {Fmt.MesNombre(Vm.Mes)} {Vm.Anio}")" BadgeStyle="BadgeStyle.Danger" />
+                }
+            </RadzenStack>
+        }
+        else
+        {
+            <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
+                La planilla no tiene la cabecera «CERTIFICADO N° … - período»: verificá que sea la del mes correcto.
+            </RadzenText>
+        }
+
+        <div class="cert-scroll">
+            <table class="cert-grid">
+                <caption class="sr-only">Secciones de la planilla y bloque del certificado al que se aplican</caption>
+                <thead>
+                    <tr>
+                        <th scope="col" style="text-align:left">Sección de la planilla</th>
+                        <th scope="col">Filas</th>
+                        <th scope="col">Renglones</th>
+                        <th scope="col">Con %</th>
+                        <th scope="col">Monto mes planilla</th>
+                        <th scope="col" style="text-align:left;min-width:220px">Bloque del certificado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in analisis.Secciones)
+                    {
+                        <tr @key="s.Indice">
+                            <th scope="row" id="@IdSeccion(s)" style="text-align:left;font-weight:400">@s.Titulo</th>
+                            <td style="text-align:center">@s.FilaDesde–@s.FilaHasta</td>
+                            <td class="num">@s.Filas.Count</td>
+                            <td class="num">@s.ConPorcentaje</td>
+                            <td class="num">@(s.TotalMontoActualPlanilla is decimal t ? "$ " + Fmt.N2(t) : "")</td>
+                            <td>
+                                @* aria-labelledby y no aria-label: RadzenDropDown escribe su propio
+                                   aria-label después de los atributos y lo pisaba. *@
+                                <RadzenDropDown TValue="int?" Value="@Mapeo(s.Indice)" ValueChanged="@((int? v) => CambiarMapeo(s.Indice, v))"
+                                                Data="@Vm.Bloques" TextProperty="Titulo" ValueProperty="CertificadoEstructuraId"
+                                                AllowClear="true" Placeholder="No importar" style="width:100%"
+                                                aria-labelledby="@IdSeccion(s)" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
+            Se sugiere el bloque que tiene al menos dos tercios de los códigos de la sección; una sección de demasías,
+            BED o adicional solo se sugiere en un bloque que también lo sea. Varias secciones pueden ir al mismo bloque:
+            se unen antes de aplicar.
+        </RadzenText>
+
+        @if (seccionesSinBloqueDeDemasias.Count > 0)
+        {
+            @* El diálogo no agrega bloques: sin este aviso la sección quedaría en «No importar»
+               sin explicar por qué cuando el certificado todavía no tiene el bloque del BED. *@
+            <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+                @(string.Join(", ", seccionesSinBloqueDeDemasias.Select(t => $"«{t}»")))
+                @(seccionesSinBloqueDeDemasias.Count == 1 ? "es una sección" : "son secciones") de demasías, BED o adicional
+                y ningún bloque del certificado lo es. Si falta el bloque, cerrá este diálogo, agregalo con «Agregar bloque»
+                y volvé a importar; si existe con otro nombre, elegilo en la tabla.
+            </RadzenAlert>
+        }
+
+        @foreach (var ap in aplicaciones)
+        {
+            <RadzenCard @key="ap.CertificadoEstructuraId" Variant="Variant.Outlined">
+                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1" style="font-weight:600">@ap.TituloBloque</RadzenText>
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap" class="rz-mb-2">
+                    <RadzenBadge Text="@($"{ap.Coincidentes} ítems coinciden")" BadgeStyle="BadgeStyle.Success" />
+                    @if (ap.Desconocidos > 0)
+                    {
+                        <RadzenBadge Text="@($"{ap.Desconocidos} códigos sin ítem en el bloque")" BadgeStyle="BadgeStyle.Danger" />
+                    }
+                    @if (ap.Repetidos > 0)
+                    {
+                        <RadzenBadge Text="@($"{ap.Repetidos} códigos repetidos (no se aplican)")" BadgeStyle="BadgeStyle.Danger" />
+                    }
+                    @if (ap.Ilegibles > 0)
+                    {
+                        <RadzenBadge Text="@($"{ap.Ilegibles} con % del mes ilegible (no se aplican)")" BadgeStyle="BadgeStyle.Danger" />
+                    }
+                    @if (ap.AnterioresDistintos > 0)
+                    {
+                        <RadzenBadge Text="@($"{ap.AnterioresDistintos} con % anterior distinto al sistema")" BadgeStyle="BadgeStyle.Warning" />
+                    }
+                    @if (ap.ItemsSinFila.Count > 0)
+                    {
+                        <RadzenBadge Text="@($"{ap.ItemsSinFila.Count} ítems del bloque sin renglón (no se tocan)")" BadgeStyle="BadgeStyle.Secondary" />
+                    }
+                </RadzenStack>
+                <ContrasteTotales Etiqueta="Monto del mes calculado" Calculado="@ap.TotalMontoMesCalculado" Planilla="@ap.TotalMontoMesPlanilla" />
+
+                @if (ap.Problemas.Any())
+                {
+                    @* PageSize 10 y no 20: hay una grilla por bloque dentro del diálogo. *@
+                    <RadzenDataGrid Data="@ap.Problemas" TItem="DetalleFilaCertificado" Density="Density.Compact" class="app-grid-wrap"
+                                    AllowPaging="true" PageSize="10" AllowSorting="false">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="DetalleFilaCertificado" Title="Fila" Width="60px" TextAlign="TextAlign.Center">
+                                <Template Context="d">@d.Fila.Fila</Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="DetalleFilaCertificado" Title="Código" Width="170px">
+                                <Template Context="d"><span class="app-mono">@d.Fila.Codigo</span></Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="DetalleFilaCertificado" Title="Descripción (planilla)" Width="300px" WhiteSpace="WhiteSpace.Wrap">
+                                <Template Context="d">@d.Fila.Descripcion</Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="DetalleFilaCertificado" Title="Estado" Width="180px">
+                                <Template Context="d"><RadzenBadge Text="@EtiquetaEstado(d.Estado)" BadgeStyle="@BadgeEstado(d.Estado)" /></Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="DetalleFilaCertificado" Title="% mes" Width="90px" TextAlign="TextAlign.Right">
+                                <Template Context="d">@(d.Fila.PctActual is decimal p ? Fmt.N2(p) + "%" : "")</Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="DetalleFilaCertificado" Title="% ant. planilla / sistema" Width="160px" TextAlign="TextAlign.Right">
+                                <Template Context="d">
+                                    @(d.Fila.PctAnterior is decimal pa ? Fmt.N2(pa) + "%" : "—") / @(d.PctAnteriorSistema is decimal ps ? Fmt.N2(ps) + "%" : "—")
+                                </Template>
+                            </RadzenDataGridColumn>
+                        </Columns>
+                    </RadzenDataGrid>
+                }
+            </RadzenCard>
+        }
+    }
+
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
+        <RadzenButton Text="Cancelar" Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                      Click="@(() => DialogService.Close(null))" />
+        <RadzenButton Text="@TextoVolcar" Icon="download_done" ButtonStyle="ButtonStyle.Primary"
+                      Disabled="@(leyendo || totalAplicables == 0)" Click="@Volcar" />
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    [Parameter, EditorRequired] public CertificadoVM Vm { get; set; } = default!;
+
+    private EleccionHojaCertificado? eleccion;
+    private string? hojaElegida;
+    private AnalisisCertificado? analisis;
+    private Dictionary<int, int?> mapeo = new();
+    // Títulos de las secciones de demasías/BED/adicional cuando ningún bloque del certificado lo es.
+    private List<string> seccionesSinBloqueDeDemasias = new();
+    private List<AplicacionBloque> aplicaciones = new();
+    private int totalAplicables;
+    private bool leyendo;
+
+    private string TextoVolcar => $"Volcar {totalAplicables} % en la grilla";
+
+    private static string IdSeccion(SeccionCertificadoImport s) => $"importar-seccion-{s.Indice}";
+
+    // Cada cambio del selector descarta todo lo anterior: al elegir otro archivo llega
+    // primero Leyendo (sin libro) y nunca queda a la vista ni se vuelca el libro viejo.
+    private void OnPlanilla(SelectorPlanilla.Estado estado)
+    {
+        leyendo = estado.Leyendo;
+        eleccion = null; hojaElegida = null;
+        if (estado.Libro is not null)
+        {
+            // Los libros reales traen varias hojas con el encabezado del certificado (resumen
+            // sin renglones, copias ocultas de otros meses, hojas paralelas en cero): la
+            // elección vive en ImportadorCertificado.EvaluarHojas, con tests.
+            eleccion = ImportadorCertificado.EvaluarHojas(estado.Libro, Vm.Numero, Vm.Mes, Vm.Anio);
+            foreach (var opcion in eleccion.Opciones.Where(o => o.Falla is not null))
+                Logger.LogError(opcion.Falla, "Falló el análisis de la hoja «{Hoja}» del certificado.", opcion.Nombre);
+            hojaElegida = eleccion.Elegida?.Nombre ?? eleccion.Opciones.FirstOrDefault()?.Nombre;
+        }
+        Analizar();
+    }
+
+    private void Analizar()
+    {
+        analisis = null;
+        mapeo = new();
+        seccionesSinBloqueDeDemasias = new();
+        var opcion = eleccion?.Opciones.FirstOrDefault(o => o.Nombre == hojaElegida);
+        if (opcion is not null)
+        {
+            try
+            {
+                // EvaluarHojas ya analizó las hojas con encabezado de certificado; el resto
+                // se analiza para mostrar por qué no sirve.
+                analisis = opcion.Analisis ?? ImportadorCertificado.Analizar(opcion.Hoja);
+                if (analisis.Error is null)
+                {
+                    mapeo = ImportadorCertificado.MapeoInicial(analisis.Secciones, Vm.Bloques);
+                    if (!Vm.Bloques.Any(b => ImportadorCertificado.HablaDeDemasias(b.Titulo)))
+                        seccionesSinBloqueDeDemasias = analisis.Secciones
+                            .Where(s => ImportadorCertificado.HablaDeDemasias(s.Titulo))
+                            .Select(s => s.Titulo)
+                            .ToList();
+                }
+            }
+            catch (Exception ex)
+            {
+                // Un error inesperado del parser se muestra en el lugar del análisis (con su
+                // hoja) en vez de tumbar el circuito: el diálogo vive fuera del ErrorBoundary.
+                Logger.LogError(ex, "Falló el análisis de la hoja «{Hoja}» del certificado.", opcion.Nombre);
+                analisis = new AnalisisCertificado { Error = $"No se pudo analizar la hoja «{opcion.Nombre}»: ocurrió un error inesperado y quedó registrado. Probá con otra hoja." };
+                mapeo = new();
+            }
+        }
+        Recalcular();
+    }
+
+    private int? Mapeo(int seccion) => mapeo.GetValueOrDefault(seccion);
+
+    private void CambiarMapeo(int seccion, int? bloqueId)
+    {
+        mapeo[seccion] = bloqueId;
+        Recalcular();
+    }
+
+    // Una aplicación por bloque: las secciones que apuntan al mismo bloque se unen
+    // (un renglón repetido para el mismo ítem queda avisado como código repetido).
+    private void Recalcular()
+    {
+        aplicaciones = new();
+        totalAplicables = 0;
+        if (analisis is not { Error: null }) return;
+
+        try
+        {
+            foreach (var bloque in Vm.Bloques.OrderBy(b => b.Orden))
+            {
+                var secciones = analisis.Secciones
+                    .Where(s => mapeo.GetValueOrDefault(s.Indice) == bloque.CertificadoEstructuraId)
+                    .ToList();
+                if (secciones.Count == 0) continue;
+                var ap = ImportadorCertificado.Aplicar(ImportadorCertificado.Combinar(secciones), bloque);
+                aplicaciones.Add(ap);
+                totalAplicables += ap.Porcentajes.Count;
+            }
+        }
+        catch (Exception ex)
+        {
+            // Cambiar un bloque corre fuera del ErrorBoundary: un error inesperado no debe
+            // cortar la sesión y perder los % tipeados en la página.
+            Logger.LogError(ex, "Falló la aplicación de la hoja «{Hoja}» sobre los bloques del certificado.", hojaElegida);
+            Notifications.Notify(NotificationSeverity.Error, "No se pudo aplicar la planilla",
+                "Ocurrió un error inesperado y quedó registrado. Probá con otro mapeo de bloques o con otra hoja.", 8000);
+            aplicaciones = new();
+            totalAplicables = 0;
+        }
+    }
+
+    private void Volcar()
+    {
+        if (totalAplicables == 0) return;
+        DialogService.Close(aplicaciones);
+    }
+
+    private static string EtiquetaEstado(EstadoFilaCertificado e) => e switch
+    {
+        EstadoFilaCertificado.Coincide => "Coincide",
+        EstadoFilaCertificado.AnteriorDistinto => "% anterior distinto",
+        EstadoFilaCertificado.CodigoDesconocido => "Sin ítem en el bloque",
+        EstadoFilaCertificado.ValorIlegible => "% del mes ilegible",
+        _ => "Código repetido"
+    };
+
+    private static BadgeStyle BadgeEstado(EstadoFilaCertificado e) => e switch
+    {
+        EstadoFilaCertificado.Coincide => BadgeStyle.Success,
+        EstadoFilaCertificado.AnteriorDistinto => BadgeStyle.Warning,
+        _ => BadgeStyle.Danger
+    };
+}

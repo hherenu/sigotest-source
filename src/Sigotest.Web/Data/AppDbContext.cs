@@ -6,6 +6,9 @@ namespace SIGO.Data;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? currentUser = null) : DbContext(options)
 {
+    /// <summary>Largo por defecto de las columnas de texto (convención de abajo).</summary>
+    public const int LargoTextoPorDefecto = 250;
+
     private void ApplyAudit()
     {
         var now = DateTime.UtcNow;
@@ -80,7 +83,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
     {
         // Los strings dejan de ser nvarchar(max) por defecto: 250 salvo override
         // (columnas indexables y sin ALTER masivo el día que se agregue Identity).
-        configurationBuilder.Properties<string>().HaveMaxLength(250);
+        configurationBuilder.Properties<string>().HaveMaxLength(LargoTextoPorDefecto);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -99,7 +102,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
             b.Property(o => o.PresupuestoAdjudicadoUSD).HasPrecision(18, 4);
             b.Property(o => o.PresupuestoAdjudicadoEUR).HasPrecision(18, 4);
         });
-        modelBuilder.Entity<ItemEstructura>().Property(i => i.Descripcion).HasMaxLength(500);
+        modelBuilder.Entity<ItemEstructura>().Property(i => i.Descripcion).HasMaxLength(ItemEstructura.LargoMaximoDescripcion);
         modelBuilder.Entity<ItemPonderacion>().Property(i => i.DescripcionINDEC).HasMaxLength(500);
         modelBuilder.Entity<RedeterminacionGuardadaItem>().Property(i => i.DescripcionINDEC).HasMaxLength(500);
         modelBuilder.Entity<Certificado>().Property(c => c.Observaciones).HasMaxLength(2000);

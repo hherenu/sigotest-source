@@ -74,13 +74,15 @@ else
     {
         <RadzenCard @key="bloque.CertificadoEstructuraId" Variant="Variant.Outlined" class="rz-mb-3">
             <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-2" style="font-weight:600">@bloque.Titulo</RadzenText>
+            @* Descripción ajustable, como en la carga: ocupa el ancho libre y corta el texto con
+               «…» (completo en el title); el asa del encabezado cambia el ancho. *@
             <div class="cert-scroll">
-                <table class="cert-grid">
+                <table class="cert-grid cert-grid-ajustable">
                     <caption class="sr-only">Detalle del certificado por ítem — @bloque.Titulo</caption>
                     <thead>
                         <tr>
                             <th scope="col" rowspan="2" style="text-align:left">Cód.</th>
-                            <th scope="col" rowspan="2" style="text-align:left;min-width:200px">Descripción</th>
+                            <th scope="col" rowspan="2" class="cert-col-desc" style="text-align:left">Descripción<AsaAnchoDescripcion /></th>
                             <th scope="col" rowspan="2">Unid.</th>
                             <th scope="col" rowspan="2">Cant. Contrato</th>
                             <th scope="col" rowspan="2">PU Básico</th>
@@ -107,7 +109,7 @@ else
                             {
                                 <tr @key="item.ItemEstructuraId" class="@(nivel == 0 ? "agrup-0" : "agrup-1")">
                                     <td></td>
-                                    <td style="padding-left:@(pad)px">@item.Descripcion</td>
+                                    <td class="cert-col-desc" style="padding-left:@(pad)px" title="@item.Descripcion">@item.Descripcion</td>
                                     <td></td><td></td><td></td>
                                     <td class="num">@Fmt.Money(item.MontoContrato ?? 0)</td>
                                     <td class="col-warning"></td>
@@ -123,7 +125,7 @@ else
                             {
                                 <tr @key="item.ItemEstructuraId">
                                     <td class="cell-mono" style="padding-left:@(pad)px">@item.Codigo</td>
-                                    <td>@item.Descripcion</td>
+                                    <td class="cert-col-desc" title="@item.Descripcion">@item.Descripcion</td>
                                     <td style="text-align:center">@item.Unidad</td>
                                     <td class="num">@item.CantidadContrato?.ToString("N2")</td>
                                     <td class="num">@(item.PUBasico.HasValue ? "$ " + item.PUBasico.Value.ToString("N2") : "")</td>

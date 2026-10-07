@@ -403,6 +403,53 @@ html, body {
    borde del contraste AA; el tamaño menor ya lo distingue como secundario. */
 .cert-grid .cell-mono { font-family: monospace; font-size: .75rem; }
 
+/* ===========================================================================
+   Grillas de vista previa de importación (estructuras y certificados): las
+   descripciones largas ocupan varias líneas (WhiteSpace.Wrap en la columna, que
+   Radzen ya resuelve) y el resto de las celdas de la fila se alinea arriba.
+   =========================================================================== */
+.app-grid-wrap td { vertical-align: top; }
+
+/* Códigos de ítem en las grillas de Radzen (en cert-grid es .cell-mono). */
+.app-mono { font-family: monospace; font-size: .8rem; }
+
+/* Selector de planilla (SelectorPlanilla.razor): el <input type=file> de InputFile va
+   transparente ENCIMA del RadzenButton, así el clic y el teclado (Tab + Enter) llegan
+   al input nativo y el botón solo pone el aspecto. El foco se marca en el contenedor
+   porque el input invisible no muestra el suyo; con :focus-visible, como el resto de la
+   app, el anillo aparece al llegar con el teclado y no con cada clic. */
+.app-selector-planilla {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .5rem;
+    min-height: 2.25rem;
+}
+.app-selector-planilla-boton {
+    position: relative;
+    display: inline-flex;
+    border-radius: var(--rz-border-radius);
+}
+.app-selector-planilla-boton input[type=file] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+.app-selector-planilla-boton input[type=file]::file-selector-button { cursor: pointer; }
+.app-selector-planilla-boton input[type=file]:disabled,
+.app-selector-planilla-boton input[type=file]:disabled::file-selector-button { cursor: default; }
+.app-selector-planilla-boton:has(> input:focus-visible) {
+    outline: 2px solid var(--rz-primary);
+    outline-offset: 2px;
+}
+.app-selector-planilla-nombre {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
 /* Scroll de las tablas cert-grid: horizontal por ancho y, con tablas largas,
    también vertical acotado al viewport — necesario para que el sticky del
    encabezado funcione (position:sticky solo actúa contra el scrollport más
@@ -432,6 +479,62 @@ html, body {
    fila abarcan ambas alturas y no necesitan offset. */
 .cert-grid thead tr:first-child th { height: 1.7rem; }
 .cert-grid thead tr:nth-child(2) th { top: 1.7rem; }
+
+/* Descripción de ancho ajustable (.cert-grid-ajustable: carga y detalle del certificado).
+   Automático: las demás columnas se achican a su contenido (width: 1%) y la Descripción
+   toma el resto de la tabla al 100 %, así el código, la descripción y los importes entran
+   sin scroll horizontal. El texto que no entra se corta con «…» y se lee entero en el
+   title: max-width: 0 evita que el texto ensanche la columna. Los encabezados de grupo
+   (colspan) y tfoot quedan afuera: un colspan con width 1% repartiría el porcentaje sobre
+   columnas ajenas. border-box: el ancho fijado es el de la celda entera, el mismo que mide
+   el script, aunque los rubros tengan más sangría que los ítems. */
+.cert-grid-ajustable thead th:not([colspan]):not(.cert-col-desc),
+.cert-grid-ajustable tbody td:not(.cert-col-desc) { width: 1%; }
+.cert-grid-ajustable .cert-col-desc {
+    box-sizing: border-box;
+    width: var(--cert-ancho-desc, auto);
+}
+.cert-grid-ajustable th.cert-col-desc { min-width: var(--cert-ancho-desc, 12rem); }
+/* Ancho elegido con el asa (.cert-col-asa): el script de App.razor lo guarda en
+   --cert-ancho-desc y pone .cert-ancho-propio en <html>, así vale para todos los bloques,
+   ningún render de Blazor lo pisa y se recuerda en el navegador. La tabla deja de
+   estirarse al 100 % y las demás columnas vuelven a su contenido: si no, el espacio libre
+   volvía a la Descripción y el asa no tenía efecto. Si no entra, la tabla se desplaza. */
+.cert-ancho-propio .cert-grid-ajustable { width: auto; }
+.cert-ancho-propio .cert-grid-ajustable thead th:not([colspan]):not(.cert-col-desc),
+.cert-ancho-propio .cert-grid-ajustable tbody td:not(.cert-col-desc) { width: auto; }
+.cert-grid-ajustable td.cert-col-desc {
+    max-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* El th sticky es el bloque contenedor del asa. */
+.cert-col-asa {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: .5rem;
+    height: 100%;
+    cursor: col-resize;
+    touch-action: none;
+}
+.cert-col-asa::after {
+    content: "";
+    position: absolute;
+    top: 25%;
+    bottom: 25%;
+    right: 2px;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--rz-base-400);
+}
+.cert-col-asa:hover::after,
+.cert-col-asa:focus-visible::after,
+.cert-col-asa.arrastrando::after { background: var(--rz-primary); }
+.cert-col-asa:focus-visible {
+    outline: 2px solid var(--rz-primary);
+    outline-offset: -2px;
+}
 
 /* Los th de columnas coloreadas: su regla general (.cert-grid .col-*) usa el
    shorthand background con tinte TRANSLÚCIDO y le gana en especificidad al
@@ -482,6 +585,13 @@ html, body {
     .cert-grid thead th {
         position: static !important;
         height: auto !important;
+    }
+    /* En papel no hay title ni asa: la descripción ajustable va completa. */
+    .cert-col-asa { display: none !important; }
+    .cert-grid-ajustable td.cert-col-desc {
+        max-width: none;
+        overflow: visible;
+        white-space: normal;
     }
 }
 

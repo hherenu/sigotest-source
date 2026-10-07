@@ -23,6 +23,8 @@ else
                     Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(estructura.ObraNombre, $"obras/{estructura.ObraId}"), new("Estructuras", $"obras/{estructura.ObraId}/estructuras"), new(estructura.Nombre) })">
         <Subtitulo>@estructura.ObraNombre — @estructura.ObraNumeroLicitacion</Subtitulo>
         <Acciones>
+            <RadzenButton Text="Importar desde Excel" Icon="upload" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary"
+                          Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"estructuras/{Id}/importar"))" />
             <RadzenButton Text="Volver a Estructuras" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
                           Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"obras/{estructura.ObraId}/estructuras"))" />
         </Acciones>
@@ -44,7 +46,7 @@ else
         @if (filas.Count == 0)
         {
             <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
-                No hay ítems cargados. Usá el formulario de abajo para agregar.
+                No hay ítems cargados. Usá el formulario de abajo para agregar, o importá la planilla de desglose con «Importar desde Excel».
             </RadzenText>
         }
         else
@@ -59,7 +61,7 @@ else
                         <Template Context="f">
                             @if (!f.Item.EsAgrupador)
                             {
-                                <span class="rz-text-truncate" style="padding-left:@(Pad(f))px;font-family:monospace;font-size:.8rem">@f.Item.Codigo</span>
+                                <span class="rz-text-truncate app-mono" style="padding-left:@(Pad(f))px">@f.Item.Codigo</span>
                             }
                         </Template>
                     </RadzenDataGridColumn>
@@ -222,15 +224,12 @@ else
 
     private decimal Pond(decimal monto) => montoTotal > 0 && monto > 0 ? Math.Round(monto * 100 / montoTotal, 4) : 0;
 
-    private static int Pad(Fila f) => f.Nivel * 16 + 8;
+    private static int Pad(Fila f) => FilaEstructuraUi.Sangria(f.Nivel);
 
     private void OnRowRender(RowRenderEventArgs<Fila> args)
     {
         if (args.Data?.Item.EsAgrupador == true)
-        {
-            var bg = args.Data.Nivel == 0 ? "var(--app-agrup-0-bg)" : "var(--app-agrup-1-bg)";
-            args.Attributes.Add("style", $"background:{bg};font-weight:600");
-        }
+            args.Attributes.Add("style", FilaEstructuraUi.EstiloAgrupador(args.Data.Nivel));
     }
 
     private async Task AgregarAsync()

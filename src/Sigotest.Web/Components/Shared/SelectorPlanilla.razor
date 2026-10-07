@@ -1,0 +1,214 @@
+@implements IDisposable
+@using Microsoft.AspNetCore.Components.Forms
+@inject NotificationService Notifications
+@inject ILogger<SelectorPlanilla> Logger
+
+@* Selector de planilla Excel de las importaciones (estructuras y certificados). Usa
+   InputFile de Blazor y no RadzenFileInput: InputFile manda el archivo por el circuito en
+   partes, mientras que RadzenFileInput lo manda entero como data URL en un solo mensaje y
+   obligaría a subir el límite de mensajes del hub. El input va transparente sobre un
+   RadzenButton decorativo: el clic y el teclado llegan al input nativo y el botón pone el
+   aspecto de la app. Volver a elegir el mismo archivo (por ejemplo, después de corregirlo)
+   funciona porque el script de InputFile limpia el valor del input en cada clic.
+   Lo delicado se resuelve acá y no en cada página: validar antes de avisar (un archivo
+   rechazado no descarta la planilla vigente), avisar ANTES de leer para que la página
+   descarte la vista previa anterior, descartar una lectura vieja que termina tarde y
+   cancelar la lectura si el componente se desecha (se cerró el diálogo o se salió de la
+   página), sin avisos sueltos en la pantalla siguiente. *@
+<div class="app-selector-planilla">
+    <span class="app-selector-planilla-boton">
+        <RadzenButton Text="Elegir planilla" Icon="upload_file" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.Small"
+                      Disabled="@(Disabled || leyendo)" TabIndex="-1" aria-hidden="true" />
+        <InputFile @ref="input" OnChange="@ElegirAsync" accept="@Aceptados" disabled="@(Disabled || leyendo)"
+                   title="@Ayuda" aria-label="@EtiquetaAccesible" />
+    </span>
+    @if (nombre is null)
+    {
+        <span class="app-muted">@Ayuda</span>
+    }
+    else
+    {
+        <span class="app-selector-planilla-nombre" title="@nombre">@nombre</span>
+        <span class="app-muted">@(leyendo ? "leyendo…" : LectorExcel.DescribirTamano(tamano))</span>
+        @if (!leyendo)
+        {
+            <RadzenButton Text="Quitar" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Text"
+                          Disabled="@Disabled" Click="@QuitarAsync" />
+        }
+    }
+</div>
+
+@code {
+    /// <summary>Lo que recibe la página: el archivo elegido, si se está leyendo y el libro leído (null si falló o se quitó).</summary>
+    public sealed record Estado(string? Nombre, bool Leyendo, LibroExcel? Libro);
+
+    /// <summary>
+    /// Se dispara al elegir un archivo admisible (Leyendo = true: la página descarta la
+    /// vista previa anterior), al terminar de leerlo y al quitarlo.
+    /// </summary>
+    [Parameter] public EventCallback<Estado> Cambio { get; set; }
+
+    /// <summary>Deshabilita el selector, por ejemplo mientras la página importa.</summary>
+    [Parameter] public bool Disabled { get; set; }
+
+    private static readonly Estado SinPlanilla = new(null, false, null);
+    private static readonly string Aceptados = string.Join(",", LectorExcel.ExtensionesAdmitidas);
+    private static readonly string Ayuda =
+        $"{LectorExcel.ExtensionesTexto}, hasta {LectorExcel.DescribirTamano(LectorExcel.TamanoMaximoBytes)}";
+
+    private InputFile? input;
+    private string? nombre;
+    private long tamano;
+    private bool leyendo;
+    // Mientras se lee el input queda deshabilitado y pierde el foco; al terminar (o al
+    // quitar el archivo, que hace desaparecer «Quitar») se le devuelve, para que el teclado
+    // no vuelva al principio de la página ni se escape del diálogo.
+    private bool enfocarInput;
+    // Lectura vigente: si se quita o se elige otro archivo mientras se lee, la lectura
+    // vieja se descarta al terminar (su resultado y sus errores).
+    private int lectura;
+    private readonly CancellationTokenSource cancelacion = new();
+
+    // El lector de pantalla no anuncia el archivo cargado (el input se limpia en cada clic):
+    // va en la etiqueta.
+    private string EtiquetaAccesible => nombre is null
+        ? $"Elegir planilla Excel ({Ayuda})"
+        : $"Elegir otra planilla Excel (cargada: {nombre}; {Ayuda})";
+
+    private async Task ElegirAsync(InputFileChangeEventArgs e)
+    {
+        if (Disabled) return;
+        var archivo = e.File;
+        if (LectorExcel.ValidarArchivo(archivo.Name, archivo.Size) is string rechazo)
+        {
+            Notifications.Notify(NotificationSeverity.Warning, "Archivo no admitido", rechazo, 8000);
+            return;
+        }
+
+        var actual = ++lectura;
+        nombre = archivo.Name;
+        tamano = archivo.Size;
+        leyendo = true;
+        await AvisarAsync(new Estado(nombre, true, null));
+        if (actual != lectura) return;
+
+        var libro = await LeerAsync(archivo, actual);
+        if (actual != lectura) return;
+
+        leyendo = false;
+        enfocarInput = true;
+        if (libro is null) nombre = null;
+        await AvisarAsync(new Estado(nombre, false, libro));
+    }
+
+    private async Task QuitarAsync()
+    {
+        if (Disabled) return;
+        lectura++;
+        nombre = null;
+        leyendo = false;
+        enfocarInput = true;
+        await AvisarAsync(SinPlanilla);
+    }
+
+    /// <summary>
+    /// Recibe y lee el archivo. Null si falló (ya avisado al usuario) o si la lectura se
+    /// canceló o quedó vieja (sin aviso: ya no es la que el usuario espera).
+    /// </summary>
+    private async Task<LibroExcel?> LeerAsync(IBrowserFile archivo, int actual)
+    {
+        var token = cancelacion.Token;
+        // Se copia a memoria porque ExcelDataReader necesita seek; el lector usa esta
+        // misma copia, sin pasarla a un arreglo.
+        using var copia = new MemoryStream((int)archivo.Size);
+        try
+        {
+            // OpenReadStream vuelve a exigir el máximo en el servidor (el tamaño que informa
+            // el navegador no es confiable).
+            await using var origen = archivo.OpenReadStream(LectorExcel.TamanoMaximoBytes, token);
+            await origen.CopyToAsync(copia, token);
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+        catch (Exception ex)
+        {
+            if (actual != lectura) return null;
+            Logger.LogWarning(ex, "No se pudo recibir la planilla «{Archivo}» ({Bytes} bytes).", archivo.Name, archivo.Size);
+            Notifications.Notify(NotificationSeverity.Error, "No se pudo cargar el archivo",
+                "El navegador no terminó de enviar la planilla. Volvé a elegirla; si sigue fallando, abrila en Excel, guardala de nuevo y reintentá.", 8000);
+            return null;
+        }
+
+        try
+        {
+            // La lectura de un libro grande tarda unos segundos: fuera del hilo del circuito.
+            return await Task.Run(() => LectorExcel.Leer(copia), token);
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+        catch (InvalidOperationException ex)
+        {
+            if (actual == lectura)
+                Notifications.Notify(NotificationSeverity.Error, "No se pudo leer la planilla", ex.Message, 8000);
+            return null;
+        }
+    }
+
+    // Red de seguridad: las páginas atrapan sus propios errores de análisis, pero uno
+    // inesperado no debe tumbar el circuito (el diálogo de certificados se dibuja fuera
+    // del ErrorBoundary del layout y se perderían los % tipeados sin guardar).
+    private async Task AvisarAsync(Estado estado)
+    {
+        try
+        {
+            await Cambio.InvokeAsync(estado);
+            return;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Falló el análisis de la planilla «{Archivo}».", estado.Nombre);
+            Notifications.Notify(NotificationSeverity.Error, "No se pudo analizar la planilla",
+                "Ocurrió un error inesperado al analizarla y quedó registrado. Probá con otro archivo.", 8000);
+        }
+
+        // La página quedó a mitad de camino: el selector y la página vuelven a «sin
+        // planilla», el único estado que el selector puede garantizar.
+        lectura++;
+        nombre = null;
+        leyendo = false;
+        if (estado == SinPlanilla) return;
+        try
+        {
+            await Cambio.InvokeAsync(SinPlanilla);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Falló al descartar la planilla «{Archivo}».", estado.Nombre);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!enfocarInput || input?.Element is not ElementReference elemento) return;
+        enfocarInput = false;
+        try
+        {
+            await elemento.FocusAsync();
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException)
+        {
+            // El foco es una comodidad: si el elemento o el circuito ya no están, no importa.
+        }
+    }
+
+    public void Dispose()
+    {
+        lectura++;
+        cancelacion.Cancel();
+        cancelacion.Dispose();
+    }
+}

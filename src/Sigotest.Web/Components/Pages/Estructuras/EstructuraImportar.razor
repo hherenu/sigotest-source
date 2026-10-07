@@ -1,0 +1,378 @@
+@page "/estructuras/{Id:int}/importar"
+@attribute [Authorize(Roles = Roles.Certificaciones)]
+@inject EstructuraService Estructuras
+@inject NavigationManager Nav
+@inject DialogService DialogService
+@inject NotificationService Notifications
+@inject ILogger<EstructuraImportar> Logger
+
+<PageTitle>@(estructura is null ? "Importar ítems" : $"Importar ítems — {estructura.Nombre}")</PageTitle>
+
+@if (noEncontrada)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+        No se encontró la estructura solicitada.
+    </RadzenAlert>
+}
+else if (estructura is null)
+{
+    <EstadoCargando Texto="Cargando estructura…" />
+}
+else
+{
+    <CabeceraPagina Titulo="Importar ítems desde Excel" Clase="rz-mb-4"
+                    Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(estructura.ObraNombre, $"obras/{estructura.ObraId}"), new("Estructuras", $"obras/{estructura.ObraId}/estructuras"), new(estructura.Nombre, $"estructuras/{Id}"), new("Importar") })">
+        <Subtitulo>@estructura.ObraNombre — @estructura.ObraNumeroLicitacion</Subtitulo>
+        <Acciones>
+            <RadzenButton Text="Volver a Ítems" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
+                          Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"estructuras/{Id}"))" />
+        </Acciones>
+    </CabeceraPagina>
+
+    @* Panel de planilla arriba a lo ancho y vista previa a pantalla completa debajo:
+       las descripciones de ítem son largas y a dos columnas la grilla no se leía. La
+       acción va al final del panel, después de las opciones que definen qué se importa. *@
+    <RadzenCard Variant="Variant.Outlined" class="rz-mb-3">
+        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Planilla</RadzenText>
+        <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-3">
+            Se aceptan la <b>planilla de desglose</b> del Anexo VII (Item, Descripción, U, Cantidad, Precio Unitario),
+            la <b>planilla de cotización</b> (Rubro, Descripción, U, Cantidad, Subtotal) y el <b>balance de un BED</b>
+            (columnas Economía / Demasía / BED). Formatos @LectorExcel.ExtensionesTexto.
+        </RadzenText>
+        <RadzenRow Gap="1rem" RowGap="1rem" AlignItems="AlignItems.End">
+            <RadzenColumn Size="12" SizeMD="5">
+                <SelectorPlanilla Disabled="@importando" Cambio="@OnPlanilla" />
+            </RadzenColumn>
+            @if (eleccion is not null)
+            {
+                <RadzenColumn Size="12" SizeMD="4">
+                    <RadzenFormField Text="Hoja" Variant="Variant.Outlined" style="width:100%">
+                        <RadzenDropDown @bind-Value="hojaElegida" Data="@eleccion.Opciones" TextProperty="Etiqueta" ValueProperty="Nombre"
+                                        TValue="string" Placeholder="-- Seleccionar hoja --" style="width:100%" Change="@(_ => Analizar())" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                @if (analisis?.Layout == LayoutEstructura.Balance)
+                {
+                    <RadzenColumn Size="12" SizeMD="3">
+                        <RadzenFormField Text="Columnas a importar" Variant="Variant.Outlined" style="width:100%">
+                            <RadzenDropDown @bind-Value="grupo" Data="@Grupos" TextProperty="Etiqueta" ValueProperty="Valor"
+                                            TValue="GrupoBalance" style="width:100%" Change="@(_ => Analizar())" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                }
+            }
+        </RadzenRow>
+        @if (eleccion is not null && analisis?.Layout == LayoutEstructura.Balance)
+        {
+            <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mt-1 rz-mb-0">
+                En un balance de BED, «Columnas a importar» elige qué grupo de columnas se toma como cantidad y precio de cada ítem.
+            </RadzenText>
+        }
+
+        @if (analisis is { Error: null } && (analisis.Secciones.Count > 1 || estructura.Items.Count > 0))
+        {
+            <RadzenRow Gap="1rem" RowGap="1rem" class="rz-mt-3">
+                @if (analisis.Secciones.Count > 1)
+                {
+                    <RadzenColumn Size="12" SizeMD="6">
+                        <RadzenText id="importar-secciones" TextStyle="TextStyle.Body2" class="app-muted rz-mb-1">
+                            La hoja tiene varias secciones (una por fila de TOTAL). Elegí cuáles importar:
+                        </RadzenText>
+                        @* RadzenCheckBoxList escribe su propio role después de los atributos y no se
+                           puede nombrar: el nombre del grupo va en el contenedor. *@
+                        <div role="group" aria-labelledby="importar-secciones">
+                            <RadzenCheckBoxList @bind-Value="seccionesElegidas" TValue="int" Data="@analisis.Secciones"
+                                                TextProperty="Etiqueta" ValueProperty="Indice" Orientation="Orientation.Vertical"
+                                                Change="@(_ => ActualizarVista())" />
+                        </div>
+                    </RadzenColumn>
+                }
+                @if (estructura.Items.Count > 0)
+                {
+                    <RadzenColumn Size="12" SizeMD="6">
+                        <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-1">
+                            La estructura ya tiene <b>@estructura.Items.Count</b> filas cargadas.
+                        </RadzenText>
+                        <RadzenRadioButtonList @bind-Value="modo" TValue="EstructuraService.ModoImportacion" Orientation="Orientation.Vertical"
+                                               aria-label="Modo de importación">
+                            <Items>
+                                <RadzenRadioButtonListItem Text="Agregar al final (conserva lo cargado)" Value="EstructuraService.ModoImportacion.Agregar" />
+                                <RadzenRadioButtonListItem Text="Reemplazar todo (solo si ningún certificado usa esta estructura)" Value="EstructuraService.ModoImportacion.Reemplazar" />
+                            </Items>
+                        </RadzenRadioButtonList>
+                    </RadzenColumn>
+                }
+            </RadzenRow>
+        }
+
+        @if (analisis is { Error: null } && modo == EstructuraService.ModoImportacion.Agregar && codigosYaCargados > 0)
+        {
+            @* Los certificados matchean por código dentro del bloque: un código repetido no se importa. *@
+            <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false" class="rz-mt-3 rz-mb-0">
+                @(codigosYaCargados == 1 ? "1 código de la planilla ya está" : $"{codigosYaCargados} códigos de la planilla ya están") en la estructura:
+                al agregar quedarían repetidos y la importación de certificados no podría aplicar esos ítems por código.
+                Si la planilla reemplaza a la carga anterior, elegí «Reemplazar todo».
+            </RadzenAlert>
+        }
+
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" class="rz-mt-3">
+            <RadzenButton Text="@($"Importar {filasAImportar} filas")" Icon="upload" ButtonStyle="ButtonStyle.Primary"
+                          Disabled="@(importando || leyendo || filasAImportar == 0)" IsBusy="@importando" BusyText="Importando..."
+                          Click="@ImportarAsync" />
+        </RadzenStack>
+    </RadzenCard>
+
+    <RadzenCard Variant="Variant.Outlined">
+        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">Vista previa</RadzenText>
+        @if (leyendo)
+        {
+            <EstadoCargando Texto="Leyendo la planilla…" />
+        }
+        else if (analisis is null)
+        {
+            <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
+                Todavía no hay nada analizado. Elegí una planilla y una hoja.
+            </RadzenText>
+        }
+        else if (analisis.Error is not null)
+        {
+            <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+                @analisis.Error
+            </RadzenAlert>
+        }
+        else
+        {
+            <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-2">
+                <b>@ImportadorEstructura.NombreLayout(analisis.Layout)</b> · columnas: @analisis.ColumnasDetectadas
+                @if (analisis.NombreBloque is not null)
+                {
+                    <text> · bloque: @analisis.CodigoBloque @analisis.NombreBloque</text>
+                }
+            </RadzenText>
+
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap" class="rz-mb-2">
+                <RadzenBadge Text="@($"{itemsAImportar} ítems")" BadgeStyle="BadgeStyle.Success" />
+                <RadzenBadge Text="@($"{agrupadoresAImportar} rubros")" BadgeStyle="BadgeStyle.Info" />
+                @if (advertencias > 0)
+                {
+                    <RadzenBadge Text="@($"{advertencias} con advertencia")" BadgeStyle="BadgeStyle.Warning" />
+                }
+                @if (noImportadas > 0)
+                {
+                    <RadzenBadge Text="@($"{noImportadas} no se importan")" BadgeStyle="BadgeStyle.Secondary" />
+                }
+            </RadzenStack>
+
+            <ContrasteTotales Etiqueta="Total calculado" Calculado="@totalCalculado" Planilla="@totalPlanilla" Clase="rz-mb-3" />
+
+            @* PageSize 50 y no 20: la vista previa se revisa de corrido antes de importar y las
+               planillas reales tienen cientos de filas. *@
+            <RadzenDataGrid Data="@filasVista" TItem="FilaEstructuraImport" Density="Density.Compact" class="app-grid-wrap"
+                            AllowPaging="true" PageSize="50" AllowSorting="false" RowRender="@OnRowRender"
+                            EmptyText="Elegí al menos una sección para ver sus filas.">
+                <Columns>
+                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Property="Fila" Title="Fila" Width="60px" TextAlign="TextAlign.Center" />
+                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Title="Tipo" Width="135px">
+                        <Template Context="f">
+                            <RadzenBadge Text="@EtiquetaTipo(f.Tipo)" BadgeStyle="@BadgeTipo(f.Tipo)" />
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Title="Código" Width="185px">
+                        <Template Context="f"><span class="app-mono">@f.Codigo</span></Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Title="Descripción" Width="360px" WhiteSpace="WhiteSpace.Wrap">
+                        <Template Context="f"><span style="display:block;padding-left:@(FilaEstructuraUi.Sangria(f.Nivel))px">@f.Descripcion</span></Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Property="Unidad" Title="U" Width="60px" TextAlign="TextAlign.Center" />
+                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Title="Cantidad" Width="110px" TextAlign="TextAlign.Right">
+                        <Template Context="f">@(f.Cantidad is decimal c ? Fmt.N4(c) : "")</Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Title="PU" Width="150px" TextAlign="TextAlign.Right">
+                        <Template Context="f">@(f.PUBasico is decimal p ? "$ " + Fmt.N4(p) : "")</Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Title="Monto" Width="150px" TextAlign="TextAlign.Right">
+                        <Template Context="f">@(f.Monto is decimal m ? "$ " + Fmt.N2(m) : "")</Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Property="Detalle" Title="Detalle" Width="260px" WhiteSpace="WhiteSpace.Wrap" />
+                </Columns>
+            </RadzenDataGrid>
+        }
+    </RadzenCard>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private sealed record GrupoOpcion(GrupoBalance Valor, string Etiqueta);
+
+    private static readonly List<GrupoOpcion> Grupos =
+    [
+        new(GrupoBalance.Demasia, "Demasías e ítems nuevos (lo que certifica el bloque BED)"),
+        new(GrupoBalance.Bed, "BED: cantidades resultantes (contrato + demasías − economías)"),
+        new(GrupoBalance.Economia, "Economías"),
+        new(GrupoBalance.Contrato, "Contrato original")
+    ];
+
+    private EstructuraVM? estructura;
+    private bool noEncontrada;
+    private int idCargado;
+    // Códigos de los ítems ya cargados, para avisar los que Agregar dejaría repetidos.
+    private HashSet<string> codigosCargados = new();
+
+    private EleccionHojaEstructura? eleccion;
+    private string? hojaElegida;
+    private GrupoBalance grupo = GrupoBalance.Demasia;
+    private AnalisisEstructura? analisis;
+    private IEnumerable<int> seccionesElegidas = Array.Empty<int>();
+    private EstructuraService.ModoImportacion modo = EstructuraService.ModoImportacion.Agregar;
+    // Leer la planilla y guardar son estados distintos: el botón no dice «Importando...»
+    // mientras solo se lee, y una lectura no reactiva el botón de una importación en curso.
+    private bool leyendo;
+    private bool importando;
+
+    // Derivados de las secciones elegidas (se recalculan en ActualizarVista, no por render).
+    private List<FilaEstructuraImport> filasVista = new();
+    private int filasAImportar, itemsAImportar, agrupadoresAImportar, advertencias, noImportadas, codigosYaCargados;
+    private decimal totalCalculado;
+    private decimal? totalPlanilla;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (idCargado == Id) return;
+        idCargado = Id;
+        estructura = await Estructuras.ObtenerConItemsAsync(Id);
+        if (estructura is null) { noEncontrada = true; return; }
+        noEncontrada = false;
+        codigosCargados = estructura.Items
+            .Where(i => !i.EsAgrupador && !string.IsNullOrWhiteSpace(i.Codigo))
+            .Select(i => TextoImport.ClaveCodigo(i.Codigo))
+            .ToHashSet();
+    }
+
+    // Cada cambio del selector descarta todo lo anterior: al elegir otro archivo llega
+    // primero Leyendo (sin libro) y nunca queda a la vista ni se importa el libro viejo.
+    // El grupo del balance vuelve a Demasía, el valor por defecto documentado.
+    private void OnPlanilla(SelectorPlanilla.Estado estado)
+    {
+        leyendo = estado.Leyendo;
+        eleccion = null; hojaElegida = null; grupo = GrupoBalance.Demasia;
+        if (estado.Libro is not null)
+        {
+            // Etiquetas y preselección viven en ImportadorEstructura.EvaluarHojas, con tests.
+            eleccion = ImportadorEstructura.EvaluarHojas(estado.Libro);
+            foreach (var opcion in eleccion.Opciones.Where(o => o.Falla is not null))
+                Logger.LogError(opcion.Falla, "Falló la evaluación de la hoja «{Hoja}».", opcion.Nombre);
+            hojaElegida = eleccion.Elegida?.Nombre;
+            if (hojaElegida is null)
+                Notifications.Notify(NotificationSeverity.Warning, "Sin planilla reconocible",
+                    $"Ninguna hoja tiene el encabezado de una planilla de ítems ({ImportadorEstructura.EncabezadoBuscado}). Elegí la hoja a mano para ver el motivo.", 7000);
+        }
+        Analizar();
+    }
+
+    private void Analizar()
+    {
+        analisis = null;
+        var hoja = eleccion?.Opciones.FirstOrDefault(o => o.Nombre == hojaElegida)?.Hoja;
+        if (hoja is not null)
+        {
+            try
+            {
+                analisis = ImportadorEstructura.Analizar(hoja, grupo);
+            }
+            catch (Exception ex)
+            {
+                // Un error inesperado del parser se muestra en la vista previa (con su hoja)
+                // en vez de terminar en el ErrorBoundary del layout.
+                Logger.LogError(ex, "Falló el análisis de la hoja «{Hoja}» ({Grupo}).", hoja.Nombre, grupo);
+                analisis = new AnalisisEstructura { Error = $"No se pudo analizar la hoja «{hoja.Nombre}»: ocurrió un error inesperado y quedó registrado. Probá con otra hoja." };
+            }
+            seccionesElegidas = analisis.Secciones.Select(s => s.Indice).ToList();
+        }
+        ActualizarVista();
+    }
+
+    private IEnumerable<SeccionEstructuraImport> SeccionesSeleccionadas =>
+        analisis is { Error: null }
+            ? analisis.Secciones.Where(s => seccionesElegidas.Contains(s.Indice))
+            : Enumerable.Empty<SeccionEstructuraImport>();
+
+    private void ActualizarVista()
+    {
+        var secciones = SeccionesSeleccionadas.ToList();
+        filasVista = secciones.SelectMany(s => s.Filas).ToList();
+        itemsAImportar = secciones.Sum(s => s.CantidadItems);
+        agrupadoresAImportar = secciones.Sum(s => s.Agrupadores);
+        filasAImportar = itemsAImportar + agrupadoresAImportar;
+        advertencias = secciones.Sum(s => s.Advertencias);
+        noImportadas = secciones.Sum(s => s.NoImportadas);
+        totalCalculado = secciones.Sum(s => s.TotalCalculado);
+        // El total de la planilla solo si todas las secciones elegidas cierran con uno: una
+        // suma parcial mostraría una diferencia que no existe.
+        totalPlanilla = secciones.Count > 0 && secciones.All(s => s.TotalPlanilla is not null)
+            ? secciones.Sum(s => s.TotalPlanilla!.Value)
+            : null;
+        codigosYaCargados = secciones.SelectMany(s => s.ItemsAImportar)
+            .Where(f => f.Codigo is not null)
+            .Select(f => TextoImport.ClaveCodigo(f.Codigo))
+            .Distinct()
+            .Count(codigosCargados.Contains);
+    }
+
+    private async Task ImportarAsync()
+    {
+        if (importando || leyendo || estructura is null || filasAImportar == 0) return;
+        importando = true;
+        try
+        {
+            if (modo == EstructuraService.ModoImportacion.Reemplazar && estructura.Items.Count > 0)
+            {
+                var ok = await DialogService.Confirm(
+                    $"Se eliminarán las {estructura.Items.Count} filas actuales de «{estructura.Nombre}» y se cargarán las {filasAImportar} de la planilla. ¿Continuar?",
+                    "Reemplazar ítems",
+                    new ConfirmOptions { OkButtonText = "Reemplazar", CancelButtonText = "Cancelar" });
+                if (ok != true) return;
+            }
+
+            var filas = ImportadorEstructura.Combinar(SeccionesSeleccionadas);
+            var creadas = 0;
+            // Los ids vistos protegen el Reemplazar de ítems agregados por otro usuario
+            // después de abrir esta página (el RowVersion de la estructura no los cubre).
+            await UiAcciones.GuardarYNavegarAsync(Notifications, Nav,
+                async () => creadas = await Estructuras.ImportarItemsAsync(Id, filas, modo, estructura.RowVersion,
+                    estructura.Items.Select(i => i.Id).ToList()),
+                "Importación completada", () => $"{creadas} filas cargadas en «{estructura.Nombre}».",
+                () => $"estructuras/{Id}");
+        }
+        finally { importando = false; }
+    }
+
+    private void OnRowRender(RowRenderEventArgs<FilaEstructuraImport> args)
+    {
+        if (args.Data?.EsAgrupador == true)
+            args.Attributes.Add("style", FilaEstructuraUi.EstiloAgrupador(args.Data.Nivel));
+        else if (args.Data is { SeImporta: false })
+            // Texto secundario y no opacity, que dejaba la fila al borde del contraste AA. El
+            // tema pinta cada celda con --rz-grid-cell-color: se redefine para la fila.
+            args.Attributes.Add("style", "--rz-grid-cell-color:var(--rz-text-secondary-color)");
+    }
+
+    private static string EtiquetaTipo(TipoFilaEstructura t) => t switch
+    {
+        TipoFilaEstructura.Rubro => "Rubro",
+        TipoFilaEstructura.SubRubro => "Sub-rubro",
+        TipoFilaEstructura.Item => "Ítem",
+        TipoFilaEstructura.ItemSinMonto => "Ítem sin monto",
+        TipoFilaEstructura.ItemSinCodigo => "Ítem sin código",
+        TipoFilaEstructura.Economia => "Economía",
+        _ => "Ignorada"
+    };
+
+    private static BadgeStyle BadgeTipo(TipoFilaEstructura t) => t switch
+    {
+        TipoFilaEstructura.Rubro or TipoFilaEstructura.SubRubro => BadgeStyle.Info,
+        TipoFilaEstructura.Item => BadgeStyle.Success,
+        TipoFilaEstructura.ItemSinMonto or TipoFilaEstructura.ItemSinCodigo => BadgeStyle.Warning,
+        _ => BadgeStyle.Secondary
+    };
+}
