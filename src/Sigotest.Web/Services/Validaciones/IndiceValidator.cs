@@ -30,6 +30,22 @@ public static class IndiceValidator
         return null;
     }
 
+    /// <summary>
+    /// ID de publicación de la importación de publicaciones (/indices/importar):
+    /// obligatorio y con el formato INDEC_INFORMA_MM_AA. Sin id, los valores quedaban
+    /// invisibles como publicación en la pantalla de calcular (filtra IdPublicacion !=
+    /// null) y mezclados con los valores base; con un id no fechable, la publicación
+    /// nunca gana como "más reciente" (<see cref="PublicacionIndec.Orden"/>).
+    /// NO rige para el alta manual de valores: ahí la publicación vacía es legítima
+    /// (tasas Banco Nación, que se cargan de a una por esa vía — decisión 2026-10-07).
+    /// </summary>
+    public static string? PublicacionImportacion(string? idPublicacion) =>
+        string.IsNullOrWhiteSpace(idPublicacion)
+            ? "El ID de publicación es obligatorio."
+            : PublicacionIndec.EsIdValido(idPublicacion.Trim())
+                ? null
+                : "El ID de publicación debe tener el formato INDEC_INFORMA_MM_AA (ej.: INDEC_INFORMA_08_26).";
+
     /// <summary>Código único en el catálogo: mensaje de negocio antes del error crudo del índice único.</summary>
     public static string? CodigoDuplicado(string codigo, bool existe) =>
         existe ? $"Ya existe un índice con el código «{codigo}»." : null;

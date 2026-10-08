@@ -213,13 +213,16 @@ public class IndiceService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUs
     }
 
     /// <summary>
-    /// Importa las filas en estado Ok del análisis previo bajo la publicación dada.
-    /// Devuelve la cantidad insertada. Un solo SaveChanges: la publicación entra
-    /// completa o no entra (si otra sesión importó lo mismo, el índice único corta todo).
+    /// Importa las filas en estado Ok del análisis previo bajo la publicación dada, que
+    /// es obligatoria y con formato (<see cref="IndiceValidator.PublicacionImportacion"/>;
+    /// la página la valida antes de analizar y acá se vuelve a exigir). Devuelve la
+    /// cantidad insertada. Un solo SaveChanges: la publicación entra completa o no entra
+    /// (si otra sesión importó lo mismo, el índice único corta todo).
     /// </summary>
     public async Task<int> ImportarAsync(IEnumerable<FilaImport> filas, string? idPublicacion)
     {
         ExigirRol("importar la publicación");
+        Validacion.Exigir(IndiceValidator.PublicacionImportacion(idPublicacion));
         var pub = NormalizarPublicacion(idPublicacion);
         var aImportar = filas.Where(f => f.Estado == EstadoFilaImport.Ok).ToList();
         if (aImportar.Count == 0) return 0;

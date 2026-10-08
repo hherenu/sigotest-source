@@ -74,7 +74,12 @@ builder.Services.AddControllers();
 
 // ── Blazor (Interactive Server) + Radzen ──────────────────────────────────────
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents()
+    // Blazor Server corta la conexión si un mensaje del navegador supera el límite
+    // (32 KB por defecto). Un pegado de ~500 filas en /indices/importar lo superaba y
+    // el circuito se reconectaba sin el texto: el usuario veía «Nada para analizar».
+    // 1 MB cubre varias publicaciones completas y no compromete al servidor.
+    .AddHubOptions(o => o.MaximumReceiveMessageSize = 1024 * 1024);
 builder.Services.AddRadzenComponents();
 // El tema elegido con el AppearanceToggle (claro/oscuro) persiste en una cookie,
 // para que sobreviva al F5 y a los reinicios del circuito.
