@@ -18,26 +18,37 @@
             <RadzenRequiredValidator Component="CodigoIndice" Text="El código es obligatorio" Popup="true" />
         </div>
         <div>
-            <RadzenFormField Text="Familia de Recurso *" Variant="Variant.Outlined" style="width:100%">
+            <RadzenFormField Text="Familia de Recurso (nombre en las tablas de ponderación) *" Variant="Variant.Outlined" style="width:100%">
                 <RadzenTextBox @bind-Value="indice.FamiliaRecurso" Name="FamiliaRecurso" style="width:100%" />
             </RadzenFormField>
             <RadzenRequiredValidator Component="FamiliaRecurso" Text="La familia de recurso es obligatoria" Popup="true" />
         </div>
-        <RadzenFormField Text="Índice Normalizado (ej: a) Mano de obra)" Variant="Variant.Outlined" style="width:100%">
+        <RadzenFormField Text="Índice Normalizado (informativo · ej: a) Mano de obra)" Variant="Variant.Outlined" style="width:100%">
             <RadzenTextBox @bind-Value="indice.IndiceNormalizado" style="width:100%" />
         </RadzenFormField>
+        @* Los ejemplos van en Helper: Radzen no renderiza Placeholder dentro de un FormField. *@
         <RadzenRow Gap="1rem">
             <RadzenColumn Size="12" SizeMD="8">
-                <RadzenFormField Text="Cuadro de Referencia" Variant="Variant.Outlined" style="width:100%">
-                    <RadzenTextBox @bind-Value="indice.CuadroReferencia" style="width:100%" />
+                <RadzenFormField Text="Cuadro de Referencia (informativo)" Variant="Variant.Outlined" style="width:100%">
+                    <ChildContent><RadzenTextBox @bind-Value="indice.CuadroReferencia" style="width:100%" /></ChildContent>
+                    <Helper><RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">Ej: 71240 - 11</RadzenText></Helper>
                 </RadzenFormField>
             </RadzenColumn>
             <RadzenColumn Size="12" SizeMD="4">
-                <RadzenFormField Text="Inciso" Variant="Variant.Outlined" style="width:100%">
-                    <RadzenTextBox @bind-Value="indice.IncisoCode" style="width:100%" />
+                <RadzenFormField Text="Inciso (informativo)" Variant="Variant.Outlined" style="width:100%">
+                    <ChildContent><RadzenTextBox @bind-Value="indice.IncisoCode" style="width:100%" /></ChildContent>
+                    <Helper><RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">Ej: e</RadzenText></Helper>
                 </RadzenFormField>
             </RadzenColumn>
         </RadzenRow>
+        <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
+            <b>Código ID</b>: clave con la que la importación de publicaciones reconoce la fila del pegado
+            (CÓDIGO · VALOR). El match es exacto, sin distinguir mayúsculas.<br />
+            <b>Familia de Recurso</b>: nombre con el que se elige este índice en las tablas de ponderación de
+            las obras; de ahí salen los Ki/K0 del cálculo de redeterminaciones.<br />
+            <b>Informativos</b> (no participan de la importación ni del cálculo): Índice Normalizado, Cuadro de
+            Referencia e Inciso ubican el índice en la revista INDEC para armar la planilla que se pega.
+        </RadzenText>
         <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
             <RadzenButton ButtonType="ButtonType.Submit" Text="Guardar" Icon="save" ButtonStyle="ButtonStyle.Primary"
                           IsBusy="@guardando" BusyText="Guardando..." />
