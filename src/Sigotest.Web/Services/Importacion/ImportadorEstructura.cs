@@ -103,14 +103,18 @@ public sealed class AnalisisEstructura
     /// <summary>Columnas que se usaron, en letras de Excel, para que el usuario verifique la lectura.</summary>
     public string ColumnasDetectadas { get; init; } = string.Empty;
     public string? Error { get; init; }
+    /// <summary>El encabezado se reconoció pero debajo no hay ningún ítem (resúmenes, hojas con la fila de títulos copiada).</summary>
+    public bool SinItems { get; init; }
 }
 
 /// <summary>
 /// Una hoja del libro evaluada para importar ítems: el layout reconocido (null si no tiene
-/// encabezado de planilla) y el texto del desplegable. <c>Falla</c> es la excepción de una
-/// hoja que no se pudo evaluar, para que la página la registre.
+/// encabezado de planilla), el texto del desplegable y <c>ConItems</c>: el análisis no la
+/// encontró vacía (una hoja con encabezado y nada debajo va al final de la preselección).
+/// <c>Falla</c> es la excepción de una hoja que no se pudo evaluar, para que la página la
+/// registre.
 /// </summary>
-public sealed record HojaEstructuraOpcion(HojaExcel Hoja, LayoutEstructura? Layout, string Etiqueta, Exception? Falla = null)
+public sealed record HojaEstructuraOpcion(HojaExcel Hoja, LayoutEstructura? Layout, string Etiqueta, Exception? Falla = null, bool ConItems = false)
 {
     /// <summary>Valor del desplegable: Excel no admite dos hojas con el mismo nombre.</summary>
     public string Nombre => Hoja.Nombre;
@@ -146,32 +150,53 @@ public static class ImportadorEstructura
         DetectarEncabezado(hoja, GrupoBalance.Demasia)?.Layout;
 
     /// <summary>
-    /// Evalúa las hojas del libro y elige cuál preseleccionar: la primera visible con
-    /// desglose o balance; si no hay, la primera visible con cotización. Las ocultas (copias
-    /// viejas, auxiliares como « Balance EDyA» del BED de Agüero) solo si ninguna visible
-    /// tiene un layout reconocido. Una hoja que no se puede evaluar queda en la lista como
-    /// «no se pudo analizar» y no impide usar las demás.
+    /// Evalúa las hojas del libro y elige cuál preseleccionar. Primero las que tienen ítems
+    /// (un encabezado sin ítems debajo, como el «RESUMEN $» de Premetro, se marca «sin
+    /// ítems» y solo se preselecciona si no hay otra); entre ellas, la primera visible con
+    /// desglose o balance; si no hay, la primera visible con cotización. Las ocultas
+    /// (copias viejas, auxiliares como « Balance EDyA» del BED de Agüero) después de las
+    /// visibles. Una hoja que no se puede evaluar queda en la lista como «no se pudo
+    /// analizar» y no impide usar las demás.
     /// </summary>
     public static EleccionHojaEstructura EvaluarHojas(LibroExcel libro)
     {
         var opciones = libro.Hojas.Select(h =>
         {
+            LayoutEstructura? layout;
             try
             {
-                var layout = DetectarLayout(h);
-                return new HojaEstructuraOpcion(h, layout,
-                    TextoImport.EtiquetaHoja(h, layout is LayoutEstructura l ? NombreLayout(l) : null));
+                layout = DetectarLayout(h);
             }
             catch (Exception ex)
             {
                 return new HojaEstructuraOpcion(h, null, TextoImport.EtiquetaHoja(h, "no se pudo analizar"), ex);
+            }
+            if (layout is not LayoutEstructura l)
+                return new HojaEstructuraOpcion(h, null, TextoImport.EtiquetaHoja(h, null));
+
+            // El análisis completo (con el grupo por defecto del balance) dice si la hoja
+            // está vacía; es lo que después hace la página con la hoja elegida. Un balance
+            // al que le falta ese grupo da error pero no está vacío: se usa eligiendo otro
+            // grupo, así que conserva su lugar. Si el análisis falla, la hoja conserva el
+            // layout: sigue siendo elegible y la página muestra el error al analizarla.
+            try
+            {
+                var analisis = Analizar(h);
+                return new HojaEstructuraOpcion(h, l,
+                    TextoImport.EtiquetaHoja(h, analisis.SinItems ? $"{NombreLayout(l)}, sin ítems" : NombreLayout(l)),
+                    ConItems: !analisis.SinItems);
+            }
+            catch (Exception ex)
+            {
+                return new HojaEstructuraOpcion(h, l, TextoImport.EtiquetaHoja(h, $"{NombreLayout(l)}, no se pudo analizar"), ex);
             }
         }).ToList();
 
         // OrderBy es estable: dentro de cada grupo queda el orden del libro.
         var elegida = opciones
             .Where(o => o.Layout is not null)
-            .OrderBy(o => o.Hoja.Oculta)
+            .OrderBy(o => o.ConItems ? 0 : 1)
+            .ThenBy(o => o.Hoja.Oculta)
             .ThenBy(o => o.Layout is LayoutEstructura.Desglose or LayoutEstructura.Balance ? 0 : 1)
             .FirstOrDefault();
         return new EleccionHojaEstructura(opciones, elegida);
@@ -424,7 +449,8 @@ public static class ImportadorEstructura
                 CodigoBloque = codigoBloque,
                 NombreBloque = nombreBloque,
                 ColumnasDetectadas = analisis.ColumnasDetectadas,
-                Error = "La hoja no tiene ítems para importar debajo del encabezado."
+                Error = "La hoja no tiene ítems para importar debajo del encabezado.",
+                SinItems = true
             };
 
         return analisis;
@@ -555,7 +581,12 @@ public static class ImportadorEstructura
                 };
                 if (grupo == GrupoBalance.Contrato)
                 {
-                    cantidad = TextoImport.Opcional(cantidadContrato);
+                    // Sin Cantidad del contrato todos los ítems saldrían «sin monto» en
+                    // silencio: se avisa igual que cuando falta la del grupo elegido.
+                    if (cantidadContrato < 0)
+                        return new Encabezado(null, LayoutEstructura.Balance, sub.Numero,
+                            $"El grupo «{NombreGrupo(grupo)}» no tiene la columna Cantidad en el encabezado.");
+                    cantidad = cantidadContrato;
                     pu = TextoImport.Opcional(puContrato);
                     subtotal = TextoImport.Opcional(totalItem);
                 }

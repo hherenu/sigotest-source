@@ -399,6 +399,59 @@ public class ImportadorEstructuraTests
     }
 
     [Fact]
+    public void EvaluarHojas_ConEncabezadoPeroSinItems_VaDespuesDeLasQueTienen()
+    {
+        // Premetro: la primera hoja («RESUMEN $») trae la fila de encabezado y ningún ítem;
+        // la planilla real es la siguiente. Antes se preseleccionaba el resumen.
+        var resumen = Hoja("RESUMEN $", EncabezadoDesglose, [null, null, null, null, null, "TOTAL", 0]);
+        var desglose = Hoja("CERTIFICADO EN PESOS", EncabezadoDesglose, ["A.1", "Ítem", "u", 1, 2, 2]);
+
+        var e = ImportadorEstructura.EvaluarHojas(new LibroExcel([resumen, desglose]));
+
+        Assert.Same(desglose, e.Elegida?.Hoja);
+        Assert.Equal("RESUMEN $ — Planilla de desglose, sin ítems", e.Opciones[0].Etiqueta);
+        Assert.False(e.Opciones[0].ConItems);
+        Assert.True(e.Opciones[1].ConItems);
+        // Una oculta con ítems gana a una visible sin ítems; sola, la sin ítems sigue siendo
+        // elegible (la página muestra su error en vez de dejar el desplegable vacío).
+        var desgloseOculto = Oculta(desglose);
+        Assert.Same(desgloseOculto, ImportadorEstructura.EvaluarHojas(new LibroExcel([resumen, desgloseOculto])).Elegida?.Hoja);
+        Assert.Same(resumen, ImportadorEstructura.EvaluarHojas(new LibroExcel([resumen])).Elegida?.Hoja);
+    }
+
+    [Fact]
+    public void EvaluarHojas_BalanceSinElGrupoPorDefecto_NoCedeAnteUnaOcultaConItems()
+    {
+        // Un balance sin DEMASIA (solo ECONOMIA y BED) se usa eligiendo otro grupo en la
+        // página: no está vacío, así que conserva la preselección frente a una copia oculta.
+        var balance = BalanceAguero(conGrupoDemasia: false);
+        var copiaOculta = Oculta(Hoja("Copia", EncabezadoDesglose, ["A.1", "Ítem", "u", 1, 2, 2]));
+
+        var e = ImportadorEstructura.EvaluarHojas(new LibroExcel([copiaOculta, balance]));
+
+        Assert.Same(balance, e.Elegida?.Hoja);
+        Assert.Equal("Hoja1 — Balance de BED", e.Opciones[1].Etiqueta);
+        Assert.True(e.Opciones[1].ConItems);
+    }
+
+    [Fact]
+    public void EvaluarHojas_SiElAnalisisFallaConEncabezadoValido_ConservaElLayout()
+    {
+        // Cantidad × PU desborda el decimal: el encabezado se reconoce pero Analizar lanza.
+        // La hoja sigue siendo elegible (la página muestra el error al analizarla) en vez de
+        // avisar que ninguna hoja tiene encabezado.
+        var rota = Hoja("Rota", EncabezadoDesglose, ["A.1", "Ítem", "u", 1e28, 1e28, 1]);
+
+        var e = ImportadorEstructura.EvaluarHojas(new LibroExcel([rota]));
+
+        Assert.Same(rota, e.Elegida?.Hoja);
+        Assert.Equal(LayoutEstructura.Desglose, e.Opciones[0].Layout);
+        Assert.Equal("Rota — Planilla de desglose, no se pudo analizar", e.Opciones[0].Etiqueta);
+        Assert.NotNull(e.Opciones[0].Falla);
+        Assert.False(e.Opciones[0].ConItems);
+    }
+
+    [Fact]
     public void EvaluarHojas_UnaHojaQueFalla_QuedaMarcadaYNoImpideUsarLasDemas()
     {
         // Una fila nula simula un error inesperado del parser en una hoja ajena.
@@ -502,10 +555,10 @@ public class ImportadorEstructuraTests
 
     // Como la hoja «Balance» real: la columna A lleva un índice en los ítems nuevos y el
     // código va en B; encabezado de dos filas con los grupos ECONOMIA / DEMASIA / BED.
-    private static HojaExcel BalanceAguero() => Hoja(
+    private static HojaExcel BalanceAguero(bool conCantidadContrato = true, bool conGrupoDemasia = true) => Hoja(
         [null, "Balance de economías y demasías por ajuste de proyecto"],
         Blanco,
-        [null, "Item", "Descripción", "U", "Cantidad", "VALOR            UNITARIO", "TOTAL ITEM", "TOTAL RUBRO", "ECONOMIA", null, null, "DEMASIA", null, null, "BED"],
+        [null, "Item", "Descripción", "U", conCantidadContrato ? "Cantidad" : null, "VALOR            UNITARIO", "TOTAL ITEM", "TOTAL RUBRO", "ECONOMIA", null, null, conGrupoDemasia ? "DEMASIA" : null, null, null, "BED"],
         [null, null, null, null, null, null, null, null, "CANTIDAD", "VALOR UNITARIO", "SUBTOTAL", "CANTIDAD", "VALOR UNITARIO", "SUBTOTAL", "CANTIDAD", "VALOR UNITARIO", "SUBTOTAL"],
         Blanco,
         [null, "GENERALES DE PROYECTO", null, null, null, null, null, 217623341.81],
@@ -578,6 +631,22 @@ public class ImportadorEstructuraTests
         Assert.Equal(TipoFilaEstructura.Item, s.Filas.Single(x => x.Codigo == "PEV-SD-EAG-01.10.8").Tipo);
         Assert.Equal(TipoFilaEstructura.Rubro, s.Filas.Single(x => x.Codigo == "PEV-SD-EAG-01.10").Tipo);
         Assert.Equal(4025136349.28m, s.TotalPlanilla);
+    }
+
+    [Fact]
+    public void Balance_GrupoContratoSinCantidad_AvisaEnVezDeImportarSinMonto()
+    {
+        // Mismo balance sin la columna Cantidad del contrato en el encabezado: con el grupo
+        // Contrato todos los ítems saldrían «sin monto» en silencio.
+        var hoja = BalanceAguero(conCantidadContrato: false);
+
+        var contrato = ImportadorEstructura.Analizar(hoja, GrupoBalance.Contrato);
+        Assert.Equal(LayoutEstructura.Balance, contrato.Layout);
+        Assert.Equal("El grupo «Contrato» no tiene la columna Cantidad en el encabezado.", contrato.Error);
+        Assert.Empty(contrato.Secciones);
+
+        // Los otros grupos no dependen de esa columna.
+        Assert.Null(ImportadorEstructura.Analizar(hoja, GrupoBalance.Demasia).Error);
     }
 
     // ── Combinar secciones ───────────────────────────────────────────────────────

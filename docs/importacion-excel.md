@@ -42,9 +42,14 @@ error se registra) y no impide usar las demás.
 mayúsculas). Las columnas se toman por nombre: `U`, `Cantidad`, `Precio/Valor Unitario`,
 `Subtotal`, `TOTAL`; las de USD se ignoran. Puede haber columnas antes del código.
 
-**Hoja.** Se preselecciona la primera visible con desglose o balance; si no hay, la de
-cotización. Las ocultas se marcan en el desplegable y solo se preseleccionan si no hay
-otra (el balance del BED de Agüero esconde « Balance EDyA» con encabezado de desglose).
+**Hoja.** Se preseleccionan antes las hojas con ítems: una con encabezado pero nada
+debajo (el «RESUMEN $» de Premetro) se marca «sin ítems» y solo se elige si no hay otra
+con ítems (un balance al que le falta el grupo DEMASIA cuenta como con ítems: se usa
+eligiendo otro grupo). Entre ellas, la primera visible con desglose o balance; si no hay, la de
+cotización. Las ocultas se marcan en el desplegable y van después de las visibles (el
+balance del BED de Agüero esconde « Balance EDyA» con encabezado de desglose). En el
+balance, el grupo Contrato también exige su columna Cantidad; si falta, se avisa igual que
+cuando falta la del grupo elegido.
 
 | Layout | Cómo se reconoce | Particularidad |
 | --- | --- | --- |
