@@ -61,4 +61,14 @@ public class MovimientoDeMesTests
         Assert.Equal(0.3333m, cantidad);
         Assert.Equal(0.9999m, monto);
     }
+
+    [Fact]
+    public void ElPorcentajeSeTomaConLosCuatroDecimalesQueSeGuardan()
+    {
+        // El % se guarda con 4 decimales: lo que se calcula al guardar debe coincidir con lo
+        // que se recalcula después desde el % guardado (borrador y cierre).
+        Assert.Equal(
+            CertificadoService.MovimientoDeMes(1000m, 10m, 10000m, 12.3457m),
+            CertificadoService.MovimientoDeMes(1000m, 10m, 10000m, 12.34567m));
+    }
 }

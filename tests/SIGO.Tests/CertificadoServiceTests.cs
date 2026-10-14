@@ -354,6 +354,101 @@ public class CertificadoServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbF
         await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.EliminarAsync(certId));
     }
 
+    // ── Contrato editado con el certificado en borrador ─────────────────────────
+
+    /// <summary>Otro usuario cambia el contrato del ítem con cantidad: 100 → 200 un (monto 1.000 → 2.000).</summary>
+    private async Task DuplicarCantidadDelContratoAsync(Escenario e)
+    {
+        await using var db = fx.CrearContexto();
+        var item = await db.ItemsEstructura.SingleAsync(i => i.Id == e.ItemCantId);
+        item.Cantidad = 200m;
+        item.Monto = 2000m;
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Cerrar_TrasEditarElContratoDelItem_CongelaElMovimientoDelContratoVigente()
+    {
+        var e = await CrearEstructuraAsync();
+        var (certId, bloqueId) = await CrearCertificadoAsync(e, 1);
+        var servicio = Servicio(Roles.Admin);
+        await servicio.GuardarItemsAsync(certId, new() { [bloqueId] = new() { [e.ItemCantId] = 10m } });
+
+        await DuplicarCantidadDelContratoAsync(e);
+        await servicio.CerrarAsync(certId);
+
+        await using var db = fx.CrearContexto();
+        var fila = await db.ItemsCertificado
+            .SingleAsync(i => i.CertificadoEstructuraId == bloqueId && i.ItemEstructuraId == e.ItemCantId);
+        // Antes: cantidad 10 y monto 100 (contrato viejo) junto a un contrato de 200 un:
+        // % del mes 10 y % acumulado 5 en el primer certificado.
+        Assert.Equal(10m, fila.PorcentajeActual);
+        Assert.Equal(20m, fila.CantidadActual);
+        Assert.Equal(200m, fila.MontoActual);
+        Assert.Equal(10m, fila.PorcentajeAcumulado);
+        Assert.Equal(200m, fila.CantidadContrato);
+        Assert.Equal(2000m, fila.MontoContrato);
+        Assert.Equal(200m, (await db.CertificadoEstructuras.SingleAsync(b => b.Id == bloqueId)).SubtotalActual);
+    }
+
+    [Fact]
+    public async Task BuildVm_DeBorrador_MuestraElMovimientoConElContratoVigente()
+    {
+        var e = await CrearEstructuraAsync();
+        var (certId, bloqueId) = await CrearCertificadoAsync(e, 1);
+        var servicio = Servicio(Roles.Admin);
+        await servicio.GuardarItemsAsync(certId, new() { [bloqueId] = new() { [e.ItemCantId] = 10m } });
+
+        await DuplicarCantidadDelContratoAsync(e);
+        var vm = (await servicio.BuildVmAsync(certId))!;
+
+        // Lo mismo que la grilla de carga calcula en vivo y que el cierre va a congelar.
+        var fila = vm.Bloques.Single().Items.Single(i => i.ItemEstructuraId == e.ItemCantId);
+        Assert.Equal(10m, fila.PorcentajeMes);
+        Assert.Equal(20m, fila.CantidadMes);
+        Assert.Equal(200m, fila.MontoMes);
+        Assert.Equal(10m, fila.PorcentajeAcumulado);
+    }
+
+    // ── Alta, guardado, bloques y transiciones ───────────────────────────────────
+
+    [Fact]
+    public async Task GuardarItems_ConservaObservacionesYTipoMovimiento_YDescartaLoQueNoEsCarga()
+    {
+        var e = await CrearEstructuraAsync();
+        var (certId, bloqueId) = await CrearCertificadoAsync(e, 1);
+        var servicio = Servicio(Roles.CCyR);
+        await servicio.GuardarItemsAsync(certId, new() { [bloqueId] = new() { [e.ItemCantId] = 10m, [e.ItemGlobalId] = 20m } });
+
+        await using (var db = fx.CrearContexto())
+        {
+            // Lo que no viene del editor: observaciones y override del tipo de movimiento.
+            var fila = await db.ItemsCertificado.SingleAsync(i => i.CertificadoEstructuraId == bloqueId && i.ItemEstructuraId == e.ItemCantId);
+            fila.Observaciones = "Medición parcial";
+            fila.TipoMovimiento = TipoMovimiento.Demasia;
+            await db.SaveChangesAsync();
+        }
+
+        int agrupadorId;
+        await using (var db = fx.CrearContexto())
+            agrupadorId = (await db.ItemsEstructura.SingleAsync(i => i.EstructuraCostosId == e.EstructuraId && i.EsAgrupador)).Id;
+
+        // 0,00001 % se guarda con 4 decimales como 0: no es carga y su fila se borra. El
+        // agrupador y un ítem ajeno a la estructura se ignoran.
+        await servicio.GuardarItemsAsync(certId, new()
+        {
+            [bloqueId] = new() { [e.ItemCantId] = 15m, [e.ItemGlobalId] = 0.00001m, [agrupadorId] = 50m, [int.MaxValue] = 50m }
+        });
+
+        await using var db2 = fx.CrearContexto();
+        var filas = await db2.ItemsCertificado.Where(i => i.CertificadoEstructuraId == bloqueId).ToListAsync();
+        var unica = Assert.Single(filas);
+        Assert.Equal(e.ItemCantId, unica.ItemEstructuraId);
+        Assert.Equal(15m, unica.PorcentajeActual);
+        Assert.Equal("Medición parcial", unica.Observaciones);
+        Assert.Equal(TipoMovimiento.Demasia, unica.TipoMovimiento);
+    }
+
     [Fact]
     public async Task GuardarItems_ConTokenDeSesionViejo_DaConflicto()
     {

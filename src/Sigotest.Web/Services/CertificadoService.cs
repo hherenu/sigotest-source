@@ -14,16 +14,21 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
 
     /// <summary>
     /// Movimiento del mes de un ítem a partir del % cargado. Base de cálculo en
-    /// cascada: cantidad×PU solo si el contrato define AMBOS; si no (ítems globales
-    /// "1 gl", o con PU pero sin cantidad), el monto sale directo del % sobre el
-    /// monto de contrato. Redondeos intermedios a 4 decimales.
+    /// cascada: cantidad×PU solo si el contrato define AMBOS; si no, el monto sale
+    /// directo del % sobre el monto de contrato (ítems con monto pero sin cantidad×PU).
+    /// El alta y la importación derivan el monto solo de cantidad×PU: un ítem cargado
+    /// sin cantidad no tiene monto, certifica $0 y su avance se lleva en %.
+    /// El % se toma con los 4 decimales con que se guarda y los redondeos intermedios
+    /// también van a 4: recalcular desde el % guardado da lo mismo que se guardó.
     /// ÚNICA implementación de la fórmula: la usan GuardarItemsAsync (lo que se
-    /// guarda) y el LiveMonto de CertificadoCargar (lo que se muestra en vivo) —
-    /// antes eran dos copias que podían derivar en diferencias de centavos.
+    /// guarda), el LiveMonto de CertificadoCargar (lo que se muestra en vivo) y
+    /// <see cref="MovimientoVigente"/> (borrador y cierre) — antes eran copias que
+    /// podían derivar en diferencias de centavos.
     /// </summary>
     public static (decimal Cantidad, decimal Monto) MovimientoDeMes(
         decimal? cantidadContrato, decimal? puBasico, decimal? montoContrato, decimal pct)
     {
+        pct = Math.Round(pct, 4);
         var cantidad = Math.Round((cantidadContrato ?? 0) * pct / 100m, 4);
         var monto = cantidadContrato.HasValue && puBasico.HasValue
             ? Math.Round(cantidad * puBasico.Value, 4)
@@ -32,6 +37,19 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
                 : 0m;
         return (cantidad, monto);
     }
+
+    /// <summary>
+    /// Cantidad y monto del mes de una fila con el contrato VIGENTE del ítem: el % guardado
+    /// es la carga del usuario y lo demás se deriva de él, como en la grilla de carga. Sin
+    /// esto, editar el contrato de un ítem con el certificado en borrador dejaba cantidad y
+    /// monto calculados con el contrato viejo, y el cierre los congelaba junto al contrato
+    /// nuevo (% del mes distinto del % acumulado, montos que no cuadraban). Una fila sin %
+    /// (solo puede venir de datos previos) conserva lo guardado.
+    /// </summary>
+    private static (decimal Cantidad, decimal Monto) MovimientoVigente(ItemCertificado? fila, ItemEstructura item) =>
+        fila is null ? (0m, 0m)
+        : fila.PorcentajeActual != 0 ? MovimientoDeMes(item.Cantidad, item.PUBasico, item.Monto, fila.PorcentajeActual)
+        : (fila.CantidadActual, fila.MontoActual);
 
     /// <summary>
     /// Porcentaje de avance de un ítem según la base que el contrato defina: sobre la
@@ -171,8 +189,9 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
                 }
                 else
                 {
-                    cantMes  = actual?.CantidadActual ?? 0;
-                    montoMes = actual?.MontoActual ?? 0;
+                    // Cantidad y monto con el contrato vigente: lo mismo que la grilla de
+                    // carga muestra y que el cierre va a congelar.
+                    (cantMes, montoMes) = MovimientoVigente(actual, item);
                     cantContrato  = item.Cantidad;
                     puBasico      = item.PUBasico;
                     montoContrato = item.Monto;
@@ -486,8 +505,10 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
             var previos = bloque.Items.ToDictionary(i => i.ItemEstructuraId);
             db.ItemsCertificado.RemoveRange(bloque.Items);
 
-            foreach (var (itemEstructuraId, pct) in porcentajes)
+            foreach (var (itemEstructuraId, pctTipeado) in porcentajes)
             {
+                // El % se guarda con 4 decimales: uno que redondea a 0 no es carga.
+                var pct = Math.Round(pctTipeado, 4);
                 if (pct == 0) continue;
 
                 var itemEst = estructura.Items.FirstOrDefault(i => i.Id == itemEstructuraId);
@@ -504,7 +525,7 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
                     Observaciones = previo?.Observaciones,
                     CantidadActual = cantidad,
                     MontoActual = monto,
-                    PorcentajeActual = Math.Round(pct, 4)
+                    PorcentajeActual = pct
                 });
             }
         }
@@ -559,8 +580,9 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
             {
                 var row = bloque.Items.FirstOrDefault(r => r.ItemEstructuraId == item.Id);
 
-                var cantAct  = row?.CantidadActual ?? 0;
-                var montoAct = row?.MontoActual ?? 0;
+                // Del % guardado con el contrato vigente, el mismo que se congela abajo: si el
+                // contrato del ítem cambió con el borrador abierto, lo guardado quedó viejo.
+                var (cantAct, montoAct) = MovimientoVigente(row, item);
                 var acum = AcumuladosDeItem(anteriores, item, cantAct, montoAct);
                 var cantAnt  = acum.CantidadAnterior;
                 var montoAnt = acum.MontoAnterior;
