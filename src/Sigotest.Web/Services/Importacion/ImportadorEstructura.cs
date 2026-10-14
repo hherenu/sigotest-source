@@ -227,6 +227,11 @@ public static class ImportadorEstructura
         _ => layout.ToString()
     };
 
+    /// <summary>
+    /// Analiza la hoja: encabezado, secciones cortadas por las filas TOTAL y cada fila de
+    /// datos clasificada con su lugar en el árbol (<see cref="AnalizarFila"/>).
+    /// <paramref name="grupo"/> solo cuenta en el balance.
+    /// </summary>
     public static AnalisisEstructura Analizar(HojaExcel hoja, GrupoBalance grupo = GrupoBalance.Demasia)
     {
         var enc = DetectarEncabezado(hoja, grupo);
@@ -236,6 +241,8 @@ public static class ImportadorEstructura
             return new AnalisisEstructura { Layout = enc.Layout, Error = enc.Error };
 
         var col = enc.Columnas!;
+        var ctx = new Contexto(col, enc.Layout, grupo,
+            ContratoNumeros: enc.Layout == LayoutEstructura.Balance && grupo != GrupoBalance.Contrato);
         var (codigoBloque, nombreBloque) = LeerBloque(hoja, enc.UltimaFilaEncabezado, col);
         var analisis = new AnalisisEstructura
         {
@@ -247,200 +254,41 @@ public static class ImportadorEstructura
 
         var datos = hoja.Filas.Where(f => f.Numero > enc.UltimaFilaEncabezado).ToList();
         var codigos = datos.Select(f => LeerCodigo(f, col)).ToList();
-
-        // Siguiente código de cada fila, en una pasada hacia atrás: la regla de prefijo lo
-        // consulta en cada fila y buscarlo hacia adelante cada vez sería cuadrático.
-        var siguienteCodigo = new string?[datos.Count];
-        string? ultimo = null;
-        for (var i = datos.Count - 1; i >= 0; i--)
-        {
-            siguienteCodigo[i] = ultimo;
-            if (codigos[i] is not null) ultimo = codigos[i];
-        }
+        var siguienteCodigo = SiguientesCodigos(codigos);
 
         SeccionEstructuraImport? seccion = null;
-        var pila = new Stack<(int Indice, FilaEstructuraImport Fila)>();
-        // Rubros con código vistos desde el inicio de la sección o desde el último separador
-        // (código → índice), para los rubros e ítems que aparecen fuera de orden.
-        var rubrosPorCodigo = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        var contratoNumeros = enc.Layout == LayoutEstructura.Balance && grupo != GrupoBalance.Contrato;
-
+        var arbol = new ArbolDeSeccion();
         for (var i = 0; i < datos.Count; i++)
         {
             var fila = datos[i];
             var codigo = codigos[i];
-            var descripcion = fila[col.Descripcion].Texto;
-            var textoItem = fila[col.Item].Texto;
-            if (codigo is null && descripcion.Length == 0) descripcion = textoItem;
-            if (!descripcion.Any(char.IsLetterOrDigit)) descripcion = string.Empty;
 
+            // La fila TOTAL cierra la sección abierta y aporta su total para contrastarlo.
             if (EsFilaTotal(fila, col))
             {
                 if (seccion is not null)
                 {
                     seccion.TotalPlanilla = LeerTotal(fila, col);
-                    CerrarSeccion(analisis, seccion, fila.Numero, contratoNumeros);
+                    CerrarSeccion(analisis, seccion, fila.Numero, ctx.ContratoNumeros);
                     seccion = null;
-                    pila.Clear();
                 }
                 continue;
             }
 
+            var (descripcion, textoItem) = LeerDescripcion(fila, col, codigo);
             if (codigo is null && descripcion.Length == 0) continue;
 
             if (seccion is null)
             {
                 seccion = new SeccionEstructuraImport { Indice = analisis.Secciones.Count, FilaDesde = fila.Numero };
-                rubrosPorCodigo.Clear();
+                arbol.Reiniciar();
             }
-            var f = new FilaEstructuraImport { Fila = fila.Numero, Codigo = codigo, Descripcion = descripcion };
-            f.Descripcion = Recortar(f, f.Descripcion, ItemEstructura.LargoMaximoDescripcion, "Descripción recortada");
-
-            var unidad = col.Unidad is int cu ? fila[cu].Texto : string.Empty;
-            var cantidad = col.Cantidad is int cc ? fila[cc].Numero : null;
-            var pu = col.PU is int cp ? fila[cp].Numero : null;
-            var subtotal = col.Subtotal is int cs ? fila[cs].Numero : null;
-            // Solo un número en TOTAL marca rubro: un «-» o un texto en esa celda (ítems «No
-            // aplica» de algunas contratistas) no debe convertir el ítem en agrupador.
-            var totalNumerico = col.Total is int ct && fila[ct].Numero is not null;
-            var cantidadContrato = col.CantidadContrato is int ccc ? fila[ccc].Numero : null;
-            var puContrato = col.PUContrato is int cpc ? fila[cpc].Numero : null;
-            // Un error de Excel (#REF!, #DIV/0!) en un número del ítem no es una celda vacía:
-            // la fila sigue siendo un ítem (los rubros no tienen números) y se avisa.
-            var errores = ErroresNumericos(fila, col, enc.Layout, contratoNumeros);
-
-            if (EsSeparador(descripcion) || EsSeparador(textoItem))
-            {
-                f.Tipo = TipoFilaEstructura.Ignorada;
-                f.Detalle = "Separador de sección";
-                AgregarFila(seccion, f);
-                pila.Clear();
-                rubrosPorCodigo.Clear();
-                continue;
-            }
-
-            if (descripcion.Length == 0)
-            {
-                f.Tipo = TipoFilaEstructura.Ignorada;
-                f.Detalle = "Código sin descripción";
-                AgregarFila(seccion, f);
-                continue;
-            }
-
-            var tieneNumeros = cantidad.HasValue || pu.HasValue || errores.Count > 0
-                               || (contratoNumeros && (cantidadContrato.HasValue || puContrato.HasValue));
-            var siguiente = siguienteCodigo[i];
-            // Un número en TOTAL solo marca rubro si la fila no tiene unidad: un «No aplica»
-            // con unidad y TOTAL 0 es un ítem sin monto, no un agrupador que capture a los
-            // ítems que le siguen.
-            var esRubro = !tieneNumeros
-                          && ((totalNumerico && unidad.Length == 0)
-                              || (codigo is not null && siguiente is not null
-                                  && siguiente.StartsWith(codigo + ".", StringComparison.OrdinalIgnoreCase)));
-            var esSubRubro = !esRubro && codigo is null && !tieneNumeros && unidad.Length == 0;
-
-            if (esRubro)
-            {
-                // Un rubro codificado cuelga del rubro cuyo código es prefijo del suyo: el
-                // abierto más cercano o, si aparece fuera de orden (A.1.5 después de A.2), el
-                // ya visto con el prefijo más largo. Sin código (ítems nuevos del balance)
-                // nace en la raíz. Los sub-rubros abiertos se cierran.
-                while (pila.Count > 0 && !(codigo is not null && pila.Peek().Fila.Codigo is string pc
-                                            && codigo.StartsWith(pc + ".", StringComparison.OrdinalIgnoreCase)))
-                    pila.Pop();
-                f.Tipo = TipoFilaEstructura.Rubro;
-                f.PadreIndice = (codigo is null ? null : RubroPrefijo(rubrosPorCodigo, codigo))
-                                ?? (pila.Count > 0 ? pila.Peek().Indice : null);
-                var indice = AgregarFila(seccion, f);
-                pila.Push((indice, f));
-                if (codigo is not null) rubrosPorCodigo[codigo] = indice;
-                continue;
-            }
-
-            if (esSubRubro)
-            {
-                while (pila.Count > 0 && pila.Peek().Fila.Tipo == TipoFilaEstructura.SubRubro)
-                    pila.Pop();
-                f.Tipo = TipoFilaEstructura.SubRubro;
-                f.PadreIndice = pila.Count > 0 ? pila.Peek().Indice : null;
-                pila.Push((AgregarFila(seccion, f), f));
-                continue;
-            }
-
-            // Ítem hoja: cuelga del agrupador abierto, salvo que su código diga otra cosa. Si
-            // el agrupador con código más cercano no es prefijo del suyo y un rubro ya visto
-            // sí lo es, cuelga de ese: ítems agregados fuera de orden, como el 01.10.29 que
-            // en las hojas de certificado de Agüero aparece después del rubro 01.11.
-            f.PadreIndice = pila.Count > 0 ? pila.Peek().Indice : null;
-            if (codigo is not null
-                && pila.Select(x => x.Fila.Codigo).FirstOrDefault(c => c is not null) is string cercano
-                && !codigo.StartsWith(cercano + ".", StringComparison.OrdinalIgnoreCase)
-                && RubroPrefijo(rubrosPorCodigo, codigo) is int rubro)
-                f.PadreIndice = rubro;
-            if (codigo is not null) f.Codigo = Recortar(f, codigo, AppDbContext.LargoTextoPorDefecto, "Código recortado");
-            f.Unidad = unidad.Length > 0 ? Recortar(f, unidad, AppDbContext.LargoTextoPorDefecto, "Unidad recortada") : null;
-            foreach (var error in errores)
-                f.AgregarDetalle($"{error}: se tomó como vacío");
-
-            if (contratoNumeros && (cantidad is null || cantidad == 0))
-            {
-                var economia = col.CantidadEconomia is int ce ? fila[ce].Numero : null;
-                f.Tipo = economia is not null && economia != 0 ? TipoFilaEstructura.Economia : TipoFilaEstructura.Ignorada;
-                f.AgregarDetalle(f.Tipo == TipoFilaEstructura.Economia
-                    ? "Economía: no se importa como ítem"
-                    : $"Sin cantidad en el grupo {grupo}");
-                AgregarFila(seccion, f);
-                continue;
-            }
-
-            if (enc.Layout == LayoutEstructura.Cotizacion && pu is null && cantidad is not null && cantidad != 0 && subtotal is not null)
-                pu = subtotal.Value / cantidad.Value;
-            if (contratoNumeros) pu ??= puContrato;
-
-            // La base guarda cantidad y PU con 4 decimales: si la planilla trae más (6,88905 m3)
-            // el monto difiere del subtotal de la planilla, y el detalle lo dice.
-            f.Cantidad = cantidad is null ? null : Math.Round(cantidad.Value, 4);
-            f.PUBasico = pu is null ? null : Math.Round(pu.Value, 4);
-            if (cantidad is not null && f.Cantidad != cantidad) f.AgregarDetalle("Cantidad redondeada a 4 decimales");
-            if (pu is not null && f.PUBasico != pu && enc.Layout != LayoutEstructura.Cotizacion) f.AgregarDetalle("PU redondeado a 4 decimales");
-            // Un número tipeado como texto se parsea con la regla INDEC (sin coma = punto
-            // decimal): «1.500» se leería 1,5. Se avisa para que el usuario lo verifique.
-            if ((col.Cantidad is int cct && fila[cct].EsTexto) || (col.PU is int cpt && fila[cpt].EsTexto))
-                f.AgregarDetalle("Cantidad o PU leídos de una celda de texto: verificar el separador decimal");
-            f.Monto = EstructuraValidator.CalcularMonto(false, f.Cantidad, f.PUBasico);
-            if (contratoNumeros)
-                f.TipoMovimiento = grupo == GrupoBalance.Demasia
-                    ? (cantidadContrato is null || (codigo?.StartsWith("N-", StringComparison.OrdinalIgnoreCase) ?? false)
-                        ? TipoMovimiento.Adicional
-                        : TipoMovimiento.Demasia)
-                    : null;
-
-            if (codigo is null)
-            {
-                f.Tipo = TipoFilaEstructura.ItemSinCodigo;
-                f.AgregarDetalle("Ítem sin código");
-            }
-            else if (f.Monto is null)
-            {
-                f.Tipo = TipoFilaEstructura.ItemSinMonto;
-                f.AgregarDetalle("Sin cantidad o sin precio: se importa con monto vacío");
-            }
-            else if (f.Monto == 0)
-            {
-                f.Tipo = TipoFilaEstructura.ItemSinMonto;
-                f.AgregarDetalle("Cantidad o precio en cero: se importa con monto 0");
-            }
-            else
-            {
-                f.Tipo = TipoFilaEstructura.Item;
-            }
-
-            AgregarFila(seccion, f);
+            AnalizarFila(seccion, arbol, fila, codigo, descripcion, textoItem, siguienteCodigo[i], ctx);
         }
 
         // Si quedó una sección abierta, se procesó al menos una fila: datos no está vacío.
         if (seccion is not null)
-            CerrarSeccion(analisis, seccion, datos[^1].Numero, contratoNumeros);
+            CerrarSeccion(analisis, seccion, datos[^1].Numero, ctx.ContratoNumeros);
 
         if (analisis.Secciones.Count == 0)
             return new AnalisisEstructura
@@ -454,6 +302,141 @@ public static class ImportadorEstructura
             };
 
         return analisis;
+    }
+
+    /// <summary>
+    /// Lo que vale para toda la hoja: columnas, layout y grupo del balance. ContratoNumeros:
+    /// balance con un grupo que no es Contrato, donde las columnas del contrato completan el
+    /// PU del ítem y deciden su tipo de movimiento.
+    /// </summary>
+    private sealed record Contexto(Columnas Col, LayoutEstructura Layout, GrupoBalance Grupo, bool ContratoNumeros);
+
+    /// <summary>
+    /// Siguiente código de cada fila, en una pasada hacia atrás: la regla de prefijo lo
+    /// consulta en cada fila y buscarlo hacia adelante cada vez sería cuadrático.
+    /// </summary>
+    private static string?[] SiguientesCodigos(IReadOnlyList<string?> codigos)
+    {
+        var siguiente = new string?[codigos.Count];
+        string? ultimo = null;
+        for (var i = codigos.Count - 1; i >= 0; i--)
+        {
+            siguiente[i] = ultimo;
+            if (codigos[i] is not null) ultimo = codigos[i];
+        }
+        return siguiente;
+    }
+
+    /// <summary>
+    /// Descripción de la fila y el texto de la columna Item. Sin código ni descripción, la
+    /// descripción es lo que diga la columna Item; sin letras ni dígitos («-», «=») queda vacía.
+    /// </summary>
+    private static (string Descripcion, string TextoItem) LeerDescripcion(FilaExcel fila, Columnas col, string? codigo)
+    {
+        var descripcion = fila[col.Descripcion].Texto;
+        var textoItem = fila[col.Item].Texto;
+        if (codigo is null && descripcion.Length == 0) descripcion = textoItem;
+        if (!descripcion.Any(char.IsLetterOrDigit)) descripcion = string.Empty;
+        return (descripcion, textoItem);
+    }
+
+    // ── Fila de datos ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Clasifica una fila de datos (separador, código sin descripción, rubro, sub-rubro o
+    /// ítem hoja) y la agrega a la sección con su lugar en el árbol.
+    /// </summary>
+    private static void AnalizarFila(SeccionEstructuraImport seccion, ArbolDeSeccion arbol, FilaExcel fila,
+        string? codigo, string descripcion, string textoItem, string? siguienteCodigo, Contexto ctx)
+    {
+        var f = new FilaEstructuraImport { Fila = fila.Numero, Codigo = codigo, Descripcion = descripcion };
+        f.Descripcion = Recortar(f, f.Descripcion, ItemEstructura.LargoMaximoDescripcion, "Descripción recortada");
+
+        if (EsSeparador(descripcion) || EsSeparador(textoItem))
+        {
+            f.Tipo = TipoFilaEstructura.Ignorada;
+            f.Detalle = "Separador de sección";
+            AgregarFila(seccion, f);
+            arbol.Reiniciar();
+            return;
+        }
+
+        if (descripcion.Length == 0)
+        {
+            f.Tipo = TipoFilaEstructura.Ignorada;
+            f.Detalle = "Código sin descripción";
+            AgregarFila(seccion, f);
+            return;
+        }
+
+        var numeros = LeerNumeros(fila, ctx);
+        switch (TipoDeAgrupador(codigo, siguienteCodigo, numeros))
+        {
+            case TipoFilaEstructura.Rubro:
+                f.Tipo = TipoFilaEstructura.Rubro;
+                f.PadreIndice = arbol.PadreDeRubro(codigo);
+                arbol.AbrirRubro(AgregarFila(seccion, f), f);
+                return;
+            case TipoFilaEstructura.SubRubro:
+                f.Tipo = TipoFilaEstructura.SubRubro;
+                f.PadreIndice = arbol.PadreDeSubRubro();
+                arbol.AbrirSubRubro(AgregarFila(seccion, f), f);
+                return;
+        }
+
+        f.PadreIndice = arbol.PadreDeItem(codigo);
+        CompletarItem(f, fila, numeros, ctx);
+        AgregarFila(seccion, f);
+    }
+
+    /// <summary>
+    /// Unidad y números de una fila (null = celda vacía o no numérica). TieneNumeros: los
+    /// rubros y sub-rubros no tienen números, y un error de Excel en uno cuenta como número.
+    /// </summary>
+    private sealed record NumerosFila(
+        string Unidad, decimal? Cantidad, decimal? PU, decimal? Subtotal, bool TotalNumerico,
+        decimal? CantidadContrato, decimal? PUContrato, IReadOnlyList<string> Errores, bool TieneNumeros);
+
+    private static NumerosFila LeerNumeros(FilaExcel fila, Contexto ctx)
+    {
+        var col = ctx.Col;
+        var cantidad = col.Cantidad is int cc ? fila[cc].Numero : null;
+        var pu = col.PU is int cp ? fila[cp].Numero : null;
+        var cantidadContrato = col.CantidadContrato is int ccc ? fila[ccc].Numero : null;
+        var puContrato = col.PUContrato is int cpc ? fila[cpc].Numero : null;
+        // Un error de Excel (#REF!, #DIV/0!) en un número del ítem no es una celda vacía:
+        // la fila sigue siendo un ítem (los rubros no tienen números) y se avisa.
+        var errores = ErroresNumericos(fila, ctx);
+
+        return new NumerosFila(
+            Unidad: col.Unidad is int cu ? fila[cu].Texto : string.Empty,
+            Cantidad: cantidad,
+            PU: pu,
+            Subtotal: col.Subtotal is int cs ? fila[cs].Numero : null,
+            // Solo un número en TOTAL marca rubro: un «-» o un texto en esa celda (ítems «No
+            // aplica» de algunas contratistas) no debe convertir el ítem en agrupador.
+            TotalNumerico: col.Total is int ct && fila[ct].Numero is not null,
+            CantidadContrato: cantidadContrato,
+            PUContrato: puContrato,
+            Errores: errores,
+            TieneNumeros: cantidad.HasValue || pu.HasValue || errores.Count > 0
+                          || (ctx.ContratoNumeros && (cantidadContrato.HasValue || puContrato.HasValue)));
+    }
+
+    /// <summary>
+    /// Rubro, sub-rubro o null (ítem hoja). Rubro: sin números y, o bien sin unidad y con un
+    /// número en TOTAL (un «No aplica» con unidad y TOTAL 0 es un ítem sin monto, no un
+    /// agrupador que capture a los ítems que le siguen), o bien su código es prefijo (más un
+    /// punto) del siguiente código. Sub-rubro: sin código, sin números y sin unidad.
+    /// </summary>
+    private static TipoFilaEstructura? TipoDeAgrupador(string? codigo, string? siguienteCodigo, NumerosFila numeros)
+    {
+        if (numeros.TieneNumeros) return null;
+        if ((numeros.TotalNumerico && numeros.Unidad.Length == 0)
+            || (codigo is not null && siguienteCodigo is not null
+                && siguienteCodigo.StartsWith(codigo + ".", StringComparison.OrdinalIgnoreCase)))
+            return TipoFilaEstructura.Rubro;
+        return codigo is null && numeros.Unidad.Length == 0 ? TipoFilaEstructura.SubRubro : null;
     }
 
     /// <summary>Agrega la fila a la sección con el nivel que le da su padre (raíz = 0) y devuelve su índice.</summary>
@@ -480,8 +463,9 @@ public static class ImportadorEstructura
     /// («Cantidad con error de Excel (#REF!)»). El subtotal cuenta solo en cotización, donde
     /// es la fuente del precio unitario; las del contrato, solo cuando completan el grupo.
     /// </summary>
-    private static List<string> ErroresNumericos(FilaExcel fila, Columnas col, LayoutEstructura layout, bool contratoNumeros)
+    private static List<string> ErroresNumericos(FilaExcel fila, Contexto ctx)
     {
+        var col = ctx.Col;
         var errores = new List<string>();
         void Revisar(int? columna, string nombre)
         {
@@ -490,13 +474,187 @@ public static class ImportadorEstructura
         }
         Revisar(col.Cantidad, "Cantidad");
         Revisar(col.PU, "PU");
-        if (layout == LayoutEstructura.Cotizacion) Revisar(col.Subtotal, "Subtotal");
-        if (contratoNumeros)
+        if (ctx.Layout == LayoutEstructura.Cotizacion) Revisar(col.Subtotal, "Subtotal");
+        if (ctx.ContratoNumeros)
         {
             Revisar(col.CantidadContrato, "Cantidad del contrato");
             Revisar(col.PUContrato, "PU del contrato");
         }
         return errores;
+    }
+
+    // ── Ítem hoja ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Completa un ítem hoja: código y unidad recortados al largo de su columna, avisos de
+    /// errores de Excel, cantidad, PU y monto según el layout, y su tipo final. En el balance,
+    /// sin cantidad en el grupo elegido no es ítem: queda como economía o ignorado.
+    /// </summary>
+    private static void CompletarItem(FilaEstructuraImport f, FilaExcel fila, NumerosFila numeros, Contexto ctx)
+    {
+        var codigo = f.Codigo;
+        if (codigo is not null) f.Codigo = Recortar(f, codigo, AppDbContext.LargoTextoPorDefecto, "Código recortado");
+        f.Unidad = numeros.Unidad.Length > 0 ? Recortar(f, numeros.Unidad, AppDbContext.LargoTextoPorDefecto, "Unidad recortada") : null;
+        foreach (var error in numeros.Errores)
+            f.AgregarDetalle($"{error}: se tomó como vacío");
+
+        if (ctx.ContratoNumeros && (numeros.Cantidad is null || numeros.Cantidad == 0))
+        {
+            var economia = ctx.Col.CantidadEconomia is int ce ? fila[ce].Numero : null;
+            f.Tipo = economia is not null && economia != 0 ? TipoFilaEstructura.Economia : TipoFilaEstructura.Ignorada;
+            f.AgregarDetalle(f.Tipo == TipoFilaEstructura.Economia
+                ? "Economía: no se importa como ítem"
+                : $"Sin cantidad en el grupo {ctx.Grupo}");
+            return;
+        }
+
+        AsignarNumeros(f, fila, numeros.Cantidad, PrecioUnitario(numeros, ctx), ctx);
+        if (ctx.ContratoNumeros)
+            f.TipoMovimiento = TipoMovimientoDelBalance(ctx.Grupo, numeros.CantidadContrato, codigo);
+        ClasificarItem(f, conCodigo: codigo is not null);
+    }
+
+    /// <summary>
+    /// PU del ítem: el propio, el Subtotal ÷ Cantidad en la cotización o el PU del contrato
+    /// en el balance.
+    /// </summary>
+    private static decimal? PrecioUnitario(NumerosFila numeros, Contexto ctx)
+    {
+        var pu = numeros.PU;
+        if (ctx.Layout == LayoutEstructura.Cotizacion && pu is null
+            && numeros.Cantidad is decimal cantidad && cantidad != 0 && numeros.Subtotal is decimal subtotal)
+            pu = subtotal / cantidad;
+        if (ctx.ContratoNumeros && pu is null && numeros.PUContrato is not null)
+            pu = numeros.PUContrato;
+        return pu;
+    }
+
+    /// <summary>
+    /// Cantidad y PU con los 4 decimales que guarda la base (si la planilla trae más, como
+    /// 6,88905 m3, el monto difiere del subtotal de la planilla y el detalle lo dice) y el
+    /// monto con la regla de la app. Un número tipeado como texto se parsea con la regla
+    /// INDEC (sin coma = punto decimal): «1.500» se leería 1,5, así que se avisa.
+    /// </summary>
+    private static void AsignarNumeros(FilaEstructuraImport f, FilaExcel fila,
+        decimal? cantidad, decimal? pu, Contexto ctx)
+    {
+        f.Cantidad = cantidad is null ? null : Math.Round(cantidad.Value, 4);
+        f.PUBasico = pu is null ? null : Math.Round(pu.Value, 4);
+        if (cantidad is not null && f.Cantidad != cantidad) f.AgregarDetalle("Cantidad redondeada a 4 decimales");
+        if (pu is not null && f.PUBasico != pu && ctx.Layout != LayoutEstructura.Cotizacion) f.AgregarDetalle("PU redondeado a 4 decimales");
+        if ((ctx.Col.Cantidad is int cc && fila[cc].EsTexto) || (ctx.Col.PU is int cp && fila[cp].EsTexto))
+            f.AgregarDetalle("Cantidad o PU leídos de una celda de texto: verificar el separador decimal");
+        f.Monto = EstructuraValidator.CalcularMonto(false, f.Cantidad, f.PUBasico);
+    }
+
+    /// <summary>
+    /// Tipo de movimiento en el balance: con el grupo Demasía, un ítem sin cantidad de
+    /// contrato o con código «N-…» es Adicional y el resto Demasía; con otro grupo, ninguno.
+    /// </summary>
+    private static TipoMovimiento? TipoMovimientoDelBalance(GrupoBalance grupo, decimal? cantidadContrato, string? codigo) =>
+        grupo == GrupoBalance.Demasia
+            ? (cantidadContrato is null || (codigo?.StartsWith("N-", StringComparison.OrdinalIgnoreCase) ?? false)
+                ? TipoMovimiento.Adicional
+                : TipoMovimiento.Demasia)
+            : null;
+
+    /// <summary>Tipo final del ítem hoja, con su aviso: sin código, sin monto, monto 0 o ítem completo.</summary>
+    private static void ClasificarItem(FilaEstructuraImport f, bool conCodigo)
+    {
+        if (!conCodigo)
+        {
+            f.Tipo = TipoFilaEstructura.ItemSinCodigo;
+            f.AgregarDetalle("Ítem sin código");
+        }
+        else if (f.Monto is null)
+        {
+            f.Tipo = TipoFilaEstructura.ItemSinMonto;
+            f.AgregarDetalle("Sin cantidad o sin precio: se importa con monto vacío");
+        }
+        else if (f.Monto == 0)
+        {
+            f.Tipo = TipoFilaEstructura.ItemSinMonto;
+            f.AgregarDetalle("Cantidad o precio en cero: se importa con monto 0");
+        }
+        else
+        {
+            f.Tipo = TipoFilaEstructura.Item;
+        }
+    }
+
+    // ── Árbol de la sección ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Agrupadores abiertos mientras se recorre una sección: la pila de rubros y sub-rubros
+    /// de la que cuelga la fila actual, y los rubros con código ya vistos (código → índice)
+    /// para los rubros e ítems que aparecen fuera de orden. Se reinicia al abrir una sección
+    /// y en cada separador.
+    /// </summary>
+    private sealed class ArbolDeSeccion
+    {
+        private readonly Stack<(int Indice, FilaEstructuraImport Fila)> pila = new();
+        private readonly Dictionary<string, int> rubrosPorCodigo = new(StringComparer.OrdinalIgnoreCase);
+
+        public void Reiniciar()
+        {
+            pila.Clear();
+            rubrosPorCodigo.Clear();
+        }
+
+        /// <summary>
+        /// Padre de un rubro codificado: el rubro cuyo código es prefijo del suyo, el abierto
+        /// más cercano o, si aparece fuera de orden (A.1.5 después de A.2), el ya visto con el
+        /// prefijo más largo. Sin código (ítems nuevos del balance) nace en la raíz. Cierra
+        /// los agrupadores abiertos que no lo contienen (los sub-rubros, siempre).
+        /// </summary>
+        public int? PadreDeRubro(string? codigo)
+        {
+            while (pila.Count > 0 && !(codigo is not null && pila.Peek().Fila.Codigo is string pc
+                                        && codigo.StartsWith(pc + ".", StringComparison.OrdinalIgnoreCase)))
+                pila.Pop();
+            return (codigo is null ? null : RubroPrefijo(codigo))
+                   ?? (pila.Count > 0 ? pila.Peek().Indice : null);
+        }
+
+        public void AbrirRubro(int indice, FilaEstructuraImport rubro)
+        {
+            pila.Push((indice, rubro));
+            if (rubro.Codigo is not null) rubrosPorCodigo[rubro.Codigo] = indice;
+        }
+
+        /// <summary>Padre de un sub-rubro: el rubro abierto (dos sub-rubros seguidos quedan como hermanos).</summary>
+        public int? PadreDeSubRubro()
+        {
+            while (pila.Count > 0 && pila.Peek().Fila.Tipo == TipoFilaEstructura.SubRubro)
+                pila.Pop();
+            return pila.Count > 0 ? pila.Peek().Indice : null;
+        }
+
+        public void AbrirSubRubro(int indice, FilaEstructuraImport subRubro) => pila.Push((indice, subRubro));
+
+        /// <summary>
+        /// Padre de un ítem hoja: el agrupador abierto, salvo que su código diga otra cosa. Si
+        /// el agrupador con código más cercano no es prefijo del suyo y un rubro ya visto sí lo
+        /// es, cuelga de ese: ítems agregados fuera de orden, como el 01.10.29 que en las hojas
+        /// de certificado de Agüero aparece después del rubro 01.11.
+        /// </summary>
+        public int? PadreDeItem(string? codigo)
+        {
+            if (codigo is not null
+                && pila.Select(x => x.Fila.Codigo).FirstOrDefault(c => c is not null) is string cercano
+                && !codigo.StartsWith(cercano + ".", StringComparison.OrdinalIgnoreCase)
+                && RubroPrefijo(codigo) is int rubro)
+                return rubro;
+            return pila.Count > 0 ? pila.Peek().Indice : null;
+        }
+
+        /// <summary>Rubro ya visto cuyo código es el prefijo más largo del dado («A.1.2» → «A.1» → «A»), o null.</summary>
+        private int? RubroPrefijo(string codigo)
+        {
+            for (var corte = codigo.LastIndexOf('.'); corte > 0; corte = codigo.LastIndexOf('.', corte - 1))
+                if (rubrosPorCodigo.TryGetValue(codigo[..corte], out var indice)) return indice;
+            return null;
+        }
     }
 
     // ── Cierre de sección ────────────────────────────────────────────────────────
@@ -644,14 +802,6 @@ public static class ImportadorEstructura
     };
 
     private static bool EsUsd(string x) => x.Contains("usd") || x.Contains("us$") || x.Contains("u$s");
-
-    /// <summary>Rubro ya visto cuyo código es el prefijo más largo del dado («A.1.2» → «A.1» → «A»), o null.</summary>
-    private static int? RubroPrefijo(Dictionary<string, int> rubros, string codigo)
-    {
-        for (var corte = codigo.LastIndexOf('.'); corte > 0; corte = codigo.LastIndexOf('.', corte - 1))
-            if (rubros.TryGetValue(codigo[..corte], out var indice)) return indice;
-        return null;
-    }
 
     private static string? LeerCodigo(FilaExcel fila, Columnas col)
     {
