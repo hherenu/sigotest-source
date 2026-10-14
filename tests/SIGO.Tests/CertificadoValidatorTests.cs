@@ -135,28 +135,28 @@ public class CertificadoValidatorTests
 
     [Fact]
     public void AgregarBloque_FueraDeBorrador_Rechaza() =>
-        Assert.Equal("Solo se pueden agregar bloques en borrador.",
+        Assert.Equal(new RechazoBloque(MotivoRechazoBloque.NoEditable, "Solo se pueden agregar bloques en borrador."),
             CertificadoValidator.AgregarBloque(
                 EstadoCertificado.Cerrado, bloqueDuplicado: false, estructuraDeLaObra: true));
 
     [Fact]
     public void AgregarBloque_Duplicado_Rechaza() =>
-        Assert.Equal("Ese bloque ya está en el certificado.",
+        Assert.Equal(new RechazoBloque(MotivoRechazoBloque.Duplicado, "Ese bloque ya está en el certificado."),
             CertificadoValidator.AgregarBloque(
                 EstadoCertificado.Borrador, bloqueDuplicado: true, estructuraDeLaObra: true));
 
     [Fact]
     public void AgregarBloque_EstructuraDeOtraObra_Rechaza() =>
-        Assert.Equal("Estructura inválida.",
+        Assert.Equal(new RechazoBloque(MotivoRechazoBloque.EstructuraInvalida, "Estructura inválida."),
             CertificadoValidator.AgregarBloque(
                 EstadoCertificado.Borrador, bloqueDuplicado: false, estructuraDeLaObra: false));
 
     [Fact]
     public void AgregarBloque_ElEstadoSeChequeaPrimero()
     {
-        // Fuera de borrador ninguna otra condición importa: es el mismo orden que
-        // evaluaba la página (else-if) y el que la UI usa para elegir el título.
-        Assert.Equal("Solo se pueden agregar bloques en borrador.",
+        // Fuera de borrador ninguna otra condición importa, y motivo y mensaje salen de la
+        // misma regla: la página no puede mostrar un título que no corresponde al mensaje.
+        Assert.Equal(new RechazoBloque(MotivoRechazoBloque.NoEditable, "Solo se pueden agregar bloques en borrador."),
             CertificadoValidator.AgregarBloque(
                 EstadoCertificado.Cerrado, bloqueDuplicado: true, estructuraDeLaObra: false));
     }
@@ -164,10 +164,9 @@ public class CertificadoValidatorTests
     [Fact]
     public void QuitarBloque_SoloEnBorrador()
     {
+        var noEditable = new RechazoBloque(MotivoRechazoBloque.NoEditable, "Solo se pueden quitar bloques en borrador.");
         Assert.Null(CertificadoValidator.QuitarBloque(EstadoCertificado.Borrador));
-        Assert.Equal("Solo se pueden quitar bloques en borrador.",
-            CertificadoValidator.QuitarBloque(EstadoCertificado.Cerrado));
-        Assert.Equal("Solo se pueden quitar bloques en borrador.",
-            CertificadoValidator.QuitarBloque(EstadoCertificado.Aprobado));
+        Assert.Equal(noEditable, CertificadoValidator.QuitarBloque(EstadoCertificado.Cerrado));
+        Assert.Equal(noEditable, CertificadoValidator.QuitarBloque(EstadoCertificado.Aprobado));
     }
 }

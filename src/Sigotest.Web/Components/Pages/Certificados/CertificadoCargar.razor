@@ -256,8 +256,8 @@ else
 
             if (hecho && res is not null)
             {
-                if (res.Rechazo is not null)
-                    NotificarRechazoBloque(res);
+                if (res.Rechazo is RechazoBloque rechazo)
+                    NotificarRechazoBloque(rechazo);
                 else if (res.Encontrado)
                     Notifications.Notify(NotificationSeverity.Success, "Bloque agregado",
                         disponibles.FirstOrDefault(e => e.Id == estId)?.Nombre ?? "", 3000);
@@ -285,8 +285,8 @@ else
 
             if (hecho && res is not null)
             {
-                if (res.Rechazo is not null)
-                    NotificarRechazoBloque(res);
+                if (res.Rechazo is RechazoBloque rechazo)
+                    NotificarRechazoBloque(rechazo);
                 else if (res.Encontrado)
                     Notifications.Notify(NotificationSeverity.Success, "Bloque quitado", bloque.Titulo, 3000);
             }
@@ -295,16 +295,16 @@ else
         finally { procesando = false; }
     }
 
-    // Título y severidad según el motivo (los mensajes vienen de CertificadoValidator).
-    private void NotificarRechazoBloque(CertificadoService.ResultadoBloque res)
+    // Título y severidad según el motivo; motivo y mensaje vienen juntos de CertificadoValidator.
+    private void NotificarRechazoBloque(RechazoBloque rechazo)
     {
-        var (severidad, titulo) = res.Motivo switch
+        var (severidad, titulo) = rechazo.Motivo switch
         {
-            CertificadoService.MotivoRechazoBloque.Duplicado => (NotificationSeverity.Warning, "Duplicado"),
-            CertificadoService.MotivoRechazoBloque.EstructuraInvalida => (NotificationSeverity.Error, "Inválida"),
+            MotivoRechazoBloque.Duplicado => (NotificationSeverity.Warning, "Duplicado"),
+            MotivoRechazoBloque.EstructuraInvalida => (NotificationSeverity.Error, "Inválida"),
             _ => (NotificationSeverity.Warning, "No editable")
         };
-        Notifications.Notify(severidad, titulo, res.Rechazo ?? "", 5000);
+        Notifications.Notify(severidad, titulo, rechazo.Mensaje, 5000);
     }
 
     /// <summary>

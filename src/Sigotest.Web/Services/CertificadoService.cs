@@ -391,15 +391,12 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
         return (nuevo.Id, null);
     }
 
-    /// <summary>Motivo del rechazo al agregar/quitar un bloque (la página elige título y severidad).</summary>
-    public enum MotivoRechazoBloque { NoEditable, Duplicado, EstructuraInvalida }
-
     /// <summary>
     /// Resultado de agregar/quitar bloque: Encontrado=false si el certificado/bloque ya
     /// no existe (patrón bool-false — la página recarga sin notificar error); Rechazo con
-    /// el mensaje de la regla de negocio que lo frenó (null = operación completada).
+    /// el motivo y el mensaje de la regla de negocio que lo frenó (null = operación completada).
     /// </summary>
-    public sealed record ResultadoBloque(bool Encontrado, MotivoRechazoBloque? Motivo = null, string? Rechazo = null);
+    public sealed record ResultadoBloque(bool Encontrado, RechazoBloque? Rechazo = null);
 
     /// <summary>
     /// Agrega a un certificado en borrador un bloque de la estructura indicada
@@ -418,13 +415,8 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
         var deLaObra = await db.EstructurasCostos
             .AnyAsync(e => e.Id == estructuraCostosId && e.ObraId == cert.ObraId);
 
-        var rechazo = CertificadoValidator.AgregarBloque(cert.Estado, duplicado, deLaObra);
-        if (rechazo is not null)
-            return new ResultadoBloque(true,
-                cert.Estado != EstadoCertificado.Borrador ? MotivoRechazoBloque.NoEditable
-                : duplicado ? MotivoRechazoBloque.Duplicado
-                : MotivoRechazoBloque.EstructuraInvalida,
-                rechazo);
+        if (CertificadoValidator.AgregarBloque(cert.Estado, duplicado, deLaObra) is RechazoBloque rechazo)
+            return new ResultadoBloque(true, rechazo);
 
         // RowVersion del certificado: si otro usuario lo cierra entre el chequeo y
         // el save, el UPDATE falla por concurrencia en vez de agregar el bloque.
@@ -450,9 +442,8 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
             .FirstOrDefaultAsync(x => x.Id == certificadoEstructuraId);
         if (b is null) return new ResultadoBloque(false);
 
-        var rechazo = CertificadoValidator.QuitarBloque(b.Certificado.Estado);
-        if (rechazo is not null)
-            return new ResultadoBloque(true, MotivoRechazoBloque.NoEditable, rechazo);
+        if (CertificadoValidator.QuitarBloque(b.Certificado.Estado) is RechazoBloque rechazo)
+            return new ResultadoBloque(true, rechazo);
 
         // Mismo patrón que al agregar: el RowVersion del certificado detecta un cierre
         // concurrente entre el chequeo y el save.

@@ -2,6 +2,12 @@ using SIGO.Models.Enums;
 
 namespace SIGO.Services.Validaciones;
 
+/// <summary>Motivo del rechazo al agregar o quitar un bloque (la página elige título y severidad).</summary>
+public enum MotivoRechazoBloque { NoEditable, Duplicado, EstructuraInvalida }
+
+/// <summary>Rechazo de una operación sobre los bloques del certificado: su motivo y el mensaje para el usuario.</summary>
+public sealed record RechazoBloque(MotivoRechazoBloque Motivo, string Mensaje);
+
 /// <summary>
 /// Reglas del ciclo de vida del certificado (Borrador → Cerrado → Aprobado), puras y
 /// sin acceso a datos: el servicio les pasa lo que ya leyó y lanza si devuelven error;
@@ -128,22 +134,24 @@ public static class CertificadoValidator
     /// <summary>
     /// Agregar un bloque: solo en borrador, sin repetir estructura dentro del certificado
     /// y solo con estructuras de la misma obra (el servicio pasa los hechos que ya leyó).
+    /// El motivo sale de la misma regla que el mensaje: antes el servicio lo volvía a
+    /// deducir repitiendo las condiciones, y un cambio de orden acá los desalineaba.
     /// </summary>
-    public static string? AgregarBloque(EstadoCertificado estado, bool bloqueDuplicado, bool estructuraDeLaObra)
+    public static RechazoBloque? AgregarBloque(EstadoCertificado estado, bool bloqueDuplicado, bool estructuraDeLaObra)
     {
         if (estado != EstadoCertificado.Borrador)
-            return "Solo se pueden agregar bloques en borrador.";
+            return new(MotivoRechazoBloque.NoEditable, "Solo se pueden agregar bloques en borrador.");
         if (bloqueDuplicado)
-            return "Ese bloque ya está en el certificado.";
+            return new(MotivoRechazoBloque.Duplicado, "Ese bloque ya está en el certificado.");
         if (!estructuraDeLaObra)
-            return "Estructura inválida.";
+            return new(MotivoRechazoBloque.EstructuraInvalida, "Estructura inválida.");
         return null;
     }
 
     /// <summary>Quitar un bloque: solo mientras el certificado sigue en borrador.</summary>
-    public static string? QuitarBloque(EstadoCertificado estado) =>
+    public static RechazoBloque? QuitarBloque(EstadoCertificado estado) =>
         estado != EstadoCertificado.Borrador
-            ? "Solo se pueden quitar bloques en borrador."
+            ? new(MotivoRechazoBloque.NoEditable, "Solo se pueden quitar bloques en borrador.")
             : null;
 
     /// <summary>

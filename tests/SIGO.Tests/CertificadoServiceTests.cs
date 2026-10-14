@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SIGO.Models;
 using SIGO.Models.Enums;
 using SIGO.Services;
+using SIGO.Services.Validaciones;
 
 namespace SIGO.Tests;
 
@@ -553,6 +554,43 @@ public class CertificadoServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbF
         Assert.Equal(15m, unica.PorcentajeActual);
         Assert.Equal("Medición parcial", unica.Observaciones);
         Assert.Equal(TipoMovimiento.Demasia, unica.TipoMovimiento);
+    }
+
+    [Fact]
+    public async Task Bloques_DuplicadoYEnCerrado_SeRechazanConSuMotivo()
+    {
+        var e = await CrearEstructuraAsync();
+        var (certId, bloqueId) = await CrearCertificadoAsync(e, 1);
+        var servicio = Servicio(Roles.CCyR);
+
+        var duplicado = await servicio.AgregarBloqueAsync(certId, e.EstructuraId);
+        Assert.Equal(MotivoRechazoBloque.Duplicado, duplicado.Rechazo?.Motivo);
+
+        await servicio.CerrarAsync(certId);
+        var quitar = await servicio.QuitarBloqueAsync(bloqueId);
+        Assert.Equal(MotivoRechazoBloque.NoEditable, quitar.Rechazo?.Motivo);
+
+        await using var db = fx.CrearContexto();
+        Assert.Equal(1, await db.CertificadoEstructuras.CountAsync(b => b.CertificadoId == certId));
+    }
+
+    [Fact]
+    public async Task AprobarYVolverACerrado_SoloDesdeElEstadoQueCorresponde()
+    {
+        var e = await CrearEstructuraAsync();
+        var (certId, bloqueId) = await CrearCertificadoAsync(e, 1);
+        var servicio = Servicio(Roles.Admin);
+        await servicio.GuardarItemsAsync(certId, new() { [bloqueId] = new() { [e.ItemCantId] = 10m } });
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.AprobarAsync(certId));   // borrador
+
+        await servicio.CerrarAsync(certId);
+        await servicio.AprobarAsync(certId);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.ReabrirAsync(certId));   // aprobado
+        await servicio.DesaprobarAsync(certId);
+
+        await using var db = fx.CrearContexto();
+        Assert.Equal(EstadoCertificado.Cerrado, (await db.Certificados.SingleAsync(c => c.Id == certId)).Estado);
     }
 
     [Fact]
