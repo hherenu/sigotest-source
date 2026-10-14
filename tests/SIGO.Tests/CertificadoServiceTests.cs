@@ -51,6 +51,13 @@ public class CertificadoServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbF
         return new Escenario(obra.Id, est.Id, itemCant.Id, itemGlobal.Id);
     }
 
+    /// <summary>RowVersion actual del certificado (el token que tendría una página recién abierta).</summary>
+    private async Task<byte[]> RowVersionAsync(int certId)
+    {
+        await using var db = fx.CrearContexto();
+        return (await db.Certificados.AsNoTracking().SingleAsync(c => c.Id == certId)).RowVersion;
+    }
+
     /// <summary>Certificado en borrador con su bloque sobre la estructura.</summary>
     private async Task<(int CertId, int BloqueId)> CrearCertificadoAsync(Escenario e, int numero)
     {
@@ -351,7 +358,38 @@ public class CertificadoServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbF
         await servicio.GuardarItemsAsync(certId, new() { [bloqueId] = new() { [e.ItemCantId] = 10m } });
         await servicio.CerrarAsync(certId);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.EliminarAsync(certId));
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await servicio.EliminarAsync(certId, await RowVersionAsync(certId)));
+    }
+
+    [Fact]
+    public async Task Eliminar_Borrador_ConElTokenDelListado_Elimina()
+    {
+        var e = await CrearEstructuraAsync();
+        var (certId, _) = await CrearCertificadoAsync(e, 1);
+        var servicio = Servicio(Roles.CCyR);
+
+        Assert.True(await servicio.EliminarAsync(certId, await RowVersionAsync(certId)));
+        Assert.False(await servicio.EliminarAsync(certId, []));   // ya no existe: patrón bool-false
+
+        await using var db = fx.CrearContexto();
+        Assert.False(await db.Certificados.AnyAsync(c => c.Id == certId));
+    }
+
+    [Fact]
+    public async Task Eliminar_SiOtroUsuarioGuardoDesdeElListado_ConflictoYNoBorra()
+    {
+        var e = await CrearEstructuraAsync();
+        var (certId, bloqueId) = await CrearCertificadoAsync(e, 1);
+        var servicio = Servicio(Roles.Admin);
+        var tokenDelListado = await RowVersionAsync(certId);
+
+        // Otro usuario carga porcentajes después de que el listado se mostró.
+        await servicio.GuardarItemsAsync(certId, new() { [bloqueId] = new() { [e.ItemCantId] = 10m } });
+
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => servicio.EliminarAsync(certId, tokenDelListado));
+
+        await using var db = fx.CrearContexto();
+        Assert.True(await db.ItemsCertificado.AnyAsync(i => i.CertificadoEstructuraId == bloqueId));
     }
 
     // ── Contrato editado con el certificado en borrador ─────────────────────────
@@ -477,6 +515,6 @@ public class CertificadoServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbF
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             sinRol.GuardarItemsAsync(certId, new() { [bloqueId] = new() { [e.ItemCantId] = 10m } }));
         await Assert.ThrowsAsync<InvalidOperationException>(() => sinRol.CerrarAsync(certId));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => sinRol.EliminarAsync(certId));
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await sinRol.EliminarAsync(certId, await RowVersionAsync(certId)));
     }
 }

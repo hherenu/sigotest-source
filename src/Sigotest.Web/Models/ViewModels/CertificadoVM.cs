@@ -153,6 +153,9 @@ public class CertificadoListItemVM
     public DateTime FechaEmision { get; set; }
     public string? Observaciones { get; set; }
 
+    /// <summary>Token de concurrencia de la fila: viaja al DELETE del certificado.</summary>
+    public byte[] RowVersion { get; set; } = [];
+
     /// <summary>Títulos de los bloques ya unidos con ", " (columna "Bloques").</summary>
     public string Bloques { get; set; } = string.Empty;
 

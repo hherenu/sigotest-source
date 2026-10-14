@@ -127,7 +127,8 @@ else
         {
             await UiAcciones.ConfirmarEliminarYRecargarAsync(DialogService, Notifications,
                 $"¿Eliminar certificado N° {c.Numero}?",
-                () => Service.EliminarAsync(c.Id),
+                // El RowVersion de la fila viaja al DELETE como token de concurrencia.
+                () => Service.EliminarAsync(c.Id, c.RowVersion),
                 "Certificado eliminado", $"N° {c.Numero}",
                 "Ya eliminado", $"El certificado N° {c.Numero} ya había sido eliminado por otro usuario.",
                 CargarAsync);

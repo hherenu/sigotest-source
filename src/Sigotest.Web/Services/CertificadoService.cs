@@ -321,6 +321,7 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
                 c.Estado,
                 c.FechaEmision,
                 c.Observaciones,
+                c.RowVersion,
                 Titulos = c.Estructuras
                     .OrderBy(b => b.Orden)
                     .Select(b => b.Titulo ?? b.EstructuraCostos.Nombre)
@@ -337,6 +338,7 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
             Estado = f.Estado,
             FechaEmision = f.FechaEmision,
             Observaciones = f.Observaciones,
+            RowVersion = f.RowVersion,
             Bloques = string.Join(", ", f.Titulos)
         }).ToList();
     }
@@ -735,12 +737,14 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
     }
 
     /// <summary>
-    /// Elimina un certificado. Solo se admiten borradores (o anulados): un cerrado
-    /// integra la cadena de acumulados y debe reabrirse antes de poder eliminarse.
+    /// Elimina un certificado. Solo se admiten borradores: un cerrado integra la cadena
+    /// de acumulados y debe reabrirse antes de poder eliminarse. El RowVersion del
+    /// listado viaja al DELETE: si otro usuario guardó porcentajes o lo cerró desde que
+    /// se mostró la fila, conflicto de concurrencia en vez de borrar su trabajo.
     /// Devuelve false si ya no existía —eliminado por otro usuario— para que la
     /// página informe (patrón bool-false del resto de los módulos).
     /// </summary>
-    public async Task<bool> EliminarAsync(int certificadoId)
+    public async Task<bool> EliminarAsync(int certificadoId, byte[] rowVersion)
     {
         ExigirRol("eliminar el certificado");
         await using var db = await dbFactory.CreateDbContextAsync();
@@ -750,6 +754,7 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
 
         Validacion.Exigir(CertificadoValidator.Eliminar(cert.Estado, cert.Numero));
 
+        db.Entry(cert).Property(c => c.RowVersion).OriginalValue = rowVersion;
         db.Certificados.Remove(cert);
         await db.SaveChangesAsync();
         return true;
