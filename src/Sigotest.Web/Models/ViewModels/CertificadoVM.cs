@@ -98,6 +98,47 @@ public class CertificadoVM
     public decimal PorcentajeAvance => Avance.Porcentaje(TotalMontoAcumulado, TotalMontoContrato);
 }
 
+/// <summary>Estado de la grilla de carga del certificado (CertificadoCargar), testeable sin la página.</summary>
+public static class CargaCertificado
+{
+    /// <summary>
+    /// % del mes editables por bloque e ítem hoja (null = celda vacía), tomados de
+    /// <paramref name="vm"/>, la versión recién leída de la base. Con una carga previa
+    /// (<paramref name="anterior"/> y lo <paramref name="tipeado"/> sobre ella) se conserva
+    /// solo lo que el usuario cambió respecto de lo que había visto. Agregar o quitar un
+    /// bloque recarga el certificado con el token de concurrencia renovado: si se reponían
+    /// TODOS los % de la sesión, el guardado siguiente pisaba sin conflicto lo que otro
+    /// usuario hubiera guardado en el medio en los ítems que este no tocó.
+    /// </summary>
+    public static Dictionary<int, Dictionary<int, decimal?>> Porcentajes(CertificadoVM vm,
+        CertificadoVM? anterior = null, IReadOnlyDictionary<int, Dictionary<int, decimal?>>? tipeado = null)
+    {
+        var vistos = anterior?.Bloques.ToDictionary(
+            b => b.CertificadoEstructuraId,
+            b => b.Items.Where(i => !i.EsAgrupador).ToDictionary(i => i.ItemEstructuraId, i => i.PorcentajeMes ?? 0m));
+
+        var resultado = new Dictionary<int, Dictionary<int, decimal?>>();
+        foreach (var bloque in vm.Bloques)
+        {
+            var porItem = new Dictionary<int, decimal?>();
+            foreach (var item in bloque.Items.Where(i => !i.EsAgrupador))
+            {
+                porItem[item.ItemEstructuraId] =
+                    tipeado is not null && vistos is not null
+                    && tipeado.TryGetValue(bloque.CertificadoEstructuraId, out var tipeadoBloque)
+                    && tipeadoBloque.TryGetValue(item.ItemEstructuraId, out var escrito)
+                    && vistos.TryGetValue(bloque.CertificadoEstructuraId, out var vistoBloque)
+                    && vistoBloque.TryGetValue(item.ItemEstructuraId, out var visto)
+                    && (escrito ?? 0m) != visto
+                        ? escrito
+                        : item.PorcentajeMes is decimal p && p != 0 ? p : (decimal?)null;
+            }
+            resultado[bloque.CertificadoEstructuraId] = porItem;
+        }
+        return resultado;
+    }
+}
+
 /// <summary>
 /// Fila del listado de certificados de una obra: proyección de solo lectura sin
 /// entidades EF (la grilla bindea esto; las acciones navegan/eliminan por Id).

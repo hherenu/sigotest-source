@@ -194,32 +194,21 @@ else
         // El VM se reconstruye completo (incluido su RowVersion): agregar/quitar bloque
         // actualiza la fila del certificado, y el token de sesión que viaja al guardado
         // debe ser el último visto.
+        var anterior = vm;
         vm = await Service.BuildVmAsync(Id);
         if (vm is null) { noEncontrado = true; return; }
         noEncontrado = false;
 
-        // Lo tipeado y no guardado se preserva: agregar/quitar un bloque reconstruye el
-        // estado desde la DB y sin esto pisaba los % del resto de los bloques.
-        var tipeado = pct;
-        pct = new Dictionary<int, Dictionary<int, decimal?>>();
-        filasPorBloque = new Dictionary<int, List<(ItemCertificadoVM Item, int Nivel)>>();
+        // Agregar/quitar un bloque reconstruye el estado desde la DB: se preserva solo lo
+        // que el usuario tipeó (sin esto se perdía); el resto toma lo recién leído, que
+        // puede incluir lo que otro usuario guardó en el medio (ver CargaCertificado).
+        pct = CargaCertificado.Porcentajes(vm, anterior, pct);
 
-        foreach (var bloque in vm.Bloques)
-        {
-            tipeado.TryGetValue(bloque.CertificadoEstructuraId, out var tipeadoBloque);
-            var dict = new Dictionary<int, decimal?>();
-            foreach (var item in bloque.Items.Where(i => !i.EsAgrupador))
-                dict[item.ItemEstructuraId] =
-                    (tipeadoBloque is not null && tipeadoBloque.TryGetValue(item.ItemEstructuraId, out var v))
-                        ? v
-                        : (item.PorcentajeMes.HasValue && item.PorcentajeMes.Value != 0) ? item.PorcentajeMes : null;
-            pct[bloque.CertificadoEstructuraId] = dict;
-
-            // El árbol se aplana UNA vez acá, no en cada render: al tipear un % el
-            // componente se re-renderiza y volvería a aplanar todos los bloques.
-            filasPorBloque[bloque.CertificadoEstructuraId] = Arbol.Aplanar(
-                bloque.Items, i => i.AgrupadorPadreId, i => i.ItemEstructuraId, i => i.Orden, i => i.EsAgrupador);
-        }
+        // El árbol se aplana UNA vez acá, no en cada render: al tipear un % el
+        // componente se re-renderiza y volvería a aplanar todos los bloques.
+        filasPorBloque = vm.Bloques.ToDictionary(
+            b => b.CertificadoEstructuraId,
+            b => Arbol.Aplanar(b.Items, i => i.AgrupadorPadreId, i => i.ItemEstructuraId, i => i.Orden, i => i.EsAgrupador));
 
         var usadas = vm.Bloques.Select(b => b.EstructuraCostosId).ToHashSet();
         disponibles = await Service.EstructurasDisponiblesAsync(vm.ObraId, usadas);
