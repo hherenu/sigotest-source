@@ -47,6 +47,10 @@ regla, dejá el porqué en un comentario al lado (como hace el resto del código
 ## Formularios
 
 - Obligatorios: `*` en el label del `RadzenFormField` + `RadzenRequiredValidator` con `Popup`.
+- Límites numéricos de negocio (no negativos, rangos de año): `RadzenNumericRangeValidator`
+  con `Popup` y el mismo mensaje que el validador del servicio, nunca `Min`/`Max` del
+  `RadzenNumeric`: Radzen lleva el valor tipeado al límite sin avisar (un PU de -500 se
+  guardaba como 0). En campos opcionales, `AllowNull="true"`; con decimales, `Min="0m"`.
 - Ayudas largas: caption (`app-muted`) debajo del campo, no dentro del label flotante.
 - Siglas de dominio: `title` en el FormField con el nombre completo.
 - Ediciones cortas (≤5 campos): diálogo con `Width = "min(Npx, 92vw)"`; el llamador

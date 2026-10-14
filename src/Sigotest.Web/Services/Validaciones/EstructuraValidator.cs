@@ -17,6 +17,48 @@ public static class EstructuraValidator
     public static string? DescripcionItem(string? descripcion) =>
         string.IsNullOrWhiteSpace(descripcion) ? "La descripción es obligatoria" : null;
 
+    /// <summary>Mayor valor absoluto que entra en las columnas decimal(18,4) de cantidad, PU y monto.</summary>
+    public const decimal MaximoAlmacenable = 99_999_999_999_999.9999m;
+
+    /// <summary>
+    /// Cantidad, PU y el monto que se deriva de ellos deben entrar en la base: fuera de
+    /// rango, el guardado fallaba con el error crudo de SQL Server y, en la importación,
+    /// Cantidad × PU podía desbordar el decimal de .NET y tumbar el análisis de toda la
+    /// hoja. Con cada factor dentro del rango el producto no desborda.
+    /// </summary>
+    public static string? Rango(decimal? cantidad, decimal? puBasico)
+    {
+        if (FueraDeRango(cantidad))
+            return "La cantidad supera el máximo admitido (99.999.999.999.999).";
+        if (FueraDeRango(puBasico))
+            return "El PU supera el máximo admitido (99.999.999.999.999).";
+        if (cantidad is decimal c && puBasico is decimal p && FueraDeRango(Math.Round(c * p, 4)))
+            return "El monto (cantidad × PU) supera el máximo admitido (99.999.999.999.999).";
+        return null;
+    }
+
+    private static bool FueraDeRango(decimal? valor) => valor is decimal v && Math.Abs(v) > MaximoAlmacenable;
+
+    /// <summary>
+    /// Cantidad y PU de contrato no negativos: el resto de la app asume contratos positivos
+    /// (las páginas de estructura muestran solo montos mayores a 0, y un negativo restaba
+    /// del total sin verse) y las reducciones se certifican como % negativo del mes. El alta
+    /// manual ya lo impedía en la página; la importación y el servicio no.
+    /// </summary>
+    public static string? NoNegativos(decimal? cantidad, decimal? puBasico)
+    {
+        if (cantidad < 0) return "La cantidad no puede ser negativa.";
+        if (puBasico < 0) return "El PU no puede ser negativo.";
+        return null;
+    }
+
+    /// <summary>
+    /// Cantidad y PU de un ítem hoja, para el alta, la edición y la importación: no
+    /// negativos y dentro del rango de la base.
+    /// </summary>
+    public static string? Valores(decimal? cantidad, decimal? puBasico) =>
+        NoNegativos(cantidad, puBasico) ?? Rango(cantidad, puBasico);
+
     /// <summary>
     /// El padre de un ítem debe ser un agrupador de su misma estructura y, si el ítem es
     /// un agrupador, no puede estar debajo de él: un ciclo dejaría al rubro y a todo lo

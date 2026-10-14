@@ -508,7 +508,14 @@ public static class ImportadorEstructura
             return;
         }
 
-        var (pu, columnaPU) = PrecioUnitario(numeros, ctx);
+        var (pu, columnaPU, rechazo) = PrecioUnitario(numeros, ctx);
+        if (rechazo is not null)
+        {
+            f.Tipo = TipoFilaEstructura.Ignorada;
+            f.AgregarDetalle($"{rechazo} No se importa: corregí el valor en la planilla");
+            return;
+        }
+
         AsignarNumeros(f, fila, numeros.Cantidad, pu, columnaPU, ctx);
         if (ctx.ContratoNumeros)
             f.TipoMovimiento = TipoMovimientoDelBalance(ctx.Grupo, numeros.CantidadContrato, codigo);
@@ -518,23 +525,29 @@ public static class ImportadorEstructura
     /// <summary>
     /// PU del ítem y la columna de la que sale, que es la que mira el aviso de texto: la
     /// propia, el Subtotal ÷ Cantidad en la cotización o el PU del contrato en el balance.
+    /// Rechazo: el motivo si la cantidad o el PU son negativos, o si cantidad, PU o monto no
+    /// entran en la base (con las mismas reglas que el alta manual: ver EstructuraValidator.Valores).
     /// </summary>
-    private static (decimal? PU, int? Columna) PrecioUnitario(NumerosFila numeros, Contexto ctx)
+    private static (decimal? PU, int? Columna, string? Rechazo) PrecioUnitario(NumerosFila numeros, Contexto ctx)
     {
         var pu = numeros.PU;
         var columna = ctx.Col.PU;
+        string? fueraDeRango = null;
         if (ctx.Layout == LayoutEstructura.Cotizacion && pu is null
             && numeros.Cantidad is decimal cantidad && cantidad != 0 && numeros.Subtotal is decimal subtotal)
         {
             columna = ctx.Col.Subtotal;
-            pu = subtotal / cantidad;
+            // Una cantidad ínfima hace desbordar el cociente: es un dato fuera de rango,
+            // no una falla de la hoja entera.
+            try { pu = subtotal / cantidad; }
+            catch (OverflowException) { fueraDeRango = "El PU (Subtotal ÷ Cantidad) supera el máximo admitido."; }
         }
         if (ctx.ContratoNumeros && pu is null && numeros.PUContrato is not null)
         {
             pu = numeros.PUContrato;
             columna = ctx.Col.PUContrato;
         }
-        return (pu, columna);
+        return (pu, columna, fueraDeRango ?? EstructuraValidator.Valores(numeros.Cantidad, pu));
     }
 
     /// <summary>

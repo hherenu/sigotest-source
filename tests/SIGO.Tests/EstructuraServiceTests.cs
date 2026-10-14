@@ -7,7 +7,8 @@ namespace SIGO.Tests;
 
 /// <summary>
 /// Alta y edición de ítems de estructura contra LocalDB: el servicio valida el padre
-/// (agrupador de la misma estructura, sin ciclos) aunque la página ya lo acote.
+/// (agrupador de la misma estructura, sin ciclos) y los números (no negativos y dentro del
+/// rango de la base) aunque la página ya los acote.
 /// </summary>
 public class EstructuraServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbFixture>
 {
@@ -87,6 +88,35 @@ public class EstructuraServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbFi
         Assert.Equal(e.SubRubroId, nuevo.AgrupadorPadreId);
         Assert.Equal(4, nuevo.Orden);
         Assert.Equal(6m, nuevo.Monto);
+    }
+
+    [Fact]
+    public async Task AgregarItem_ConValoresQueNoEntranEnLaBase_RechazaConMensajeDeNegocio()
+    {
+        var e = await CrearAsync();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => Servicio().AgregarItemAsync(e.EstructuraId,
+            new ItemEstructuraVM { Descripcion = "Nuevo", Cantidad = 1e8m, PUBasico = 1e8m }));
+
+        Assert.Contains("monto", ex.Message);
+    }
+
+    [Fact]
+    public async Task AgregarYActualizarItem_ConValoresNegativos_Rechazan()
+    {
+        var e = await CrearAsync();
+
+        var alta = await Assert.ThrowsAsync<InvalidOperationException>(() => Servicio().AgregarItemAsync(e.EstructuraId,
+            new ItemEstructuraVM { Descripcion = "Bonificación", Cantidad = 1, PUBasico = -500 }));
+        Assert.Contains("negativo", alta.Message);
+
+        var item = await VmAsync(e.ItemId);
+        item.Cantidad = -2;
+        var edicion = await Assert.ThrowsAsync<InvalidOperationException>(() => Servicio().ActualizarItemAsync(item));
+        Assert.Contains("negativa", edicion.Message);
+
+        await using var db = fx.CrearContexto();
+        Assert.Equal(2m, (await db.ItemsEstructura.SingleAsync(i => i.Id == e.ItemId)).Cantidad);
     }
 
     [Fact]

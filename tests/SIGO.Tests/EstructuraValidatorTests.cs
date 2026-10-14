@@ -136,6 +136,45 @@ public class EstructuraValidatorTests
         Assert.Null(EstructuraValidator.DescripcionItem("Excavación"));
     }
 
+    // ── Rango de decimal(18,4) ───────────────────────────────────────────────────
+
+    [Fact]
+    public void Rango_DentroDelMaximo_YSinValores_Pasa()
+    {
+        Assert.Null(EstructuraValidator.Rango(null, null));
+        Assert.Null(EstructuraValidator.Rango(-5m, 1000m));   // los negativos no son un problema de rango
+        Assert.Null(EstructuraValidator.Rango(1m, EstructuraValidator.MaximoAlmacenable));
+    }
+
+    [Theory]
+    [InlineData(1e15, 1.0, "cantidad")]
+    [InlineData(1.0, -1e15, "PU")]
+    [InlineData(1e8, 1e8, "monto")]          // cada uno entra; el producto (1e16) no
+    public void Rango_FueraDelMaximo_RechazaDiciendoQue(double cantidad, double pu, string que) =>
+        Assert.Contains(que, EstructuraValidator.Rango((decimal)cantidad, (decimal)pu));
+
+    [Fact]
+    public void NoNegativos_RechazaCantidadOPUNegativos()
+    {
+        Assert.Null(EstructuraValidator.NoNegativos(null, null));
+        Assert.Null(EstructuraValidator.NoNegativos(0m, 0m));
+        Assert.Equal("La cantidad no puede ser negativa.", EstructuraValidator.NoNegativos(-1m, 10m));
+        Assert.Equal("El PU no puede ser negativo.", EstructuraValidator.NoNegativos(1m, -0.01m));
+    }
+
+    [Fact]
+    public void Valores_PrimeroElSignoDespuesElRango()
+    {
+        Assert.Null(EstructuraValidator.Valores(2m, 10m));
+        Assert.Contains("negativa", EstructuraValidator.Valores(-1e15m, 1m));   // ambas fallan: avisa el signo
+        Assert.Contains("máximo", EstructuraValidator.Valores(1e15m, 1m));
+    }
+
+    [Fact]
+    public void Rango_FactoresExtremos_NoDesborda() =>
+        // 7,9e28 es el máximo de decimal: el producto se evalúa solo con factores en rango.
+        Assert.NotNull(EstructuraValidator.Rango(7e28m, 7e28m));
+
     // ── Padre de un ítem ─────────────────────────────────────────────────────────
 
     // Rubro 1 › (Sub-rubro 2 › Ítem 3); Ítem 4 en la raíz.

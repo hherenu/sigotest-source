@@ -146,6 +146,9 @@ public class EstructuraService(IDbContextFactory<AppDbContext> dbFactory, ICurre
     {
         ExigirRol("agregar el ítem");
         Validacion.Exigir(EstructuraValidator.DescripcionItem(nuevo.Descripcion));
+        // Antes de normalizar: Normalizar calcula el monto y un producto fuera de rango desborda.
+        if (!nuevo.EsAgrupador)
+            Validacion.Exigir(EstructuraValidator.Valores(nuevo.Cantidad, nuevo.PUBasico));
         // Alta: un agrupador nace en la raíz (conservarPadreDeAgrupador=false).
         var n = EstructuraValidator.Normalizar(nuevo, conservarPadreDeAgrupador: false);
 
@@ -165,6 +168,8 @@ public class EstructuraService(IDbContextFactory<AppDbContext> dbFactory, ICurre
     {
         ExigirRol("actualizar el ítem");
         Validacion.Exigir(EstructuraValidator.DescripcionItem(vm.Descripcion));
+        if (!vm.EsAgrupador)
+            Validacion.Exigir(EstructuraValidator.Valores(vm.Cantidad, vm.PUBasico));
         var n = EstructuraValidator.Normalizar(vm, conservarPadreDeAgrupador: true);
 
         await using var db = await dbFactory.CreateDbContextAsync();

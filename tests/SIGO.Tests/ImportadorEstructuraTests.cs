@@ -391,6 +391,48 @@ public class ImportadorEstructuraTests
     }
 
     [Fact]
+    public void NumeroQueNoEntraEnLaBase_LaFilaNoSeImportaYLaHojaSeAnaliza()
+    {
+        // Antes: Cantidad × PU desbordaba el decimal y la hoja entera quedaba «no se pudo
+        // analizar»; o el monto pasaba el análisis y el guardado fallaba con el error de SQL.
+        var hoja = Hoja(
+            EncabezadoDesglose,
+            ["P.1", "Rubro", null, null, null, null, 10],
+            ["P.1.1", "Ítem desbordado", "u", 1e28, 1e28, 1],
+            ["P.1.2", "Ítem de monto enorme", "u", 1e8, 1e8, 1],
+            ["P.1.3", "Ítem normal", "u", 2, 3, 6]);
+
+        var a = ImportadorEstructura.Analizar(hoja);
+
+        Assert.Null(a.Error);
+        var f = a.Secciones[0].Filas;
+        Assert.Equal(TipoFilaEstructura.Ignorada, f[1].Tipo);
+        Assert.Contains("cantidad supera el máximo", f[1].Detalle);
+        Assert.Equal(TipoFilaEstructura.Ignorada, f[2].Tipo);
+        Assert.Contains("monto", f[2].Detalle);
+        Assert.Equal(TipoFilaEstructura.Item, f[3].Tipo);
+        Assert.Equal(6m, a.Secciones[0].TotalCalculado);
+    }
+
+    [Fact]
+    public void CantidadOPUNegativos_LaFilaNoSeImporta()
+    {
+        // Mismas reglas que el alta manual: en las planillas reales no hay ítems negativos
+        // y las reducciones se certifican como % negativo del mes.
+        var hoja = Hoja(
+            EncabezadoDesglose,
+            ["P.1", "Rubro", null, null, null, null, 10],
+            ["P.1.1", "Bonificación", "gl", 1, -500, -500],
+            ["P.1.2", "Ítem normal", "u", 2, 3, 6]);
+
+        var f = ImportadorEstructura.Analizar(hoja).Secciones[0].Filas;
+
+        Assert.Equal(TipoFilaEstructura.Ignorada, f[1].Tipo);
+        Assert.Contains("El PU no puede ser negativo. No se importa", f[1].Detalle);
+        Assert.Equal(TipoFilaEstructura.Item, f[2].Tipo);
+    }
+
+    [Fact]
     public void EncabezadoDeUnidadAbreviado_SeReconoce()
     {
         // «Unid.» es el rótulo de la grilla de la app: sin reconocerlo, los ítems quedaban
@@ -468,10 +510,10 @@ public class ImportadorEstructuraTests
     [Fact]
     public void EvaluarHojas_SiElAnalisisFallaConEncabezadoValido_ConservaElLayout()
     {
-        // Cantidad × PU desborda el decimal: el encabezado se reconoce pero Analizar lanza.
-        // La hoja sigue siendo elegible (la página muestra el error al analizarla) en vez de
-        // avisar que ninguna hoja tiene encabezado.
-        var rota = Hoja("Rota", EncabezadoDesglose, ["A.1", "Ítem", "u", 1e28, 1e28, 1]);
+        // Una fila nula debajo del encabezado simula un error inesperado: el encabezado se
+        // reconoce pero Analizar lanza. La hoja sigue siendo elegible (la página muestra el
+        // error al analizarla) en vez de avisar que ninguna hoja tiene encabezado.
+        var rota = new HojaExcel("Rota", [Hoja(EncabezadoDesglose).Filas[0], null!]);
 
         var e = ImportadorEstructura.EvaluarHojas(new LibroExcel([rota]));
 

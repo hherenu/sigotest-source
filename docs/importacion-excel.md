@@ -86,6 +86,10 @@ cuando falta la del grupo elegido.
   rubros no tienen números. En la columna del código, un error no es un código.
 - Un número tipeado como texto se avisa en la columna de la que salió: Cantidad, PU, el
   Subtotal del que se deriva el PU en la cotización o el PU del contrato en el balance.
+- Una cantidad o un PU negativos, o una cantidad, un PU o un monto que no entran en la
+  base (más de 14 dígitos enteros), dejan la fila sin importar, con el motivo: son las
+  mismas reglas del alta manual (`EstructuraValidator.Valores`). Las reducciones se
+  certifican como % negativo del mes, no como ítems negativos de la estructura.
 - Los códigos repetidos se avisan. Las descripciones de más de 500 caracteres y los códigos
   o unidades de más de 250 (el largo de sus columnas) se recortan con aviso.
 - Balance con cualquier grupo que no sea Contrato: los ítems sin cantidad en el grupo no se
