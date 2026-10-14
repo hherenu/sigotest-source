@@ -508,25 +508,33 @@ public static class ImportadorEstructura
             return;
         }
 
-        AsignarNumeros(f, fila, numeros.Cantidad, PrecioUnitario(numeros, ctx), ctx);
+        var (pu, columnaPU) = PrecioUnitario(numeros, ctx);
+        AsignarNumeros(f, fila, numeros.Cantidad, pu, columnaPU, ctx);
         if (ctx.ContratoNumeros)
             f.TipoMovimiento = TipoMovimientoDelBalance(ctx.Grupo, numeros.CantidadContrato, codigo);
         ClasificarItem(f, conCodigo: codigo is not null);
     }
 
     /// <summary>
-    /// PU del ítem: el propio, el Subtotal ÷ Cantidad en la cotización o el PU del contrato
-    /// en el balance.
+    /// PU del ítem y la columna de la que sale, que es la que mira el aviso de texto: la
+    /// propia, el Subtotal ÷ Cantidad en la cotización o el PU del contrato en el balance.
     /// </summary>
-    private static decimal? PrecioUnitario(NumerosFila numeros, Contexto ctx)
+    private static (decimal? PU, int? Columna) PrecioUnitario(NumerosFila numeros, Contexto ctx)
     {
         var pu = numeros.PU;
+        var columna = ctx.Col.PU;
         if (ctx.Layout == LayoutEstructura.Cotizacion && pu is null
             && numeros.Cantidad is decimal cantidad && cantidad != 0 && numeros.Subtotal is decimal subtotal)
+        {
+            columna = ctx.Col.Subtotal;
             pu = subtotal / cantidad;
+        }
         if (ctx.ContratoNumeros && pu is null && numeros.PUContrato is not null)
+        {
             pu = numeros.PUContrato;
-        return pu;
+            columna = ctx.Col.PUContrato;
+        }
+        return (pu, columna);
     }
 
     /// <summary>
@@ -536,13 +544,13 @@ public static class ImportadorEstructura
     /// INDEC (sin coma = punto decimal): «1.500» se leería 1,5, así que se avisa.
     /// </summary>
     private static void AsignarNumeros(FilaEstructuraImport f, FilaExcel fila,
-        decimal? cantidad, decimal? pu, Contexto ctx)
+        decimal? cantidad, decimal? pu, int? columnaPU, Contexto ctx)
     {
         f.Cantidad = cantidad is null ? null : Math.Round(cantidad.Value, 4);
         f.PUBasico = pu is null ? null : Math.Round(pu.Value, 4);
         if (cantidad is not null && f.Cantidad != cantidad) f.AgregarDetalle("Cantidad redondeada a 4 decimales");
         if (pu is not null && f.PUBasico != pu && ctx.Layout != LayoutEstructura.Cotizacion) f.AgregarDetalle("PU redondeado a 4 decimales");
-        if ((ctx.Col.Cantidad is int cc && fila[cc].EsTexto) || (ctx.Col.PU is int cp && fila[cp].EsTexto))
+        if ((ctx.Col.Cantidad is int cc && fila[cc].EsTexto) || (columnaPU is int cp && fila[cp].EsTexto))
             f.AgregarDetalle("Cantidad o PU leídos de una celda de texto: verificar el separador decimal");
         f.Monto = EstructuraValidator.CalcularMonto(false, f.Cantidad, f.PUBasico);
     }

@@ -375,6 +375,22 @@ public class ImportadorEstructuraTests
     }
 
     [Fact]
+    public void Cotizacion_SubtotalTipeadoComoTexto_TambienSeAvisa()
+    {
+        // En la cotización el PU sale del Subtotal: «150.000» tipeado como texto se lee 150
+        // y el PU queda mil veces más chico. Antes solo se revisaban Cantidad y PU.
+        var hoja = Hoja(
+            EncabezadoCotizacion,
+            ["PEV.01", "GENERALES"],
+            ["PEV.01.1", "Obrador", "Gl", 1, "150.000"]);
+
+        var item = ImportadorEstructura.Analizar(hoja).Secciones[0].Filas[1];
+
+        Assert.Equal(150m, item.PUBasico);
+        Assert.Contains("celda de texto", item.Detalle);
+    }
+
+    [Fact]
     public void EncabezadoDeUnidadAbreviado_SeReconoce()
     {
         // «Unid.» es el rótulo de la grilla de la app: sin reconocerlo, los ítems quedaban

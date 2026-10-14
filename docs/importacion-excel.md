@@ -84,6 +84,8 @@ cuando falta la del grupo elegido.
 - Un error de Excel (`#REF!`, `#DIV/0!`…) en Cantidad o PU (o en Subtotal, en la
   cotización) se toma como celda vacía y se avisa, pero la fila sigue siendo un ítem: los
   rubros no tienen números. En la columna del código, un error no es un código.
+- Un número tipeado como texto se avisa en la columna de la que salió: Cantidad, PU, el
+  Subtotal del que se deriva el PU en la cotización o el PU del contrato en el balance.
 - Los códigos repetidos se avisan. Las descripciones de más de 500 caracteres y los códigos
   o unidades de más de 250 (el largo de sus columnas) se recortan con aviso.
 - Balance con cualquier grupo que no sea Contrato: los ítems sin cantidad en el grupo no se
