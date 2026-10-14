@@ -114,12 +114,19 @@ public static class Fmt
     // separadores de la mitad de las tablas y no de la otra.
     /// <summary>"$" + monto con 2 decimales, o "" si es 0.</summary>
     public static string Money(decimal v) => v != 0 ? "$ " + v.ToString("N2", EsAr) : "";
-    /// <summary>Cantidad "1.234,56" o "" si es 0.</summary>
-    public static string Qty(decimal v) => v != 0 ? v.ToString("N2", EsAr) : "";
+    /// <summary>Cantidad con <see cref="HastaN4"/> ("1.234,56", "115,3488") o "" si es 0.</summary>
+    public static string Qty(decimal v) => v != 0 ? HastaN4(v) : "";
     /// <summary>Número con 2 decimales.</summary>
     public static string N2(decimal v) => v.ToString("N2", EsAr);
-    /// <summary>Número con 4 decimales (cantidades y precios unitarios de estructura).</summary>
+    /// <summary>Número con 4 decimales fijos.</summary>
     public static string N4(decimal v) => v.ToString("N4", EsAr);
+    /// <summary>
+    /// Cantidades y precios unitarios: 2 decimales como mínimo y hasta los 4 que guarda la
+    /// base ("1,00", "115,3488", "1.317.533,4246"). Con 2 fijos el detalle mostraba 115,35 y
+    /// cantidad × PU no daba el monto de la fila; con 4 fijos casi todas las filas llevaban
+    /// ceros de más. Los montos siguen con 2 (N2/Money).
+    /// </summary>
+    public static string HastaN4(decimal v) => v.ToString("#,##0.00##", EsAr);
     /// <summary>Monto con separadores es-AR (grilla de planificación).</summary>
     public static string Pesos(decimal v) => v.ToString("N2", EsAr);
 

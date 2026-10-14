@@ -185,10 +185,10 @@ else
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="FilaEstructuraImport" Property="Unidad" Title="U" Width="60px" TextAlign="TextAlign.Center" />
                     <RadzenDataGridColumn TItem="FilaEstructuraImport" Title="Cantidad" Width="110px" TextAlign="TextAlign.Right">
-                        <Template Context="f">@(f.Cantidad is decimal c ? Fmt.N4(c) : "")</Template>
+                        <Template Context="f">@(f.Cantidad is decimal c ? Fmt.HastaN4(c) : "")</Template>
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="FilaEstructuraImport" Title="PU" Width="150px" TextAlign="TextAlign.Right">
-                        <Template Context="f">@(f.PUBasico is decimal p ? "$ " + Fmt.N4(p) : "")</Template>
+                        <Template Context="f">@(f.PUBasico is decimal p ? "$ " + Fmt.HastaN4(p) : "")</Template>
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="FilaEstructuraImport" Title="Monto" Width="150px" TextAlign="TextAlign.Right">
                         <Template Context="f">@(f.Monto is decimal m ? "$ " + Fmt.N2(m) : "")</Template>

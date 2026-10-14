@@ -127,8 +127,8 @@ else
                                     <td class="cell-mono" style="padding-left:@(pad)px">@item.Codigo</td>
                                     <td class="cert-col-desc" title="@item.Descripcion">@item.Descripcion</td>
                                     <td style="text-align:center">@item.Unidad</td>
-                                    <td class="num">@item.CantidadContrato?.ToString("N2")</td>
-                                    <td class="num">@(item.PUBasico.HasValue ? "$ " + item.PUBasico.Value.ToString("N2") : "")</td>
+                                    <td class="num">@(item.CantidadContrato is decimal cc ? Fmt.HastaN4(cc) : "")</td>
+                                    <td class="num">@(item.PUBasico is decimal pu ? "$ " + Fmt.HastaN4(pu) : "")</td>
                                     <td class="num">@Fmt.Money(item.MontoContrato ?? 0)</td>
                                     <td class="num col-warning">@Fmt.Qty(item.CantidadAnterior)</td>
                                     <td class="num col-warning">@Fmt.Money(item.MontoAnterior)</td>
@@ -136,7 +136,7 @@ else
                                     <td class="num col-primary">@Fmt.Money(item.MontoMes)</td>
                                     <td class="num col-info">@Fmt.Qty(item.CantidadAcumulada)</td>
                                     <td class="num col-info">@Fmt.Money(item.MontoAcumulado)</td>
-                                    <td class="num col-info">@(item.PorcentajeAcumulado.HasValue ? item.PorcentajeAcumulado.Value.ToString("N2") + "%" : "")</td>
+                                    <td class="num col-info">@(item.PorcentajeAcumulado is decimal pac ? Fmt.N2(pac) + "%" : "")</td>
                                 </tr>
                             }
                         }

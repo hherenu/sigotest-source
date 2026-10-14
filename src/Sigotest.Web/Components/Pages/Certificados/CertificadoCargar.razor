@@ -115,13 +115,13 @@ else
                                     <td class="cell-mono" style="padding-left:@(pad)px">@item.Codigo</td>
                                     <td class="cert-col-desc" title="@item.Descripcion">@item.Descripcion</td>
                                     <td style="text-align:center">@item.Unidad</td>
-                                    <td class="num">@item.CantidadContrato?.ToString("N4")</td>
-                                    <td class="num">@(item.PUBasico.HasValue ? "$ " + item.PUBasico.Value.ToString("N4") : "")</td>
-                                    <td class="num">@(item.MontoContrato.HasValue ? "$ " + item.MontoContrato.Value.ToString("N2") : "")</td>
-                                    <td class="num col-warning">@(item.PorcentajeAnterior.HasValue ? item.PorcentajeAnterior.Value.ToString("N2") + "%" : "")</td>
+                                    <td class="num">@(item.CantidadContrato is decimal cc ? Fmt.HastaN4(cc) : "")</td>
+                                    <td class="num">@(item.PUBasico is decimal pu ? "$ " + Fmt.HastaN4(pu) : "")</td>
+                                    <td class="num">@(item.MontoContrato is decimal mc ? "$ " + Fmt.N2(mc) : "")</td>
+                                    <td class="num col-warning">@(item.PorcentajeAnterior is decimal pa ? Fmt.N2(pa) + "%" : "")</td>
                                     <td class="num col-warning">@Fmt.Money(item.MontoAnterior)</td>
                                     <td class="col-primary" style="@(ExcedeAcumulado(bloque.CertificadoEstructuraId, item) ? "outline:2px solid var(--rz-danger);outline-offset:-2px" : "")"
-                                        title="@(ExcedeAcumulado(bloque.CertificadoEstructuraId, item) ? $"El acumulado (anterior {item.PorcentajeAnterior?.ToString("N2") ?? "0"}% + mes) supera el 100%" : null)">
+                                        title="@(ExcedeAcumulado(bloque.CertificadoEstructuraId, item) ? $"El acumulado (anterior {Fmt.N2(item.PorcentajeAnterior ?? 0)}% + mes) supera el 100%" : null)">
                                         @* aria-label: sin él, un lector de pantalla anuncia el input sin
                                            decir de qué ítem es (Radzen lo propaga al <input>). *@
                                         <RadzenNumeric TValue="decimal?" @bind-Value="pct[bloque.CertificadoEstructuraId][item.ItemEstructuraId]"
@@ -136,9 +136,9 @@ else
                     <tfoot>
                         <tr>
                             <td colspan="5" class="num">Subtotal @bloque.Titulo</td>
-                            <td class="num">$ @bloque.TotalMontoContrato.ToString("N2")</td>
-                            <td colspan="2" class="num">$ @bloque.TotalMontoAnterior.ToString("N2")</td>
-                            <td colspan="2" class="num">$ @bloque.TotalMontoMes.ToString("N2")</td>
+                            <td class="num">$ @Fmt.N2(bloque.TotalMontoContrato)</td>
+                            <td colspan="2" class="num">$ @Fmt.N2(bloque.TotalMontoAnterior)</td>
+                            <td colspan="2" class="num">$ @Fmt.N2(bloque.TotalMontoMes)</td>
                         </tr>
                     </tfoot>
                 </table>

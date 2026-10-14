@@ -81,6 +81,9 @@ regla, dejá el porqué en un comentario al lado (como hace el resto del código
 
 - Placeholders de dropdowns: `-- Seleccionar --` / `-- Seleccionar obra --`.
 - Montos y cantidades: helpers de `Fmt` (cultura es-AR explícita), nunca `ToString` directo.
+  Montos con 2 decimales (`Fmt.N2`/`Fmt.Money`); cantidades y precios unitarios con
+  `Fmt.HastaN4` (2 como mínimo, hasta los 4 que guarda la base) en pantalla y
+  `ExcelHelpers.FormatoCantidad` en los Excel, para que cantidad × PU cuadre con el monto.
 - CSS: solo `app-blazor.css`, derivado de tokens `--rz-*`; sin `<style>` en páginas;
   los `!important` existentes pisan internals de Radzen y están comentados — revisarlos
   en cada upgrade del paquete.

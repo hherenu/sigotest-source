@@ -57,7 +57,7 @@ else
                         <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-1"><b>Ítems:</b> @est.TotalItems</RadzenText>
                         @if (est.MontoTotal > 0)
                         {
-                            <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0"><b>Monto Total:</b> $ @est.MontoTotal.ToString("N2")</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0"><b>Monto Total:</b> $ @Fmt.N2(est.MontoTotal)</RadzenText>
                         }
                         <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" class="rz-mt-3">
                             <RadzenButton Text="Ver / Editar Ítems" Icon="list_alt" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"

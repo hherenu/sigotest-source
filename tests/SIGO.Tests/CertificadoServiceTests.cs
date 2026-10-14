@@ -503,6 +503,48 @@ public class CertificadoServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbF
     }
 
     [Fact]
+    public async Task ExcelDelCertificado_CantidadesYPUConHastaCuatroDecimales_YColumnasQueLosMuestranEnteros()
+    {
+        var e = await CrearEstructuraAsync();
+        var (certId, bloqueId) = await CrearCertificadoAsync(e, 1);
+        await using (var db = fx.CrearContexto())
+        {
+            // PU real de Premetro (rieles): con 4 decimales y en millones.
+            var item = await db.ItemsEstructura.SingleAsync(i => i.Id == e.ItemCantId);
+            item.Cantidad = 1000m; item.PUBasico = 1317533.4246m; item.Monto = 1317533424.6m;
+            await db.SaveChangesAsync();
+        }
+        var servicio = Servicio(Roles.CCyR);
+        await servicio.GuardarItemsAsync(certId, new() { [bloqueId] = new() { [e.ItemCantId] = 10m } });
+
+        var archivo = Assert.IsType<Microsoft.AspNetCore.Mvc.FileContentResult>(
+            await new SIGO.Controllers.CertificadoController(servicio).DescargarExcel(certId));
+
+        using var wb = new ClosedXML.Excel.XLWorkbook(new MemoryStream(archivo.FileContents));
+        var ws = wb.Worksheet(1);
+        var filaPU = ws.Column(5).CellsUsed().First(c => c.Value.IsNumber && c.GetValue<decimal>() == 1317533.4246m);
+        Assert.Equal("#,##0.00##", filaPU.Style.NumberFormat.Format);
+        Assert.Equal("#,##0.00", ws.Column(6).CellsUsed().Last().Style.NumberFormat.Format);
+
+        // El ancho se ajusta con el texto ya formateado y con la fila de totales escrita: no
+        // puede quedar más angosto que lo que ClosedXML mide para esos mismos valores.
+        // (El .xlsx guarda el ancho con 6 decimales: de ahí la tolerancia.)
+        Assert.True(ws.Column(5).Width >= AnchoNecesario(1317533.4246m, "#,##0.00##") - 0.001);
+        Assert.True(ws.Column(6).Width >= AnchoNecesario(1317533424.6m + 5000m, "#,##0.00") - 0.001);
+    }
+
+    /// <summary>Ancho que ClosedXML le da a una columna con solo ese valor y ese formato.</summary>
+    private static double AnchoNecesario(decimal valor, string formato)
+    {
+        using var wb = new ClosedXML.Excel.XLWorkbook();
+        var ws = wb.Worksheets.Add("A");
+        ws.Cell(1, 1).Value = valor;
+        ws.Cell(1, 1).Style.NumberFormat.Format = formato;
+        ws.Column(1).AdjustToContents();
+        return ws.Column(1).Width;
+    }
+
+    [Fact]
     public async Task Crear_ValidoArmaElBorradorConSuPrimerBloque()
     {
         var e = await CrearEstructuraAsync();

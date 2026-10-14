@@ -45,6 +45,22 @@ public class HelpersTests
         Assert.Null(PlanMails.UrlPlan("  ", 7));
     }
 
+    [Theory]
+    [InlineData(1.0, "1,00")]
+    [InlineData(6.5, "6,50")]
+    [InlineData(2.125, "2,125")]
+    [InlineData(115.3488, "115,3488")]          // antes el detalle mostraba 115,35
+    [InlineData(1317533.4246, "1.317.533,4246")]
+    public void HastaN4_DosDecimalesComoMinimoYHastaCuatro(double valor, string esperado) =>
+        Assert.Equal(esperado, Fmt.HastaN4((decimal)valor));
+
+    [Fact]
+    public void Qty_UsaHastaCuatroDecimalesYDejaVacioElCero()
+    {
+        Assert.Equal("115,3488", Fmt.Qty(115.3488m));
+        Assert.Equal("", Fmt.Qty(0m));
+    }
+
     // ── Persistencia ─────────────────────────────────────────────────────────────
 
     [Fact]

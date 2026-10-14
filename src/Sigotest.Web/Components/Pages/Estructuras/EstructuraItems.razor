@@ -38,7 +38,7 @@ else
             @if (montoTotal > 0)
             {
                 <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-0" style="font-weight:700">
-                    Monto Total Contrato: $ @montoTotal.ToString("N2")
+                    Monto Total Contrato: $ @Fmt.N2(montoTotal)
                 </RadzenText>
             }
         </RadzenStack>
@@ -74,19 +74,19 @@ else
                         <Template Context="f">@(f.Item.EsAgrupador ? "" : f.Item.Unidad)</Template>
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="Fila" Title="Cantidad" Width="100px" TextAlign="TextAlign.Right">
-                        <Template Context="f">@(f.Item.EsAgrupador ? "" : f.Item.Cantidad?.ToString("N4"))</Template>
+                        <Template Context="f">@(!f.Item.EsAgrupador && f.Item.Cantidad is decimal cant ? Fmt.HastaN4(cant) : "")</Template>
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="Fila" Title="PU Básico" Width="120px" TextAlign="TextAlign.Right">
-                        <Template Context="f">@(!f.Item.EsAgrupador && f.Item.PUBasico.HasValue ? "$ " + f.Item.PUBasico.Value.ToString("N4") : "")</Template>
+                        <Template Context="f">@(!f.Item.EsAgrupador && f.Item.PUBasico is decimal pu ? "$ " + Fmt.HastaN4(pu) : "")</Template>
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="Fila" Title="Monto" Width="130px" TextAlign="TextAlign.Right">
                         <Template Context="f">
-                            @(f.Monto > 0 ? "$ " + f.Monto.ToString("N2") : "")
+                            @(f.Monto > 0 ? "$ " + Fmt.N2(f.Monto) : "")
                         </Template>
                         <FooterTemplate>
                             @if (montoTotal > 0)
                             {
-                                <b>$ @montoTotal.ToString("N2")</b>
+                                <b>$ @Fmt.N2(montoTotal)</b>
                             }
                         </FooterTemplate>
                     </RadzenDataGridColumn>
@@ -95,7 +95,7 @@ else
                             @{
                                 var p = Pond(f.Monto);
                             }
-                            @(p > 0 ? p.ToString("N4") + "%" : "")
+                            @(p > 0 ? Fmt.N4(p) + "%" : "")
                         </Template>
                         <FooterTemplate>
                             @if (montoTotal > 0)
