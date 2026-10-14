@@ -214,6 +214,29 @@ public class EstructuraImportacionServiceTests(LocalDbFixture fx) : IClassFixtur
     }
 
     [Fact]
+    public async Task Reemplazar_SiFallaDespuesDelBorrado_NoQuedaNadaBorrado()
+    {
+        // El token viejo recién salta en el SaveChanges final, DESPUÉS de que el reemplazo
+        // borró los ítems existentes: la transacción debe deshacer ese borrado.
+        var (_, estId, rv) = await CrearEstructuraAsync();
+        var vistos = await ItemsAsync(estId);
+        await using (var db = fx.CrearContexto())
+        {
+            var est = await db.EstructurasCostos.SingleAsync(e => e.Id == estId);
+            est.Nombre = "Renombrada por otro usuario";
+            await db.SaveChangesAsync();
+        }
+
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() =>
+            Servicio(Roles.CCyR).ImportarItemsAsync(estId, Filas(), EstructuraService.ModoImportacion.Reemplazar, rv, vistos));
+
+        await using var db2 = fx.CrearContexto();
+        var items = await db2.ItemsEstructura.Where(i => i.EstructuraCostosId == estId).ToListAsync();
+        Assert.Equal(vistos.Order(), items.Select(i => i.Id).Order());
+        Assert.NotNull(items.Single(i => i.Codigo == "P.1").AgrupadorPadreId);   // tampoco se desarmó el árbol
+    }
+
+    [Fact]
     public async Task SinRolDelModulo_SeRechaza()
     {
         var (_, estId, rv) = await CrearEstructuraAsync();
