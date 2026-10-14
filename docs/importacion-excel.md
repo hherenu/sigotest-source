@@ -146,7 +146,9 @@ el primero, salvo que uno posterior hable de demasías o de economías y el prim
 el bloque que contiene al menos dos tercios de sus códigos; con empate o sin bloque que
 llegue, queda en «No importar». Una sección que dice demasías/BED/adicional solo se
 sugiere en un bloque que también lo dice, porque las demasías repiten los códigos del
-básico; si el certificado no tiene ninguno, el diálogo avisa que hay que agregarlo con
+básico. Cuenta una palabra que empiece con «demasía» o «adicional», o la palabra «BED»
+(`DEMASÍAS`, `ADICIONALES`, `BED N°1`), no el texto en cualquier parte de otra palabra:
+«Y DEMÁS TERMINACIONES», «BEBEDEROS» o «TRADICIONAL» no cuentan. Si el certificado no tiene ninguno, el diálogo avisa que hay que agregarlo con
 «Agregar bloque». Varias secciones pueden ir al mismo bloque y se unen antes de aplicar (una
 estación por sección, subtotales por rubro). El matching es por código
 normalizado **dentro del bloque**: los códigos se repiten entre secciones (generales

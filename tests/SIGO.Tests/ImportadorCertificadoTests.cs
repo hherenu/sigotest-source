@@ -22,8 +22,24 @@ public class ImportadorCertificadoTests
     [InlineData("CERTIFICADO Nro. 12 - DIC/25", 12, 12, 2025)]
     [InlineData("CERTIFICADO N.° 3 - MAR 2026", 3, 3, 2026)]
     [InlineData("LP 243/24 - PUESTA EN VALOR - RENGLÓN 1", null, null, null)]
+    // Dígitos de ancho completo en el año: antes int.Parse lanzaba y la hoja quedaba sin analizar.
+    [InlineData("CERTIFICADO N°5 - MAYO/２６", 5, null, null)]
     public void ParsearEncabezado_NumeroMesYAnio(string texto, int? numero, int? mes, int? anio) =>
         Assert.Equal((numero, mes, anio), ImportadorCertificado.ParsearEncabezado(texto));
+
+    [Theory]
+    [InlineData("DEMASIAS", true)]
+    [InlineData("DEMASÍAS › GENERALES DE PROYECTO", true)]
+    [InlineData("BED N°1", true)]
+    [InlineData("PEV-SD-EAG-BED01", true)]
+    [InlineData("ADICIONAL N°2", true)]
+    [InlineData("Trabajos adicionales", true)]
+    [InlineData("PINTURA Y DEMÁS TERMINACIONES", false)]   // «demás» no es «demasía»
+    [InlineData("BEBEDEROS", false)]                       // contiene «bed»
+    [InlineData("REVOQUE TRADICIONAL", false)]             // contiene «adicional»
+    [InlineData("Básico", false)]
+    public void HablaDeDemasias_PorPalabraYNoPorPedazo(string titulo, bool esperado) =>
+        Assert.Equal(esperado, ImportadorCertificado.HablaDeDemasias(titulo));
 
     // Hoja de Agüero: arranca en la columna B, encabezado de dos filas, TOTAL en la
     // columna del precio unitario y resumen de anticipo en la columna H.

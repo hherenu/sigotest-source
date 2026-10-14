@@ -124,9 +124,14 @@ public static partial class ImportadorCertificado
     [GeneratedRegex(@"certificado.*?\bn(?:ro|o|°|º|\.°|\.º)?\.?\s*(\d+)", RegexOptions.IgnoreCase)]
     private static partial Regex NumeroRegex();
 
-    // «MAY/25», «MAYO 2025», «JUNIO DE 2026».
-    [GeneratedRegex(@"([A-Za-zÁÉÍÓÚáéíóú]{3,10})\.?\s*[/\-\s]\s*(?:[dD][eE]\s+)?(\d{4}|\d{2})\b")]
+    // «MAY/25», «MAYO 2025», «JUNIO DE 2026». [0-9] y no \d: \d acepta cualquier dígito
+    // Unicode («２６» de ancho completo) que int.Parse rechaza, y la hoja quedaba sin analizar.
+    [GeneratedRegex(@"([A-Za-zÁÉÍÓÚáéíóú]{3,10})\.?\s*[/\-\s]\s*(?:[dD][eE]\s+)?([0-9]{4}|[0-9]{2})\b")]
     private static partial Regex PeriodoRegex();
+
+    // Separa un título en palabras (todo lo que no es letra corta: espacios, dígitos, «N°»).
+    [GeneratedRegex(@"[^\p{L}]+")]
+    private static partial Regex NoLetras();
 
     private static readonly string[] Meses =
         ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
@@ -395,12 +400,16 @@ public static partial class ImportadorCertificado
         return mapeo;
     }
 
-    /// <summary>El título (de sección o de bloque) habla de demasías, BED o adicional.</summary>
-    public static bool HablaDeDemasias(string titulo)
-    {
-        var n = TextoImport.Normalizar(titulo);
-        return n.Contains("demas") || n.Contains("bed") || n.Contains("adicional");
-    }
+    /// <summary>
+    /// El título (de sección o de bloque) habla de demasías, BED o adicional: alguna palabra
+    /// empieza con «demasia» o «adicional», o es «BED». Por palabra y no en cualquier parte
+    /// del texto: «PINTURA Y DEMÁS TERMINACIONES», «BEBEDEROS» o «REVOQUE TRADICIONAL» no son
+    /// demasías, y un bloque así marcado desactivaba la guarda de <see cref="MapeoInicial"/>
+    /// (las demasías se podían sugerir sobre él).
+    /// </summary>
+    public static bool HablaDeDemasias(string titulo) =>
+        NoLetras().Split(TextoImport.Normalizar(titulo)).Any(p =>
+            p.StartsWith("demasia") || p is "bed" or "beds" || p.StartsWith("adicional"));
 
     /// <summary>
     /// Matchea los renglones de una sección contra los ítems hoja de un bloque, por
