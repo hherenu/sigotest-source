@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Radzen;
+using SIGO.Components.Shared;
 using SIGO.Models;
 using SIGO.Models.ViewModels;
 using SIGO.Services;
@@ -117,6 +119,33 @@ public class EstructuraServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbFi
 
         await using var db = fx.CrearContexto();
         Assert.Equal(2m, (await db.ItemsEstructura.SingleAsync(i => i.Id == e.ItemId)).Cantidad);
+    }
+
+    [Fact]
+    public async Task AgregarItem_AltasSimultaneas_NoRepitenElOrden()
+    {
+        // Ocho altas a la vez sobre la misma estructura, por Persistencia como lo hace la
+        // página: con la transacción serializable ninguna lee el mismo «último orden» que
+        // otra. Las que pierden el bloqueo no se guardan y el usuario ve un mensaje para
+        // reintentar (no el texto en inglés con que EF envuelve el deadlock).
+        var e = await CrearAsync();
+        var servicio = Servicio();
+
+        var resultados = await Task.WhenAll(Enumerable.Range(1, 8).Select(i => Task.Run(async () =>
+        {
+            var notif = new NotificationService();
+            var ok = await Persistencia.EjecutarAsync(() => servicio.AgregarItemAsync(e.EstructuraId,
+                new ItemEstructuraVM { Descripcion = $"Simultáneo {i}", Cantidad = 1, PUBasico = 1 }), notif);
+            return (Ok: ok, Aviso: notif.Messages.SingleOrDefault()?.Detail);
+        })));
+
+        await using var db = fx.CrearContexto();
+        var ordenes = await db.ItemsEstructura.Where(i => i.EstructuraCostosId == e.EstructuraId).Select(i => i.Orden).ToListAsync();
+        Assert.Contains(resultados, r => r.Ok);
+        Assert.Equal(3 + resultados.Count(r => r.Ok), ordenes.Count);
+        Assert.Equal(ordenes.Count, ordenes.Distinct().Count());
+        Assert.All(resultados.Where(r => !r.Ok), r =>
+            Assert.Equal("Otro usuario estaba guardando datos relacionados en el mismo momento. Volvé a intentar.", r.Aviso));
     }
 
     [Fact]

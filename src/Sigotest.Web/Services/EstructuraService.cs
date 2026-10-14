@@ -153,9 +153,14 @@ public class EstructuraService(IDbContextFactory<AppDbContext> dbFactory, ICurre
         var n = EstructuraValidator.Normalizar(nuevo, conservarPadreDeAgrupador: false);
 
         await using var db = await dbFactory.CreateDbContextAsync();
+        // Serializable, como ImportarItemsAsync: el Max+1 del Orden mira otras filas de la
+        // estructura. Sin esto, dos altas simultáneas (o un alta durante una importación)
+        // podían quedar con el mismo número; ahora una de las dos recibe el error y reintenta.
+        await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
         await ExigirPadreValidoAsync(db, estructuraId, n.AgrupadorPadreId, itemId: 0);
         db.ItemsEstructura.Add(NuevoItem(estructuraId, nuevo.EsAgrupador, n, await MaxOrdenAsync(db, estructuraId) + 1));
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
     }
 
     /// <summary>
