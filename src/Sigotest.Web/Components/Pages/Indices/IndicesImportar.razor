@@ -3,6 +3,7 @@
 @inject IndiceService Service
 @inject NavigationManager Nav
 @inject NotificationService Notifications
+@inject DialogService DialogService
 
 <PageTitle>Importar publicación INDEC</PageTitle>
 
@@ -20,17 +21,33 @@
         <RadzenCard Variant="Variant.Outlined">
             <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">Datos de la publicación</RadzenText>
             <RadzenStack Gap="0.75rem">
-                <RadzenFormField Text="ID Publicación" Variant="Variant.Outlined" style="width:100%">
-                    <RadzenTextBox @bind-Value="idPublicacion" Placeholder="Ej: INDEC_INFORMA_05_26" style="width:100%" />
+                @* No hay RadzenTemplateForm (el pegado no es un form): el obligatorio se
+                   valida al Analizar con notificación, y el servicio lo vuelve a exigir.
+                   Cambiar cualquier entrada del análisis (ID, período, pegado) descarta la vista
+                   previa: «Ya existe» se evalúa contra ESA publicación y el período por defecto
+                   va en las filas de 2 columnas, así que la vista previa vieja ya no vale. *@
+                @* El ejemplo va en Helper: Radzen no renderiza Placeholder dentro de un FormField. *@
+                <RadzenFormField Text="ID Publicación (INDEC_INFORMA_MM_AA) *" Variant="Variant.Outlined" style="width:100%">
+                    <ChildContent>
+                        <RadzenTextBox @bind-Value="idPublicacion" @bind-Value:after="DescartarAnalisis" style="width:100%" />
+                    </ChildContent>
+                    <Helper>
+                        <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">Ej: INDEC_INFORMA_05_26</RadzenText>
+                    </Helper>
                 </RadzenFormField>
+                <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
+                    Identifica la publicación de la que salen los valores; el cálculo de redeterminaciones elige los
+                    valores por publicación. Los valores sin publicación, como las tasas del Banco Nación
+                    (COSTO_FINANCIERO), no se importan por acá: se cargan de a uno desde «Valores mensuales» del índice.
+                </RadzenText>
                 <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
                     Período al que corresponden los valores de 2 columnas (las filas de 4 columnas traen su propio período):
                 </RadzenText>
                 <RadzenFormField Text="Año" Variant="Variant.Outlined" style="width:100%">
-                    <RadzenNumeric @bind-Value="anio" Min="2000" Max="2100" ShowUpDown="false" style="width:100%" />
+                    <RadzenNumeric @bind-Value="anio" @bind-Value:after="DescartarAnalisis" Min="2000" Max="2100" ShowUpDown="false" style="width:100%" />
                 </RadzenFormField>
                 <RadzenFormField Text="Mes" Variant="Variant.Outlined" style="width:100%">
-                    <RadzenDropDown @bind-Value="mes" Data="@(Enumerable.Range(1, 12))" TValue="int" style="width:100%">
+                    <RadzenDropDown @bind-Value="mes" @bind-Value:after="DescartarAnalisis" Data="@(Enumerable.Range(1, 12))" TValue="int" style="width:100%">
                         <Template Context="m">@Fmt.MesNombre(m)</Template>
                     </RadzenDropDown>
                 </RadzenFormField>
@@ -38,15 +55,21 @@
                 <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
                     Pegá desde Excel una fila por índice, en uno de estos formatos (separados por tabulación o «;»):<br />
                     <b>CÓDIGO&nbsp;·&nbsp;VALOR</b> (usa el período de arriba)<br />
-                    <b>CÓDIGO&nbsp;·&nbsp;AÑO&nbsp;·&nbsp;MES&nbsp;·&nbsp;VALOR</b>
+                    <b>CÓDIGO&nbsp;·&nbsp;AÑO&nbsp;·&nbsp;MES&nbsp;·&nbsp;VALOR</b><br />
+                    Si una fila sale «Código desconocido», el índice falta en el catálogo: el botón
+                    <b>Agregar al catálogo</b> de esa fila lo crea sin perder el pegado.
                 </RadzenText>
-                <RadzenTextArea @bind-Value="textoPegado" Rows="12" style="width:100%; font-family:monospace"
+                @* Immediate: cada edición del pegado (evento input) descarta la vista previa al
+                   instante, sin esperar al blur. El pegado grande que se perdía («Nada para
+                   analizar») lo resolvió el límite de mensaje del hub en Program.cs, no esto. *@
+                <RadzenTextArea @bind-Value="textoPegado" @bind-Value:after="DescartarAnalisis" Immediate="true" Rows="12" style="width:100%; font-family:monospace"
+                                aria-label="Filas pegadas desde Excel (código y valor)"
                                 Placeholder="ALBANILERIA	11883,8&#10;MANO_OBRA	11129,8&#10;…" />
 
                 <RadzenButton Text="Analizar" Icon="search" ButtonStyle="ButtonStyle.Secondary" Style="width:100%"
                               Disabled="@procesando" Click="@AnalizarAsync" />
                 <RadzenButton Text="@($"Importar {filasOk} valores")" Icon="upload" ButtonStyle="ButtonStyle.Primary" Style="width:100%"
-                              Disabled="@(procesando || filasOk == 0)" IsBusy="@procesando" BusyText="Importando..."
+                              Disabled="@(procesando || filasOk == 0)" IsBusy="@importando" BusyText="Importando..."
                               Click="@ImportarAsync" />
             </RadzenStack>
         </RadzenCard>
@@ -75,24 +98,35 @@
                     }
                 </RadzenStack>
 
+                @* Anchos declarados en todas las columnas: la suma supera la tarjeta y la tabla
+                   scrollea a lo ancho (CSS global) en vez de truncar el código o el botón de
+                   Estado. Columnas redimensionables como en las grillas de catálogo. *@
                 <RadzenDataGrid Data="@filas" TItem="FilaImport" Density="Density.Compact"
-                                AllowSorting="true" AllowPaging="true" PageSize="20">
+                                AllowSorting="true" AllowPaging="true" PageSize="20" AllowColumnResize="true">
                     <Columns>
                         <RadzenDataGridColumn TItem="FilaImport" Property="Linea" Title="Línea" Width="70px" TextAlign="TextAlign.Center" />
-                        <RadzenDataGridColumn TItem="FilaImport" Property="Codigo" Title="Código" Width="230px" />
-                        <RadzenDataGridColumn TItem="FilaImport" Title="Período" Width="120px">
+                        <RadzenDataGridColumn TItem="FilaImport" Property="Codigo" Title="Código" Width="250px" />
+                        <RadzenDataGridColumn TItem="FilaImport" Title="Período" Width="110px">
                             <Template Context="f">@(f.Anio > 0 ? $"{Fmt.MesCorto(f.Mes)} {f.Anio}" : "—")</Template>
                         </RadzenDataGridColumn>
                         <RadzenDataGridColumn TItem="FilaImport" Title="Valor" Width="120px" TextAlign="TextAlign.Right">
                             <Template Context="f">@(f.Valor is decimal v ? v.ToString("N4") : "—")</Template>
                         </RadzenDataGridColumn>
-                        <RadzenDataGridColumn TItem="FilaImport" Title="Estado">
+                        <RadzenDataGridColumn TItem="FilaImport" Title="Estado" Width="460px">
                             <Template Context="f">
-                                <RadzenBadge Text="@EtiquetaEstado(f.Estado)" BadgeStyle="@BadgeEstado(f.Estado)" />
-                                @if (f.Detalle is not null)
-                                {
-                                    <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-ml-2 rz-mb-0" style="display:inline">@f.Detalle</RadzenText>
-                                }
+                                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                                    <RadzenBadge Text="@EtiquetaEstado(f.Estado)" BadgeStyle="@BadgeEstado(f.Estado)" />
+                                    @if (f.Detalle is not null)
+                                    {
+                                        <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0" style="white-space:normal">@f.Detalle</RadzenText>
+                                    }
+                                    @if (f.Estado == EstadoFilaImport.CodigoDesconocido)
+                                    {
+                                        <RadzenButton Text="Agregar al catálogo" Icon="add" Size="ButtonSize.ExtraSmall"
+                                                      ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Flat"
+                                                      Disabled="@procesando" Click="@(() => AgregarAlCatalogoAsync(f.Codigo))" />
+                                    }
+                                </RadzenStack>
                             </Template>
                         </RadzenDataGridColumn>
                     </Columns>
@@ -109,8 +143,16 @@
     private string? textoPegado;
 
     private List<FilaImport> filas = new();
+    // `procesando` bloquea todas las acciones (analizar, alta rápida, importar);
+    // `importando` solo alimenta el spinner «Importando...», para que el botón no lo
+    // muestre mientras se analiza o mientras el diálogo de alta rápida está abierto.
     private bool procesando;
+    private bool importando;
     private int filasOk => filas.Count(f => f.Estado == EstadoFilaImport.Ok);
+
+    // Las entradas del análisis cambiaron: la vista previa (y el botón Importar, que
+    // cuenta sus filas Ok) no puede seguir mostrando el resultado anterior.
+    private void DescartarAnalisis() => filas = new();
 
     // El análisis y la importación son pasos separados a propósito: el usuario ve
     // qué se va a insertar (y qué se omite o falla) antes de tocar la base.
@@ -120,6 +162,15 @@
         procesando = true;
         try
         {
+            // El ID se valida acá, antes de analizar: el análisis de duplicados se hace
+            // contra las filas de ESA publicación, y sin ID se haría contra las filas sin
+            // publicación (tasas BN). ImportarAsync lo vuelve a exigir.
+            if (IndiceValidator.PublicacionImportacion(idPublicacion) is string errorPub)
+            {
+                Notifications.Notify(NotificationSeverity.Warning, "ID de publicación inválido", errorPub, 6000);
+                return;
+            }
+
             // El parseo puro (formatos, culturas de decimales) vive en Services.ImportadorIndec;
             // el análisis contra la base (catálogo y duplicados) en IndiceService.
             filas = ImportadorIndec.ParsearLineas(textoPegado, anio, mes);
@@ -140,10 +191,34 @@
         finally { procesando = false; }
     }
 
+    // Alta rápida desde la fila "Código desconocido": el diálogo precarga el código
+    // detectado y al guardar se re-analiza el pegado completo, así TODAS las filas de
+    // ese código pasan a "A importar" de una vez (el mismo código suele repetirse, un
+    // mes por fila). `procesando` sube ANTES de abrir el diálogo (convenciones-ui): un
+    // doble clic no apila dos diálogos ni intenta crear el índice dos veces.
+    private async Task AgregarAlCatalogoAsync(string codigo)
+    {
+        if (procesando) return;
+        procesando = true;
+        object? creado;
+        try
+        {
+            creado = await DialogService.OpenAsync<IndiceCrearDialog>(
+                "Agregar índice al catálogo",
+                new Dictionary<string, object?> { [nameof(IndiceCrearDialog.CodigoDetectado)] = codigo },
+                new DialogOptions { Width = "min(560px, 92vw)" });
+        }
+        finally { procesando = false; }
+
+        if (creado is true)
+            await AnalizarAsync();
+    }
+
     private async Task ImportarAsync()
     {
         if (procesando || filasOk == 0) return;
         procesando = true;
+        importando = true;
         try
         {
             var pub = IndiceService.NormalizarPublicacion(idPublicacion);
@@ -158,11 +233,11 @@
             if (!hecho) return;
 
             Notifications.Notify(NotificationSeverity.Success, "Importación completada",
-                $"{cantidad} valores cargados{(pub is not null ? $" con publicación {pub}" : "")}.", 5000);
+                $"{cantidad} valores cargados con publicación {pub}.", 5000);
             filas = new();
             textoPegado = null;
         }
-        finally { procesando = false; }
+        finally { procesando = false; importando = false; }
     }
 
     private static string EtiquetaEstado(EstadoFilaImport e) => e switch

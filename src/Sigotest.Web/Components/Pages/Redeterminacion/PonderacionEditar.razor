@@ -111,8 +111,13 @@ else
 
         @* ── Formulario agregar / editar insumo ── *@
         <RadzenCard Variant="Variant.Outlined">
-            <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">
+            <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">
                 @(editando is null ? "Agregar insumo" : $"Editando insumo N° {editando.Numero} — {editando.Insumo}")
+            </RadzenText>
+            <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-3">
+                El cálculo de redeterminaciones usa el <b>Índice INDEC</b> elegido acá (en la lista aparece
+                por su Familia de Recurso): de él salen los valores Ki/K0 del insumo. «Insumo» y
+                «Descripción INDEC» son texto descriptivo y no participan del cálculo.
             </RadzenText>
             <RadzenTemplateForm TItem="ItemPonderacionFormVM" Data="@form" Submit="@GuardarItemAsync">
                 <RadzenRow Gap="1rem" RowGap="1rem" AlignItems="AlignItems.End">

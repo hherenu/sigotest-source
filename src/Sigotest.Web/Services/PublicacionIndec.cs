@@ -34,6 +34,21 @@ public static class PublicacionIndec
     }
 
     /// <summary>
+    /// Id bien formado para importar una publicación: exactamente "INDEC_INFORMA_MM_AA",
+    /// con mes y año de dos dígitos. Más estricto que <see cref="TryPeriodo"/> (que acepta
+    /// el sufijo solo, "04_26", o "8_26" y "08_2026"): el duplicado de publicación se
+    /// detecta por texto, así que dos escrituras del mismo período deben ser imposibles.
+    /// </summary>
+    public static bool EsIdValido(string? idPublicacion) =>
+        idPublicacion is not null
+        && idPublicacion.Length == Prefijo.Length + 5
+        && idPublicacion.StartsWith(Prefijo, StringComparison.Ordinal)
+        && idPublicacion[^3] == '_'
+        && idPublicacion[^5..^3].All(char.IsAsciiDigit)
+        && idPublicacion[^2..].All(char.IsAsciiDigit)
+        && TryPeriodo(idPublicacion, out _, out _);
+
+    /// <summary>
     /// Clave de orden CRONOLÓGICO ascendente de una publicación (usar en OrderBy; la
     /// más reciente queda última). Los ids que no siguen el patrón van primero y entre
     /// ellos por texto: así "la última publicación" nunca es una que no se pudo fechar.

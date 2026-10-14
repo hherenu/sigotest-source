@@ -22,6 +22,11 @@
 }
 else
 {
+    <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-2">
+        <b>Código</b> es la clave del pegado de la importación de publicaciones; <b>Familia de Recurso</b> es el
+        nombre con el que se elige el índice en las tablas de ponderación de las obras (de ahí salen los Ki/K0 del
+        cálculo); <b>Cuadro</b> e <b>Inciso</b> son informativos y ubican el índice en la revista INDEC.
+    </RadzenText>
     <RadzenDataGrid Data="@indices" TItem="IndiceVM" AllowFiltering="true"
                     FilterMode="FilterMode.CheckBoxList" AllowColumnResize="true"
                     AllowSorting="true" AllowPaging="true" PageSize="20"
