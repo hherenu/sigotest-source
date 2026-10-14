@@ -1,0 +1,19 @@
+@* Total que calcula la app al importar una planilla, contra el de la propia planilla:
+   el calculado siempre; el de la planilla y la diferencia, solo si la planilla lo trae
+   completo (una suma parcial daría una diferencia falsa). *@
+<RadzenText TextStyle="TextStyle.Body2" class="@Clase">
+    @Etiqueta: <b>$ @Fmt.N2(Calculado)</b>
+    @if (Planilla is decimal planilla)
+    {
+        <text> · según planilla: <b>$ @Fmt.N2(planilla)</b> · diferencia: <b>$ @Fmt.N2(Calculado - planilla)</b></text>
+    }
+</RadzenText>
+
+@code {
+    /// <summary>Qué se totaliza: «Total calculado», «Monto del mes calculado».</summary>
+    [Parameter, EditorRequired] public string Etiqueta { get; set; } = string.Empty;
+    [Parameter] public decimal Calculado { get; set; }
+    /// <summary>Total leído de la planilla, o null si no lo trae.</summary>
+    [Parameter] public decimal? Planilla { get; set; }
+    [Parameter] public string Clase { get; set; } = "rz-mb-2";
+}

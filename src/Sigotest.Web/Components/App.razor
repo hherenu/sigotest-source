@@ -43,6 +43,78 @@
         // pantallas angostas; Blazor Server no lo conoce sin JS).
         window.sigoAnchoVentana = function () { return window.innerWidth; };
 
+        // Ancho de la columna Descripción de las tablas cert-grid-ajustable (asa
+        // .cert-col-asa del encabezado; el CSS está en app-blazor.css): arrastrar, o las
+        // flechas con el foco en el asa (Mayús = paso largo); doble clic o Inicio vuelven
+        // al ancho automático. El ancho va en una variable CSS del documento y la clase
+        // cert-ancho-propio en <html> cambia el reparto de la tabla: vale para todos los
+        // bloques, ningún render de Blazor lo pisa y se recuerda en este navegador.
+        (function () {
+            var variable = '--cert-ancho-desc', clave = 'sigo.certAnchoDescripcion';
+            var minimo = 192, maximo = 1600;
+            var raiz = document.documentElement;
+            var acotar = function (px) { return Math.max(minimo, Math.min(maximo, Math.round(px))); };
+            var asaDe = function (e) { return e.target && e.target.closest ? e.target.closest('.cert-col-asa') : null; };
+            var ancho = function (asa) { return Math.round(asa.parentElement.getBoundingClientRect().width); };
+            var fijar = function (px, recordar) {
+                if (px === null) raiz.style.removeProperty(variable);
+                else raiz.style.setProperty(variable, px + 'px');
+                raiz.classList.toggle('cert-ancho-propio', px !== null);
+                if (!recordar) return;
+                try {
+                    if (px === null) localStorage.removeItem(clave);
+                    else localStorage.setItem(clave, String(px));
+                } catch (err) { /* sin almacenamiento: el ancho dura hasta recargar */ }
+            };
+            try {
+                var guardado = parseInt(localStorage.getItem(clave), 10);
+                if (guardado > 0) fijar(acotar(guardado), false);
+            } catch (err) { }
+
+            document.addEventListener('pointerdown', function (e) {
+                var asa = asaDe(e);
+                if (!asa || e.button !== 0) return;
+                e.preventDefault();
+                var x0 = e.clientX, ancho0 = ancho(asa), actual = null;
+                asa.setPointerCapture(e.pointerId);
+                asa.classList.add('arrastrando');
+                var mover = function (ev) {
+                    if (ev.clientX === x0 && actual === null) return;
+                    actual = acotar(ancho0 + ev.clientX - x0);
+                    fijar(actual, false);
+                };
+                var soltar = function () {
+                    asa.removeEventListener('pointermove', mover);
+                    asa.removeEventListener('pointerup', soltar);
+                    asa.removeEventListener('pointercancel', soltar);
+                    asa.classList.remove('arrastrando');
+                    // Un clic sin arrastre (el primero de un doble clic) no fija nada.
+                    if (actual !== null) fijar(actual, true);
+                };
+                asa.addEventListener('pointermove', mover);
+                asa.addEventListener('pointerup', soltar);
+                asa.addEventListener('pointercancel', soltar);
+            });
+            document.addEventListener('dblclick', function (e) {
+                if (asaDe(e)) fijar(null, true);
+            });
+            document.addEventListener('keydown', function (e) {
+                var asa = asaDe(e);
+                if (!asa) return;
+                var paso = e.shiftKey ? 64 : 16;
+                if (e.key === 'ArrowRight') fijar(acotar(ancho(asa) + paso), true);
+                else if (e.key === 'ArrowLeft') fijar(acotar(ancho(asa) - paso), true);
+                else if (e.key === 'Home') fijar(null, true);
+                else return;
+                e.preventDefault();
+                asa.setAttribute('aria-valuenow', String(ancho(asa)));
+            });
+            document.addEventListener('focusin', function (e) {
+                var asa = asaDe(e);
+                if (asa) asa.setAttribute('aria-valuenow', String(ancho(asa)));
+            });
+        })();
+
         // Quita el splash en cuanto Blazor renderiza el layout. Con red de seguridad:
         // si algo fallara, igual se retira a los 15s para no dejar la app tapada.
         (function () {

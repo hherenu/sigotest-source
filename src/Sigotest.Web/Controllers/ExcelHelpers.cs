@@ -11,6 +11,8 @@ public static class ExcelHelpers
 {
     public const string ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     public const string FormatoMoneda = "#,##0.00";
+    /// <summary>Cantidades y precios unitarios: 2 decimales como mínimo y hasta 4, como Fmt.HastaN4 en pantalla.</summary>
+    public const string FormatoCantidad = "#,##0.00##";
 
     public static byte[] ToBytes(XLWorkbook wb)
     {

@@ -13,7 +13,7 @@
         No se encontró la obra solicitada.
     </RadzenAlert>
 }
-else if (obra is null)
+else if (obra is null || estructuras is null)
 {
     <EstadoCargando Texto="Cargando estructuras…" />
 }
@@ -57,7 +57,7 @@ else
                         <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-1"><b>Ítems:</b> @est.TotalItems</RadzenText>
                         @if (est.MontoTotal > 0)
                         {
-                            <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0"><b>Monto Total:</b> $ @est.MontoTotal.ToString("N2")</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0"><b>Monto Total:</b> $ @Fmt.N2(est.MontoTotal)</RadzenText>
                         }
                         <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" class="rz-mt-3">
                             <RadzenButton Text="Ver / Editar Ítems" Icon="list_alt" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
@@ -76,7 +76,8 @@ else
     [Parameter] public int ObraId { get; set; }
 
     private ObraResumenVM? obra;
-    private List<EstructuraVM> estructuras = new();
+    // null = cargando, como pide convenciones-ui (con new(), un render durante la carga mostraría «no hay estructuras»).
+    private List<EstructuraVM>? estructuras;
     private bool noEncontrada;
     private bool procesando;
 

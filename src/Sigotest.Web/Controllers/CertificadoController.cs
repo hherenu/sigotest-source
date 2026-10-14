@@ -95,9 +95,10 @@ public class CertificadoController(CertificadoService service) : Controller
             row++;
         }
 
-        ws.Column(2).Width = 70;
-        ws.Columns(1, 13).AdjustToContents();
-        for (int c = 4; c <= 12; c++) ws.Column(c).Style.NumberFormat.Format = ExcelHelpers.FormatoMoneda;
+        // Cantidades y PU (contrato, anterior, mes, acumulada) con hasta 4 decimales, como en
+        // pantalla; los montos con 2.
+        foreach (var c in new[] { 4, 5, 7, 9, 11 }) ws.Column(c).Style.NumberFormat.Format = ExcelHelpers.FormatoCantidad;
+        foreach (var c in new[] { 6, 8, 10, 12 }) ws.Column(c).Style.NumberFormat.Format = ExcelHelpers.FormatoMoneda;
         ws.Column(13).Style.NumberFormat.Format = "0.00\"%\"";
 
         var totalRow = row + 1;
@@ -114,6 +115,12 @@ public class CertificadoController(CertificadoService service) : Controller
         ws.Cell(totalRow, 10).Style.NumberFormat.Format = ExcelHelpers.FormatoMoneda;
         ws.Cell(totalRow, 12).Style.NumberFormat.Format = ExcelHelpers.FormatoMoneda;
         ws.Cell(totalRow, 13).Style.NumberFormat.Format = "0.00\"%\"";
+
+        // Al final, con todos los valores y formatos puestos: AdjustToContents mide el texto
+        // formateado de lo que ya existe. Antes medía sin formato (un PU con 4 decimales no
+        // entraba) y sin la fila de totales (un total de miles de millones podía mostrar #####).
+        ws.Column(2).Width = 70;
+        ws.Columns(1, 13).AdjustToContents();
 
         var fileName = $"Certificado_{vm.Numero}_{vm.Anio}_{vm.Mes:00}.xlsx";
         return File(ExcelHelpers.ToBytes(wb), ExcelHelpers.ContentType, fileName);

@@ -47,6 +47,10 @@ regla, dejá el porqué en un comentario al lado (como hace el resto del código
 ## Formularios
 
 - Obligatorios: `*` en el label del `RadzenFormField` + `RadzenRequiredValidator` con `Popup`.
+- Límites numéricos de negocio (no negativos, rangos de año): `RadzenNumericRangeValidator`
+  con `Popup` y el mismo mensaje que el validador del servicio, nunca `Min`/`Max` del
+  `RadzenNumeric`: Radzen lleva el valor tipeado al límite sin avisar (un PU de -500 se
+  guardaba como 0). En campos opcionales, `AllowNull="true"`; con decimales, `Min="0m"`.
 - Ayudas largas: caption (`app-muted`) debajo del campo, no dentro del label flotante.
 - Siglas de dominio: `title` en el FormField con el nombre completo.
 - Ediciones cortas (≤5 campos): diálogo con `Width = "min(Npx, 92vw)"`; el llamador
@@ -61,6 +65,10 @@ regla, dejá el porqué en un comentario al lado (como hace el resto del código
 - Tablas HTML propias (`cert-grid`): `caption` con clase `sr-only` y `scope` en los `th`;
   el encabezado es sticky (los detalles de fondo opaco y dos filas viven en
   `app-blazor.css`, sección cert-grid — no tocar sin leer los comentarios).
+- `cert-grid` con descripciones largas (carga y detalle del certificado): clase
+  `cert-grid-ajustable`, `cert-col-desc` en el th y los td de la descripción (con `title`
+  del texto completo) y `<AsaAnchoDescripcion />` dentro de ese th. La descripción ocupa el
+  ancho libre y el usuario la ajusta arrastrando el asa; el script vive en `App.razor`.
 
 ## Feedback y errores
 
@@ -73,6 +81,9 @@ regla, dejá el porqué en un comentario al lado (como hace el resto del código
 
 - Placeholders de dropdowns: `-- Seleccionar --` / `-- Seleccionar obra --`.
 - Montos y cantidades: helpers de `Fmt` (cultura es-AR explícita), nunca `ToString` directo.
+  Montos con 2 decimales (`Fmt.N2`/`Fmt.Money`); cantidades y precios unitarios con
+  `Fmt.HastaN4` (2 como mínimo, hasta los 4 que guarda la base) en pantalla y
+  `ExcelHelpers.FormatoCantidad` en los Excel, para que cantidad × PU cuadre con el monto.
 - CSS: solo `app-blazor.css`, derivado de tokens `--rz-*`; sin `<style>` en páginas;
   los `!important` existentes pisan internals de Radzen y están comentados — revisarlos
   en cada upgrade del paquete.

@@ -45,6 +45,55 @@ public class HelpersTests
         Assert.Null(PlanMails.UrlPlan("  ", 7));
     }
 
+    [Theory]
+    [InlineData(1.0, "1,00")]
+    [InlineData(6.5, "6,50")]
+    [InlineData(2.125, "2,125")]
+    [InlineData(115.3488, "115,3488")]          // antes el detalle mostraba 115,35
+    [InlineData(1317533.4246, "1.317.533,4246")]
+    public void HastaN4_DosDecimalesComoMinimoYHastaCuatro(double valor, string esperado) =>
+        Assert.Equal(esperado, Fmt.HastaN4((decimal)valor));
+
+    [Fact]
+    public void Qty_UsaHastaCuatroDecimalesYDejaVacioElCero()
+    {
+        Assert.Equal("115,3488", Fmt.Qty(115.3488m));
+        Assert.Equal("", Fmt.Qty(0m));
+    }
+
+    // ── Persistencia ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Persistencia_ErrorDeBaseEnvueltoPorEF_SeInformaComoErrorDeBase()
+    {
+        // Sin reintentos configurados, EF envuelve los errores transitorios (deadlock,
+        // timeout) en una InvalidOperationException en inglés: no es una regla de negocio y
+        // se informa el error de base que lleva adentro (el deadlock real lo prueba
+        // EstructuraServiceTests.AgregarItem_AltasSimultaneas_NoRepitenElOrden).
+        var notif = new Radzen.NotificationService();
+        var envuelto = new InvalidOperationException("An exception has been raised that is likely due to a transient failure.",
+            new Microsoft.EntityFrameworkCore.DbUpdateException("x", new Exception("detalle del proveedor")));
+
+        Assert.False(await Persistencia.EjecutarAsync(() => throw envuelto, notif));
+
+        var aviso = Assert.Single(notif.Messages);
+        Assert.Equal("Error al guardar", aviso.Summary);
+        Assert.Equal("detalle del proveedor", aviso.Detail);
+    }
+
+    [Fact]
+    public async Task Persistencia_ReglaDeNegocio_SeInformaConSuMensaje()
+    {
+        var notif = new Radzen.NotificationService();
+
+        Assert.False(await Persistencia.EjecutarAsync(
+            () => throw new InvalidOperationException("Solo se puede cerrar un certificado en borrador."), notif));
+
+        var aviso = Assert.Single(notif.Messages);
+        Assert.Equal("No se pudo completar", aviso.Summary);
+        Assert.Equal("Solo se puede cerrar un certificado en borrador.", aviso.Detail);
+    }
+
     [Fact]
     public void MesNombreSeguro_AcotaLosDatosSucios()
     {
@@ -89,6 +138,35 @@ public class HelpersTests
     {
         string[] pubs = ["ZZZ_SIN_PATRON", "INDEC_INFORMA_01_26"];
         Assert.Equal("INDEC_INFORMA_01_26", pubs.OrderBy(PublicacionIndec.Orden).Last());
+    }
+
+    // ── Árbol de estructura ──────────────────────────────────────────────────────
+
+    private sealed record Nodo(int Id, int? Padre, bool EsAgrupador, decimal Monto = 0);
+
+    private static Dictionary<int, decimal> Sumas(params Nodo[] nodos) =>
+        Arbol.SumaPorAgrupador(nodos, n => n.Padre, n => n.Id, n => n.EsAgrupador, n => n.Monto);
+
+    [Fact]
+    public void SumaPorAgrupador_UnRubroSumaTambienLoDeSusSubRubros()
+    {
+        // Rubro 1 › (hoja 2 de $10, Sub-rubro 3 › (hojas 4 y 5)); Rubro 6 sin hojas.
+        var sumas = Sumas(
+            new(1, null, true), new(2, 1, false, 10m), new(3, 1, true),
+            new(4, 3, false, 100m), new(5, 3, false, 1000m), new(6, null, true));
+
+        Assert.Equal(1110m, sumas[1]);   // antes solo la hoja directa: $10
+        Assert.Equal(1100m, sumas[3]);
+        Assert.False(sumas.ContainsKey(6));
+    }
+
+    [Fact]
+    public void SumaPorAgrupador_UnCicloEnLosDatosNoCuelga()
+    {
+        var sumas = Sumas(new(1, 2, true), new(2, 1, true), new(3, 1, false, 5m));
+
+        Assert.Equal(5m, sumas[1]);
+        Assert.Equal(5m, sumas[2]);
     }
 
     [Fact]

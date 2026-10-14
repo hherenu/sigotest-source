@@ -14,16 +14,21 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
 
     /// <summary>
     /// Movimiento del mes de un ítem a partir del % cargado. Base de cálculo en
-    /// cascada: cantidad×PU solo si el contrato define AMBOS; si no (ítems globales
-    /// "1 gl", o con PU pero sin cantidad), el monto sale directo del % sobre el
-    /// monto de contrato. Redondeos intermedios a 4 decimales.
+    /// cascada: cantidad×PU solo si el contrato define AMBOS; si no, el monto sale
+    /// directo del % sobre el monto de contrato (ítems con monto pero sin cantidad×PU).
+    /// El alta y la importación derivan el monto solo de cantidad×PU: un ítem cargado
+    /// sin cantidad no tiene monto, certifica $0 y su avance se lleva en %.
+    /// El % se toma con los 4 decimales con que se guarda y los redondeos intermedios
+    /// también van a 4: recalcular desde el % guardado da lo mismo que se guardó.
     /// ÚNICA implementación de la fórmula: la usan GuardarItemsAsync (lo que se
-    /// guarda) y el LiveMonto de CertificadoCargar (lo que se muestra en vivo) —
-    /// antes eran dos copias que podían derivar en diferencias de centavos.
+    /// guarda), el LiveMonto de CertificadoCargar (lo que se muestra en vivo) y
+    /// <see cref="MovimientoVigente"/> (borrador y cierre) — antes eran copias que
+    /// podían derivar en diferencias de centavos.
     /// </summary>
     public static (decimal Cantidad, decimal Monto) MovimientoDeMes(
         decimal? cantidadContrato, decimal? puBasico, decimal? montoContrato, decimal pct)
     {
+        pct = Math.Round(pct, 4);
         var cantidad = Math.Round((cantidadContrato ?? 0) * pct / 100m, 4);
         var monto = cantidadContrato.HasValue && puBasico.HasValue
             ? Math.Round(cantidad * puBasico.Value, 4)
@@ -32,6 +37,19 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
                 : 0m;
         return (cantidad, monto);
     }
+
+    /// <summary>
+    /// Cantidad y monto del mes de una fila con el contrato VIGENTE del ítem: el % guardado
+    /// es la carga del usuario y lo demás se deriva de él, como en la grilla de carga. Sin
+    /// esto, editar el contrato de un ítem con el certificado en borrador dejaba cantidad y
+    /// monto calculados con el contrato viejo, y el cierre los congelaba junto al contrato
+    /// nuevo (% del mes distinto del % acumulado, montos que no cuadraban). Una fila sin %
+    /// (solo puede venir de datos previos) conserva lo guardado.
+    /// </summary>
+    private static (decimal Cantidad, decimal Monto) MovimientoVigente(ItemCertificado? fila, ItemEstructura item) =>
+        fila is null ? (0m, 0m)
+        : fila.PorcentajeActual != 0 ? MovimientoDeMes(item.Cantidad, item.PUBasico, item.Monto, fila.PorcentajeActual)
+        : (fila.CantidadActual, fila.MontoActual);
 
     /// <summary>
     /// Porcentaje de avance de un ítem según la base que el contrato defina: sobre la
@@ -51,6 +69,8 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
     /// Los % "PorBase" vienen null cuando el ítem no tiene base de cantidad ni monto:
     /// cada punto de uso decide su fallback sobre <see cref="AcumuladosItem.PctAnteriorDirecto"/>
     /// (Cerrar guarda el número; el VM muestra vacío cuando es 0).
+    /// Los llamadores pasan solo las filas del ítem (agrupadas con ToLookup): recorrer las
+    /// de toda la estructura por cada ítem crecía con ítems² × certificados cerrados.
     /// </summary>
     public static AcumuladosItem AcumuladosDeItem(
         IEnumerable<ItemCertificado> anteriores, ItemEstructura item, decimal cantMes, decimal montoMes)
@@ -136,7 +156,7 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
             var estructura = estructuras.GetValueOrDefault(bloque.EstructuraCostosId)
                 ?? throw new InvalidOperationException("La estructura de costos del bloque ya no existe.");
             var actuales = actualesPorBloque[bloque.Id].ToList();
-            var anteriores = anterioresPorEstructura[bloque.EstructuraCostosId];
+            var anterioresPorItem = anterioresPorEstructura[bloque.EstructuraCostosId].ToLookup(a => a.ItemEstructuraId);
 
             // En un certificado cerrado, un ítem sin fila de snapshot fue agregado a la
             // estructura DESPUÉS del cierre: no forma parte del certificado emitido y no
@@ -171,8 +191,9 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
                 }
                 else
                 {
-                    cantMes  = actual?.CantidadActual ?? 0;
-                    montoMes = actual?.MontoActual ?? 0;
+                    // Cantidad y monto con el contrato vigente: lo mismo que la grilla de
+                    // carga muestra y que el cierre va a congelar.
+                    (cantMes, montoMes) = MovimientoVigente(actual, item);
                     cantContrato  = item.Cantidad;
                     puBasico      = item.PUBasico;
                     montoContrato = item.Monto;
@@ -180,7 +201,7 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
                     // cantidad redondeada, que introducía deriva al reabrir el editor).
                     pctMes  = actual?.PorcentajeActual;
 
-                    var acum = AcumuladosDeItem(anteriores, item, cantMes, montoMes);
+                    var acum = AcumuladosDeItem(anterioresPorItem[item.Id], item, cantMes, montoMes);
                     cantAnt  = acum.CantidadAnterior;
                     montoAnt = acum.MontoAnterior;
                     // Sin base contractual, el avance se acumula directamente en % (única
@@ -300,6 +321,7 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
                 c.Estado,
                 c.FechaEmision,
                 c.Observaciones,
+                c.RowVersion,
                 Titulos = c.Estructuras
                     .OrderBy(b => b.Orden)
                     .Select(b => b.Titulo ?? b.EstructuraCostos.Nombre)
@@ -316,6 +338,7 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
             Estado = f.Estado,
             FechaEmision = f.FechaEmision,
             Observaciones = f.Observaciones,
+            RowVersion = f.RowVersion,
             Bloques = string.Join(", ", f.Titulos)
         }).ToList();
     }
@@ -331,6 +354,9 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
     public async Task<(int? CertificadoId, string? Rechazo)> CrearAsync(int obraId, CertificadoNuevoVM vm)
     {
         ExigirRol("crear el certificado");
+        if (CertificadoValidator.Alta(vm.Numero, vm.Mes, vm.Anio, vm.FechaEmision) is string invalido)
+            return (null, invalido);
+
         await using var db = await dbFactory.CreateDbContextAsync();
 
         var yaExiste = await db.Certificados.AnyAsync(c => c.ObraId == obraId && c.Numero == vm.Numero);
@@ -365,15 +391,12 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
         return (nuevo.Id, null);
     }
 
-    /// <summary>Motivo del rechazo al agregar/quitar un bloque (la página elige título y severidad).</summary>
-    public enum MotivoRechazoBloque { NoEditable, Duplicado, EstructuraInvalida }
-
     /// <summary>
     /// Resultado de agregar/quitar bloque: Encontrado=false si el certificado/bloque ya
     /// no existe (patrón bool-false — la página recarga sin notificar error); Rechazo con
-    /// el mensaje de la regla de negocio que lo frenó (null = operación completada).
+    /// el motivo y el mensaje de la regla de negocio que lo frenó (null = operación completada).
     /// </summary>
-    public sealed record ResultadoBloque(bool Encontrado, MotivoRechazoBloque? Motivo = null, string? Rechazo = null);
+    public sealed record ResultadoBloque(bool Encontrado, RechazoBloque? Rechazo = null);
 
     /// <summary>
     /// Agrega a un certificado en borrador un bloque de la estructura indicada
@@ -392,13 +415,8 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
         var deLaObra = await db.EstructurasCostos
             .AnyAsync(e => e.Id == estructuraCostosId && e.ObraId == cert.ObraId);
 
-        var rechazo = CertificadoValidator.AgregarBloque(cert.Estado, duplicado, deLaObra);
-        if (rechazo is not null)
-            return new ResultadoBloque(true,
-                cert.Estado != EstadoCertificado.Borrador ? MotivoRechazoBloque.NoEditable
-                : duplicado ? MotivoRechazoBloque.Duplicado
-                : MotivoRechazoBloque.EstructuraInvalida,
-                rechazo);
+        if (CertificadoValidator.AgregarBloque(cert.Estado, duplicado, deLaObra) is RechazoBloque rechazo)
+            return new ResultadoBloque(true, rechazo);
 
         // RowVersion del certificado: si otro usuario lo cierra entre el chequeo y
         // el save, el UPDATE falla por concurrencia en vez de agregar el bloque.
@@ -424,9 +442,8 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
             .FirstOrDefaultAsync(x => x.Id == certificadoEstructuraId);
         if (b is null) return new ResultadoBloque(false);
 
-        var rechazo = CertificadoValidator.QuitarBloque(b.Certificado.Estado);
-        if (rechazo is not null)
-            return new ResultadoBloque(true, MotivoRechazoBloque.NoEditable, rechazo);
+        if (CertificadoValidator.QuitarBloque(b.Certificado.Estado) is RechazoBloque rechazo)
+            return new ResultadoBloque(true, rechazo);
 
         // Mismo patrón que al agregar: el RowVersion del certificado detecta un cierre
         // concurrente entre el chequeo y el save.
@@ -473,21 +490,31 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
         // guardar-vs-cerrar terminan en conflicto de concurrencia (ver la extensión).
         db.AplicarTokenSesion(cert, rowVersionSesion, c => c.Estado);
 
+        // Las estructuras de todos los bloques en una query (antes era una por bloque),
+        // solo lectura: de ellas sale el contrato con que se calcula cada fila.
+        var idsEstructuras = cert.Estructuras.Select(b => b.EstructuraCostosId).Distinct().ToList();
+        var estructuras = await db.EstructurasCostos.AsNoTracking()
+            .Include(e => e.Items)
+            .Where(e => idsEstructuras.Contains(e.Id))
+            .ToDictionaryAsync(e => e.Id);
+
         foreach (var bloque in cert.Estructuras)
         {
             if (!porcentajesPorBloque.TryGetValue(bloque.Id, out var porcentajes)) continue;
 
-            var estructura = await db.EstructurasCostos
-                .Include(e => e.Items)
-                .FirstAsync(e => e.Id == bloque.EstructuraCostosId);
+            // Mismo criterio que BuildVmAsync y CerrarAsync: huérfana → excepción manejable.
+            var estructura = estructuras.GetValueOrDefault(bloque.EstructuraCostosId)
+                ?? throw new InvalidOperationException("La estructura de costos del bloque ya no existe.");
 
             // El guardado recrea las filas: lo que no viene del editor (observaciones,
             // override de TipoMovimiento) se arrastra de la fila anterior del mismo ítem.
             var previos = bloque.Items.ToDictionary(i => i.ItemEstructuraId);
             db.ItemsCertificado.RemoveRange(bloque.Items);
 
-            foreach (var (itemEstructuraId, pct) in porcentajes)
+            foreach (var (itemEstructuraId, pctTipeado) in porcentajes)
             {
+                // El % se guarda con 4 decimales: uno que redondea a 0 no es carga.
+                var pct = Math.Round(pctTipeado, 4);
                 if (pct == 0) continue;
 
                 var itemEst = estructura.Items.FirstOrDefault(i => i.Id == itemEstructuraId);
@@ -504,7 +531,7 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
                     Observaciones = previo?.Observaciones,
                     CantidadActual = cantidad,
                     MontoActual = monto,
-                    PorcentajeActual = Math.Round(pct, 4)
+                    PorcentajeActual = pct
                 });
             }
         }
@@ -551,7 +578,7 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
             // Mismo criterio que BuildVmAsync: huérfana → excepción manejable.
             var estructura = estructuras.GetValueOrDefault(bloque.EstructuraCostosId)
                 ?? throw new InvalidOperationException("La estructura de costos del bloque ya no existe.");
-            var anteriores = anterioresPorEstructura[bloque.EstructuraCostosId];
+            var anterioresPorItem = anterioresPorEstructura[bloque.EstructuraCostosId].ToLookup(a => a.ItemEstructuraId);
 
             decimal subAnterior = 0, subActual = 0;
 
@@ -559,9 +586,10 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
             {
                 var row = bloque.Items.FirstOrDefault(r => r.ItemEstructuraId == item.Id);
 
-                var cantAct  = row?.CantidadActual ?? 0;
-                var montoAct = row?.MontoActual ?? 0;
-                var acum = AcumuladosDeItem(anteriores, item, cantAct, montoAct);
+                // Del % guardado con el contrato vigente, el mismo que se congela abajo: si el
+                // contrato del ítem cambió con el borrador abierto, lo guardado quedó viejo.
+                var (cantAct, montoAct) = MovimientoVigente(row, item);
+                var acum = AcumuladosDeItem(anterioresPorItem[item.Id], item, cantAct, montoAct);
                 var cantAnt  = acum.CantidadAnterior;
                 var montoAnt = acum.MontoAnterior;
 
@@ -703,12 +731,14 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
     }
 
     /// <summary>
-    /// Elimina un certificado. Solo se admiten borradores (o anulados): un cerrado
-    /// integra la cadena de acumulados y debe reabrirse antes de poder eliminarse.
+    /// Elimina un certificado. Solo se admiten borradores: un cerrado integra la cadena
+    /// de acumulados y debe reabrirse antes de poder eliminarse. El RowVersion del
+    /// listado viaja al DELETE: si otro usuario guardó porcentajes o lo cerró desde que
+    /// se mostró la fila, conflicto de concurrencia en vez de borrar su trabajo.
     /// Devuelve false si ya no existía —eliminado por otro usuario— para que la
     /// página informe (patrón bool-false del resto de los módulos).
     /// </summary>
-    public async Task<bool> EliminarAsync(int certificadoId)
+    public async Task<bool> EliminarAsync(int certificadoId, byte[] rowVersion)
     {
         ExigirRol("eliminar el certificado");
         await using var db = await dbFactory.CreateDbContextAsync();
@@ -718,6 +748,7 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
 
         Validacion.Exigir(CertificadoValidator.Eliminar(cert.Estado, cert.Numero));
 
+        db.Entry(cert).Property(c => c.RowVersion).OriginalValue = rowVersion;
         db.Certificados.Remove(cert);
         await db.SaveChangesAsync();
         return true;

@@ -30,24 +30,22 @@ public static class Persistencia
         }
         catch (DbUpdateException ex)
         {
-            // Los códigos frecuentes de SQL Server se traducen a un mensaje entendible
-            // en vez del error crudo del proveedor en inglés.
-            var msg = (ex.InnerException as Microsoft.Data.SqlClient.SqlException)?.Number switch
-            {
-                547 => "No se puede completar: el registro está referenciado por otros datos "
-                     + "(certificados, redeterminaciones, planes o ítems que dependen de él).",
-                2601 or 2627 => "Ya existe un registro con esa clave (valor duplicado).",
-                _ => ex.InnerException?.Message ?? ex.Message
-            };
-            notif.Notify(NotificationSeverity.Error, "Error al guardar", msg, 8000);
+            NotificarErrorDeBase(ex, notif);
         }
         // Fallos del proveedor fuera de SaveChanges (SqlException en una query o al
         // abrir la conexión): sin esto, un corte transitorio de la DB dentro de la
         // acción tumbaba el circuito pese al wrapper.
         catch (System.Data.Common.DbException ex)
         {
-            notif.Notify(NotificationSeverity.Error, "Error de base de datos",
-                $"No se pudo acceder a la base de datos. Reintentá en unos segundos. ({ex.Message})", 8000);
+            NotificarErrorDeBase(ex, notif);
+        }
+        // Sin reintentos configurados, EF envuelve los errores transitorios de SQL Server
+        // (un deadlock entre transacciones Serializable, un timeout) en una
+        // InvalidOperationException con un mensaje en inglés: no es una regla de negocio,
+        // se traduce como el error de base que lleva adentro.
+        catch (InvalidOperationException ex) when (ex.InnerException is DbUpdateException or System.Data.Common.DbException)
+        {
+            NotificarErrorDeBase(ex.InnerException, notif);
         }
         // Reglas de negocio de los servicios (ej. "solo se puede cerrar un borrador").
         catch (InvalidOperationException ex)
@@ -55,6 +53,37 @@ public static class Persistencia
             notif.Notify(NotificationSeverity.Error, "No se pudo completar", ex.Message, 6000);
         }
         return false;
+    }
+
+    /// <summary>
+    /// Mensaje del error de base: los códigos frecuentes de SQL Server se traducen a un
+    /// mensaje entendible en vez del error crudo del proveedor en inglés.
+    /// </summary>
+    private static void NotificarErrorDeBase(Exception ex, NotificationService notif)
+    {
+        // Las transacciones Serializable (altas con número correlativo, cierres,
+        // importación) eligen una víctima cuando dos guardan a la vez sobre las mismas
+        // filas: la operación no se hizo y alcanza con repetirla.
+        const string Deadlock = "Otro usuario estaba guardando datos relacionados en el mismo momento. Volvé a intentar.";
+
+        if (ex is DbUpdateException)
+        {
+            var msg = (ex.InnerException as Microsoft.Data.SqlClient.SqlException)?.Number switch
+            {
+                547 => "No se puede completar: el registro está referenciado por otros datos "
+                     + "(certificados, redeterminaciones, planes o ítems que dependen de él).",
+                2601 or 2627 => "Ya existe un registro con esa clave (valor duplicado).",
+                1205 => Deadlock,
+                _ => ex.InnerException?.Message ?? ex.Message
+            };
+            notif.Notify(NotificationSeverity.Error, "Error al guardar", msg, 8000);
+            return;
+        }
+
+        notif.Notify(NotificationSeverity.Error, "Error de base de datos",
+            (ex as Microsoft.Data.SqlClient.SqlException)?.Number == 1205
+                ? Deadlock
+                : $"No se pudo acceder a la base de datos. Reintentá en unos segundos. ({ex.Message})", 8000);
     }
 }
 
@@ -85,10 +114,19 @@ public static class Fmt
     // separadores de la mitad de las tablas y no de la otra.
     /// <summary>"$" + monto con 2 decimales, o "" si es 0.</summary>
     public static string Money(decimal v) => v != 0 ? "$ " + v.ToString("N2", EsAr) : "";
-    /// <summary>Cantidad "1.234,56" o "" si es 0.</summary>
-    public static string Qty(decimal v) => v != 0 ? v.ToString("N2", EsAr) : "";
+    /// <summary>Cantidad con <see cref="HastaN4"/> ("1.234,56", "115,3488") o "" si es 0.</summary>
+    public static string Qty(decimal v) => v != 0 ? HastaN4(v) : "";
     /// <summary>Número con 2 decimales.</summary>
     public static string N2(decimal v) => v.ToString("N2", EsAr);
+    /// <summary>Número con 4 decimales fijos.</summary>
+    public static string N4(decimal v) => v.ToString("N4", EsAr);
+    /// <summary>
+    /// Cantidades y precios unitarios: 2 decimales como mínimo y hasta los 4 que guarda la
+    /// base ("1,00", "115,3488", "1.317.533,4246"). Con 2 fijos el detalle mostraba 115,35 y
+    /// cantidad × PU no daba el monto de la fila; con 4 fijos casi todas las filas llevaban
+    /// ceros de más. Los montos siguen con 2 (N2/Money).
+    /// </summary>
+    public static string HastaN4(decimal v) => v.ToString("#,##0.00##", EsAr);
     /// <summary>Monto con separadores es-AR (grilla de planificación).</summary>
     public static string Pesos(decimal v) => v.ToString("N2", EsAr);
 
@@ -248,6 +286,17 @@ public static class EstadoUi
     };
 }
 
+/// <summary>Aspecto de las filas de ítems de estructura en las RadzenDataGrid (ítems y vista previa de la importación).</summary>
+public static class FilaEstructuraUi
+{
+    /// <summary>Estilo del RowRender de un agrupador: fondo de rubro (nivel 0) o sub-rubro, en negrita.</summary>
+    public static string EstiloAgrupador(int nivel) =>
+        $"background:{(nivel == 0 ? "var(--app-agrup-0-bg)" : "var(--app-agrup-1-bg)")};font-weight:600";
+
+    /// <summary>Sangría en px del texto de una fila según su nivel en el árbol.</summary>
+    public static int Sangria(int nivel) => nivel * 16 + 8;
+}
+
 /// <summary>Aplana un árbol auto-referencial (padre → hijos) en orden de visualización, con el nivel de anidamiento.</summary>
 public static class Arbol
 {
@@ -266,5 +315,27 @@ public static class Arbol
         }
         Build(null, 0);
         return flat;
+    }
+
+    /// <summary>
+    /// Suma de un valor de las hojas para cada agrupador, contando también las que cuelgan
+    /// de sus sub-agrupadores: un rubro con sub-rubros suma todo lo que tiene debajo (antes
+    /// solo sus hojas directas, y quedaba en blanco). Cada hoja suma a toda su cadena de
+    /// padres; un ciclo en los datos corta la subida en vez de colgar la página.
+    /// </summary>
+    public static Dictionary<int, decimal> SumaPorAgrupador<T>(
+        IReadOnlyCollection<T> items,
+        Func<T, int?> padreId, Func<T, int> id, Func<T, bool> esAgrupador, Func<T, decimal> valor)
+    {
+        var padres = items.ToDictionary(id, padreId);
+        var suma = new Dictionary<int, decimal>();
+        foreach (var hoja in items.Where(i => !esAgrupador(i)))
+        {
+            var v = valor(hoja);
+            var vistos = new HashSet<int>();
+            for (var p = padreId(hoja); p is int pid && vistos.Add(pid); p = padres.GetValueOrDefault(pid))
+                suma[pid] = suma.GetValueOrDefault(pid) + v;
+        }
+        return suma;
     }
 }

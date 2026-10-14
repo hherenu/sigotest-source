@@ -33,7 +33,9 @@ else
                ya aplicaba Planificación. *@
             <RadzenButton Text="Guardar certificado" Icon="save" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
                           IsBusy="@procesando" BusyText="Guardando..." Click="@GuardarAsync" />
-            <RadzenButton Text="Ver Detalle" Icon="visibility" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info"
+            <RadzenButton Text="Importar % desde Excel" Icon="upload" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary"
+                          Variant="Variant.Flat" Disabled="@procesando" Click="@ImportarExcelAsync" />
+            <RadzenButton Text="Ver Detalle" Icon="visibility" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
                           Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"certificados/{Id}"))" />
             <RadzenButton Text="Volver a Certificados" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
                           Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"obras/{vm.ObraId}/certificados"))" />
@@ -70,13 +72,16 @@ else
                                   Variant="Variant.Text" Disabled="@procesando" Click="@(() => EliminarBloqueAsync(bloque))" />
                 }
             </RadzenStack>
+            @* Descripción ajustable: por defecto ocupa el ancho libre y corta el texto con «…»
+               (completo en el title), así el ítem y su % del mes se ven sin scroll horizontal;
+               el asa del encabezado cambia el ancho (CSS en app-blazor.css, JS en App.razor). *@
             <div class="cert-scroll">
-                <table class="cert-grid">
+                <table class="cert-grid cert-grid-ajustable">
                     <caption class="sr-only">Carga del % de avance del mes — @bloque.Titulo</caption>
                     <thead>
                         <tr>
                             <th scope="col" style="text-align:left">Cód.</th>
-                            <th scope="col" style="text-align:left;min-width:200px">Descripción</th>
+                            <th scope="col" class="cert-col-desc" style="text-align:left">Descripción<AsaAnchoDescripcion /></th>
                             <th scope="col">Unid.</th>
                             <th scope="col">Cant. Contrato</th>
                             <th scope="col">PU Básico</th>
@@ -95,7 +100,7 @@ else
                             {
                                 <tr @key="item.ItemEstructuraId" class="@(nivel == 0 ? "agrup-0" : "agrup-1")">
                                     <td></td>
-                                    <td style="padding-left:@(pad)px">@item.Descripcion</td>
+                                    <td class="cert-col-desc" style="padding-left:@(pad)px" title="@item.Descripcion">@item.Descripcion</td>
                                     <td></td><td></td><td></td>
                                     <td class="num">@Fmt.Money(item.MontoContrato ?? 0)</td>
                                     <td class="col-warning"></td>
@@ -108,15 +113,15 @@ else
                             {
                                 <tr @key="item.ItemEstructuraId">
                                     <td class="cell-mono" style="padding-left:@(pad)px">@item.Codigo</td>
-                                    <td>@item.Descripcion</td>
+                                    <td class="cert-col-desc" title="@item.Descripcion">@item.Descripcion</td>
                                     <td style="text-align:center">@item.Unidad</td>
-                                    <td class="num">@item.CantidadContrato?.ToString("N4")</td>
-                                    <td class="num">@(item.PUBasico.HasValue ? "$ " + item.PUBasico.Value.ToString("N4") : "")</td>
-                                    <td class="num">@(item.MontoContrato.HasValue ? "$ " + item.MontoContrato.Value.ToString("N2") : "")</td>
-                                    <td class="num col-warning">@(item.PorcentajeAnterior.HasValue ? item.PorcentajeAnterior.Value.ToString("N2") + "%" : "")</td>
+                                    <td class="num">@(item.CantidadContrato is decimal cc ? Fmt.HastaN4(cc) : "")</td>
+                                    <td class="num">@(item.PUBasico is decimal pu ? "$ " + Fmt.HastaN4(pu) : "")</td>
+                                    <td class="num">@(item.MontoContrato is decimal mc ? "$ " + Fmt.N2(mc) : "")</td>
+                                    <td class="num col-warning">@(item.PorcentajeAnterior is decimal pa ? Fmt.N2(pa) + "%" : "")</td>
                                     <td class="num col-warning">@Fmt.Money(item.MontoAnterior)</td>
                                     <td class="col-primary" style="@(ExcedeAcumulado(bloque.CertificadoEstructuraId, item) ? "outline:2px solid var(--rz-danger);outline-offset:-2px" : "")"
-                                        title="@(ExcedeAcumulado(bloque.CertificadoEstructuraId, item) ? $"El acumulado (anterior {item.PorcentajeAnterior?.ToString("N2") ?? "0"}% + mes) supera el 100%" : null)">
+                                        title="@(ExcedeAcumulado(bloque.CertificadoEstructuraId, item) ? $"El acumulado (anterior {Fmt.N2(item.PorcentajeAnterior ?? 0)}% + mes) supera el 100%" : null)">
                                         @* aria-label: sin él, un lector de pantalla anuncia el input sin
                                            decir de qué ítem es (Radzen lo propaga al <input>). *@
                                         <RadzenNumeric TValue="decimal?" @bind-Value="pct[bloque.CertificadoEstructuraId][item.ItemEstructuraId]"
@@ -131,9 +136,9 @@ else
                     <tfoot>
                         <tr>
                             <td colspan="5" class="num">Subtotal @bloque.Titulo</td>
-                            <td class="num">$ @bloque.TotalMontoContrato.ToString("N2")</td>
-                            <td colspan="2" class="num">$ @bloque.TotalMontoAnterior.ToString("N2")</td>
-                            <td colspan="2" class="num">$ @bloque.TotalMontoMes.ToString("N2")</td>
+                            <td class="num">$ @Fmt.N2(bloque.TotalMontoContrato)</td>
+                            <td colspan="2" class="num">$ @Fmt.N2(bloque.TotalMontoAnterior)</td>
+                            <td colspan="2" class="num">$ @Fmt.N2(bloque.TotalMontoMes)</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -162,6 +167,7 @@ else
     private List<EstructuraOpcionVM> disponibles = new();
     private int? nuevoBloqueEstructuraId;
     private bool procesando;
+    private bool importando;
     // true tras un guardado exitoso: la navegación al detalle no debe pedir
     // confirmación aunque pct difiera del VM (que quedó con los valores previos).
     private bool navegacionSegura;
@@ -189,32 +195,21 @@ else
         // El VM se reconstruye completo (incluido su RowVersion): agregar/quitar bloque
         // actualiza la fila del certificado, y el token de sesión que viaja al guardado
         // debe ser el último visto.
+        var anterior = vm;
         vm = await Service.BuildVmAsync(Id);
         if (vm is null) { noEncontrado = true; return; }
         noEncontrado = false;
 
-        // Lo tipeado y no guardado se preserva: agregar/quitar un bloque reconstruye el
-        // estado desde la DB y sin esto pisaba los % del resto de los bloques.
-        var tipeado = pct;
-        pct = new Dictionary<int, Dictionary<int, decimal?>>();
-        filasPorBloque = new Dictionary<int, List<(ItemCertificadoVM Item, int Nivel)>>();
+        // Agregar/quitar un bloque reconstruye el estado desde la DB: se preserva solo lo
+        // que el usuario tipeó (sin esto se perdía); el resto toma lo recién leído, que
+        // puede incluir lo que otro usuario guardó en el medio (ver CargaCertificado).
+        pct = CargaCertificado.Porcentajes(vm, anterior, pct);
 
-        foreach (var bloque in vm.Bloques)
-        {
-            tipeado.TryGetValue(bloque.CertificadoEstructuraId, out var tipeadoBloque);
-            var dict = new Dictionary<int, decimal?>();
-            foreach (var item in bloque.Items.Where(i => !i.EsAgrupador))
-                dict[item.ItemEstructuraId] =
-                    (tipeadoBloque is not null && tipeadoBloque.TryGetValue(item.ItemEstructuraId, out var v))
-                        ? v
-                        : (item.PorcentajeMes.HasValue && item.PorcentajeMes.Value != 0) ? item.PorcentajeMes : null;
-            pct[bloque.CertificadoEstructuraId] = dict;
-
-            // El árbol se aplana UNA vez acá, no en cada render: al tipear un % el
-            // componente se re-renderiza y volvería a aplanar todos los bloques.
-            filasPorBloque[bloque.CertificadoEstructuraId] = Arbol.Aplanar(
-                bloque.Items, i => i.AgrupadorPadreId, i => i.ItemEstructuraId, i => i.Orden, i => i.EsAgrupador);
-        }
+        // El árbol se aplana UNA vez acá, no en cada render: al tipear un % el
+        // componente se re-renderiza y volvería a aplanar todos los bloques.
+        filasPorBloque = vm.Bloques.ToDictionary(
+            b => b.CertificadoEstructuraId,
+            b => Arbol.Aplanar(b.Items, i => i.AgrupadorPadreId, i => i.ItemEstructuraId, i => i.Orden, i => i.EsAgrupador));
 
         var usadas = vm.Bloques.Select(b => b.EstructuraCostosId).ToHashSet();
         disponibles = await Service.EstructurasDisponiblesAsync(vm.ObraId, usadas);
@@ -262,8 +257,8 @@ else
 
             if (hecho && res is not null)
             {
-                if (res.Rechazo is not null)
-                    NotificarRechazoBloque(res);
+                if (res.Rechazo is RechazoBloque rechazo)
+                    NotificarRechazoBloque(rechazo);
                 else if (res.Encontrado)
                     Notifications.Notify(NotificationSeverity.Success, "Bloque agregado",
                         disponibles.FirstOrDefault(e => e.Id == estId)?.Nombre ?? "", 3000);
@@ -291,8 +286,8 @@ else
 
             if (hecho && res is not null)
             {
-                if (res.Rechazo is not null)
-                    NotificarRechazoBloque(res);
+                if (res.Rechazo is RechazoBloque rechazo)
+                    NotificarRechazoBloque(rechazo);
                 else if (res.Encontrado)
                     Notifications.Notify(NotificationSeverity.Success, "Bloque quitado", bloque.Titulo, 3000);
             }
@@ -301,16 +296,56 @@ else
         finally { procesando = false; }
     }
 
-    // Título y severidad según el motivo (los mensajes vienen de CertificadoValidator).
-    private void NotificarRechazoBloque(CertificadoService.ResultadoBloque res)
+    // Título y severidad según el motivo; motivo y mensaje vienen juntos de CertificadoValidator.
+    private void NotificarRechazoBloque(RechazoBloque rechazo)
     {
-        var (severidad, titulo) = res.Motivo switch
+        var (severidad, titulo) = rechazo.Motivo switch
         {
-            CertificadoService.MotivoRechazoBloque.Duplicado => (NotificationSeverity.Warning, "Duplicado"),
-            CertificadoService.MotivoRechazoBloque.EstructuraInvalida => (NotificationSeverity.Error, "Inválida"),
+            MotivoRechazoBloque.Duplicado => (NotificationSeverity.Warning, "Duplicado"),
+            MotivoRechazoBloque.EstructuraInvalida => (NotificationSeverity.Error, "Inválida"),
             _ => (NotificationSeverity.Warning, "No editable")
         };
-        Notifications.Notify(severidad, titulo, res.Rechazo ?? "", 5000);
+        Notifications.Notify(severidad, titulo, rechazo.Mensaje, 5000);
+    }
+
+    /// <summary>
+    /// Abre el diálogo de importación y vuelca en <c>pct</c> los % que devuelve, bloque
+    /// por bloque. Solo se tocan los ítems con renglón en la planilla; el resto conserva
+    /// lo tipeado. No se guarda: el usuario revisa la grilla y recién entonces guarda,
+    /// con el mismo chequeo de acumulado y token de concurrencia de siempre.
+    /// </summary>
+    private async Task ImportarExcelAsync()
+    {
+        if (procesando || importando || vm is null) return;
+
+        // Flag propio y no `procesando` (que pondría «Guardando...» en los botones Guardar
+        // mientras el diálogo está abierto), puesto ANTES de abrir: un doble clic no debe
+        // apilar dos diálogos de importación.
+        importando = true;
+        object? resultado;
+        try
+        {
+            resultado = await DialogService.OpenAsync<CertificadoImportarDialog>(
+                "Importar % del mes desde Excel",
+                new Dictionary<string, object?> { [nameof(CertificadoImportarDialog.Vm)] = vm },
+                new DialogOptions { Width = "min(1100px, 92vw)" });
+        }
+        finally { importando = false; }
+        if (resultado is not List<AplicacionBloque> aplicaciones) return;
+
+        var volcados = 0;
+        foreach (var ap in aplicaciones)
+        {
+            if (!pct.TryGetValue(ap.CertificadoEstructuraId, out var porItem)) continue;
+            foreach (var (itemId, p) in ap.Porcentajes)
+            {
+                if (!porItem.ContainsKey(itemId)) continue;
+                porItem[itemId] = p == 0 ? null : p;
+                volcados++;
+            }
+        }
+        Notifications.Notify(NotificationSeverity.Success, "Porcentajes volcados",
+            $"{volcados} ítems actualizados en la grilla. Revisá y presioná «Guardar certificado».", 4000);
     }
 
     // La regla (umbral y epsilon) vive en CertificadoValidator; acá solo se resuelve

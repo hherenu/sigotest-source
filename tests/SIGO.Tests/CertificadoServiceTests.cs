@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SIGO.Models;
 using SIGO.Models.Enums;
 using SIGO.Services;
+using SIGO.Services.Validaciones;
 
 namespace SIGO.Tests;
 
@@ -49,6 +50,13 @@ public class CertificadoServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbF
         await db.SaveChangesAsync();
 
         return new Escenario(obra.Id, est.Id, itemCant.Id, itemGlobal.Id);
+    }
+
+    /// <summary>RowVersion actual del certificado (el token que tendría una página recién abierta).</summary>
+    private async Task<byte[]> RowVersionAsync(int certId)
+    {
+        await using var db = fx.CrearContexto();
+        return (await db.Certificados.AsNoTracking().SingleAsync(c => c.Id == certId)).RowVersion;
     }
 
     /// <summary>Certificado en borrador con su bloque sobre la estructura.</summary>
@@ -351,7 +359,280 @@ public class CertificadoServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbF
         await servicio.GuardarItemsAsync(certId, new() { [bloqueId] = new() { [e.ItemCantId] = 10m } });
         await servicio.CerrarAsync(certId);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.EliminarAsync(certId));
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await servicio.EliminarAsync(certId, await RowVersionAsync(certId)));
+    }
+
+    [Fact]
+    public async Task Eliminar_Borrador_ConElTokenDelListado_Elimina()
+    {
+        var e = await CrearEstructuraAsync();
+        var (certId, _) = await CrearCertificadoAsync(e, 1);
+        var servicio = Servicio(Roles.CCyR);
+
+        Assert.True(await servicio.EliminarAsync(certId, await RowVersionAsync(certId)));
+        Assert.False(await servicio.EliminarAsync(certId, []));   // ya no existe: patrón bool-false
+
+        await using var db = fx.CrearContexto();
+        Assert.False(await db.Certificados.AnyAsync(c => c.Id == certId));
+    }
+
+    [Fact]
+    public async Task Eliminar_SiOtroUsuarioGuardoDesdeElListado_ConflictoYNoBorra()
+    {
+        var e = await CrearEstructuraAsync();
+        var (certId, bloqueId) = await CrearCertificadoAsync(e, 1);
+        var servicio = Servicio(Roles.Admin);
+        var tokenDelListado = await RowVersionAsync(certId);
+
+        // Otro usuario carga porcentajes después de que el listado se mostró.
+        await servicio.GuardarItemsAsync(certId, new() { [bloqueId] = new() { [e.ItemCantId] = 10m } });
+
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => servicio.EliminarAsync(certId, tokenDelListado));
+
+        await using var db = fx.CrearContexto();
+        Assert.True(await db.ItemsCertificado.AnyAsync(i => i.CertificadoEstructuraId == bloqueId));
+    }
+
+    // ── Contrato editado con el certificado en borrador ─────────────────────────
+
+    /// <summary>Otro usuario cambia el contrato del ítem con cantidad: 100 → 200 un (monto 1.000 → 2.000).</summary>
+    private async Task DuplicarCantidadDelContratoAsync(Escenario e)
+    {
+        await using var db = fx.CrearContexto();
+        var item = await db.ItemsEstructura.SingleAsync(i => i.Id == e.ItemCantId);
+        item.Cantidad = 200m;
+        item.Monto = 2000m;
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Cerrar_TrasEditarElContratoDelItem_CongelaElMovimientoDelContratoVigente()
+    {
+        var e = await CrearEstructuraAsync();
+        var (certId, bloqueId) = await CrearCertificadoAsync(e, 1);
+        var servicio = Servicio(Roles.Admin);
+        await servicio.GuardarItemsAsync(certId, new() { [bloqueId] = new() { [e.ItemCantId] = 10m } });
+
+        await DuplicarCantidadDelContratoAsync(e);
+        await servicio.CerrarAsync(certId);
+
+        await using var db = fx.CrearContexto();
+        var fila = await db.ItemsCertificado
+            .SingleAsync(i => i.CertificadoEstructuraId == bloqueId && i.ItemEstructuraId == e.ItemCantId);
+        // Antes: cantidad 10 y monto 100 (contrato viejo) junto a un contrato de 200 un:
+        // % del mes 10 y % acumulado 5 en el primer certificado.
+        Assert.Equal(10m, fila.PorcentajeActual);
+        Assert.Equal(20m, fila.CantidadActual);
+        Assert.Equal(200m, fila.MontoActual);
+        Assert.Equal(10m, fila.PorcentajeAcumulado);
+        Assert.Equal(200m, fila.CantidadContrato);
+        Assert.Equal(2000m, fila.MontoContrato);
+        Assert.Equal(200m, (await db.CertificadoEstructuras.SingleAsync(b => b.Id == bloqueId)).SubtotalActual);
+    }
+
+    [Fact]
+    public async Task BuildVm_DeBorrador_MuestraElMovimientoConElContratoVigente()
+    {
+        var e = await CrearEstructuraAsync();
+        var (certId, bloqueId) = await CrearCertificadoAsync(e, 1);
+        var servicio = Servicio(Roles.Admin);
+        await servicio.GuardarItemsAsync(certId, new() { [bloqueId] = new() { [e.ItemCantId] = 10m } });
+
+        await DuplicarCantidadDelContratoAsync(e);
+        var vm = (await servicio.BuildVmAsync(certId))!;
+
+        // Lo mismo que la grilla de carga calcula en vivo y que el cierre va a congelar.
+        var fila = vm.Bloques.Single().Items.Single(i => i.ItemEstructuraId == e.ItemCantId);
+        Assert.Equal(10m, fila.PorcentajeMes);
+        Assert.Equal(20m, fila.CantidadMes);
+        Assert.Equal(200m, fila.MontoMes);
+        Assert.Equal(10m, fila.PorcentajeAcumulado);
+    }
+
+    // ── Alta, guardado, bloques y transiciones ───────────────────────────────────
+
+    [Theory]
+    [InlineData(0, 5, 2030, "número")]
+    [InlineData(1, 13, 2030, "mes")]
+    [InlineData(1, 0, 2030, "mes")]
+    [InlineData(1, 5, 2009, "año")]
+    [InlineData(1, 5, 2100, "año")]
+    public async Task Crear_ConNumeroMesOAnioFueraDeRango_Rechaza(int numero, int mes, int anio, string campo)
+    {
+        var e = await CrearEstructuraAsync();
+
+        var (id, rechazo) = await Servicio(Roles.CCyR).CrearAsync(e.ObraId, new Models.ViewModels.CertificadoNuevoVM
+        {
+            Numero = numero, Mes = mes, Anio = anio, EstructuraCostosId = e.EstructuraId, FechaEmision = new DateTime(2030, 1, 1)
+        });
+
+        Assert.Null(id);
+        Assert.Contains(campo, rechazo, StringComparison.OrdinalIgnoreCase);
+        await using var db = fx.CrearContexto();
+        Assert.False(await db.Certificados.AnyAsync(c => c.ObraId == e.ObraId));
+    }
+
+    [Fact]
+    public async Task Crear_ConElPrimerAnioAdmitido_Crea()
+    {
+        // 2010 es el primer año de certificado admitido (obras con certificación histórica).
+        var e = await CrearEstructuraAsync();
+
+        var (id, rechazo) = await Servicio(Roles.CCyR).CrearAsync(e.ObraId, new Models.ViewModels.CertificadoNuevoVM
+        {
+            Numero = 1, Mes = 1, Anio = 2010, EstructuraCostosId = e.EstructuraId, FechaEmision = new DateTime(2010, 1, 31)
+        });
+
+        Assert.Null(rechazo);
+        Assert.NotNull(id);
+    }
+
+    [Fact]
+    public async Task Crear_SinFechaDeEmision_Rechaza()
+    {
+        // Un selector de fecha vaciado deja el valor por defecto (01/01/0001).
+        var e = await CrearEstructuraAsync();
+
+        var (id, rechazo) = await Servicio(Roles.CCyR).CrearAsync(e.ObraId, new Models.ViewModels.CertificadoNuevoVM
+        {
+            Numero = 1, Mes = 5, Anio = 2030, EstructuraCostosId = e.EstructuraId, FechaEmision = default
+        });
+
+        Assert.Null(id);
+        Assert.Contains("fecha de emisión", rechazo);
+    }
+
+    [Fact]
+    public async Task ExcelDelCertificado_CantidadesYPUConHastaCuatroDecimales_YColumnasQueLosMuestranEnteros()
+    {
+        var e = await CrearEstructuraAsync();
+        var (certId, bloqueId) = await CrearCertificadoAsync(e, 1);
+        await using (var db = fx.CrearContexto())
+        {
+            // PU real de Premetro (rieles): con 4 decimales y en millones.
+            var item = await db.ItemsEstructura.SingleAsync(i => i.Id == e.ItemCantId);
+            item.Cantidad = 1000m; item.PUBasico = 1317533.4246m; item.Monto = 1317533424.6m;
+            await db.SaveChangesAsync();
+        }
+        var servicio = Servicio(Roles.CCyR);
+        await servicio.GuardarItemsAsync(certId, new() { [bloqueId] = new() { [e.ItemCantId] = 10m } });
+
+        var archivo = Assert.IsType<Microsoft.AspNetCore.Mvc.FileContentResult>(
+            await new SIGO.Controllers.CertificadoController(servicio).DescargarExcel(certId));
+
+        using var wb = new ClosedXML.Excel.XLWorkbook(new MemoryStream(archivo.FileContents));
+        var ws = wb.Worksheet(1);
+        var filaPU = ws.Column(5).CellsUsed().First(c => c.Value.IsNumber && c.GetValue<decimal>() == 1317533.4246m);
+        Assert.Equal("#,##0.00##", filaPU.Style.NumberFormat.Format);
+        Assert.Equal("#,##0.00", ws.Column(6).CellsUsed().Last().Style.NumberFormat.Format);
+
+        // El ancho se ajusta con el texto ya formateado y con la fila de totales escrita: no
+        // puede quedar más angosto que lo que ClosedXML mide para esos mismos valores.
+        // (El .xlsx guarda el ancho con 6 decimales: de ahí la tolerancia.)
+        Assert.True(ws.Column(5).Width >= AnchoNecesario(1317533.4246m, "#,##0.00##") - 0.001);
+        Assert.True(ws.Column(6).Width >= AnchoNecesario(1317533424.6m + 5000m, "#,##0.00") - 0.001);
+    }
+
+    /// <summary>Ancho que ClosedXML le da a una columna con solo ese valor y ese formato.</summary>
+    private static double AnchoNecesario(decimal valor, string formato)
+    {
+        using var wb = new ClosedXML.Excel.XLWorkbook();
+        var ws = wb.Worksheets.Add("A");
+        ws.Cell(1, 1).Value = valor;
+        ws.Cell(1, 1).Style.NumberFormat.Format = formato;
+        ws.Column(1).AdjustToContents();
+        return ws.Column(1).Width;
+    }
+
+    [Fact]
+    public async Task Crear_ValidoArmaElBorradorConSuPrimerBloque()
+    {
+        var e = await CrearEstructuraAsync();
+
+        var (id, rechazo) = await Servicio(Roles.CCyR).CrearAsync(e.ObraId, new Models.ViewModels.CertificadoNuevoVM
+        {
+            Numero = 1, Mes = 5, Anio = 2030, EstructuraCostosId = e.EstructuraId, FechaEmision = new DateTime(2030, 5, 31)
+        });
+
+        Assert.Null(rechazo);
+        await using var db = fx.CrearContexto();
+        var cert = await db.Certificados.Include(c => c.Estructuras).SingleAsync(c => c.Id == id);
+        Assert.Equal(EstadoCertificado.Borrador, cert.Estado);
+        Assert.Equal(e.EstructuraId, Assert.Single(cert.Estructuras).EstructuraCostosId);
+    }
+
+    [Fact]
+    public async Task GuardarItems_ConservaObservacionesYTipoMovimiento_YDescartaLoQueNoEsCarga()
+    {
+        var e = await CrearEstructuraAsync();
+        var (certId, bloqueId) = await CrearCertificadoAsync(e, 1);
+        var servicio = Servicio(Roles.CCyR);
+        await servicio.GuardarItemsAsync(certId, new() { [bloqueId] = new() { [e.ItemCantId] = 10m, [e.ItemGlobalId] = 20m } });
+
+        await using (var db = fx.CrearContexto())
+        {
+            // Lo que no viene del editor: observaciones y override del tipo de movimiento.
+            var fila = await db.ItemsCertificado.SingleAsync(i => i.CertificadoEstructuraId == bloqueId && i.ItemEstructuraId == e.ItemCantId);
+            fila.Observaciones = "Medición parcial";
+            fila.TipoMovimiento = TipoMovimiento.Demasia;
+            await db.SaveChangesAsync();
+        }
+
+        int agrupadorId;
+        await using (var db = fx.CrearContexto())
+            agrupadorId = (await db.ItemsEstructura.SingleAsync(i => i.EstructuraCostosId == e.EstructuraId && i.EsAgrupador)).Id;
+
+        // 0,00001 % se guarda con 4 decimales como 0: no es carga y su fila se borra. El
+        // agrupador y un ítem ajeno a la estructura se ignoran.
+        await servicio.GuardarItemsAsync(certId, new()
+        {
+            [bloqueId] = new() { [e.ItemCantId] = 15m, [e.ItemGlobalId] = 0.00001m, [agrupadorId] = 50m, [int.MaxValue] = 50m }
+        });
+
+        await using var db2 = fx.CrearContexto();
+        var filas = await db2.ItemsCertificado.Where(i => i.CertificadoEstructuraId == bloqueId).ToListAsync();
+        var unica = Assert.Single(filas);
+        Assert.Equal(e.ItemCantId, unica.ItemEstructuraId);
+        Assert.Equal(15m, unica.PorcentajeActual);
+        Assert.Equal("Medición parcial", unica.Observaciones);
+        Assert.Equal(TipoMovimiento.Demasia, unica.TipoMovimiento);
+    }
+
+    [Fact]
+    public async Task Bloques_DuplicadoYEnCerrado_SeRechazanConSuMotivo()
+    {
+        var e = await CrearEstructuraAsync();
+        var (certId, bloqueId) = await CrearCertificadoAsync(e, 1);
+        var servicio = Servicio(Roles.CCyR);
+
+        var duplicado = await servicio.AgregarBloqueAsync(certId, e.EstructuraId);
+        Assert.Equal(MotivoRechazoBloque.Duplicado, duplicado.Rechazo?.Motivo);
+
+        await servicio.CerrarAsync(certId);
+        var quitar = await servicio.QuitarBloqueAsync(bloqueId);
+        Assert.Equal(MotivoRechazoBloque.NoEditable, quitar.Rechazo?.Motivo);
+
+        await using var db = fx.CrearContexto();
+        Assert.Equal(1, await db.CertificadoEstructuras.CountAsync(b => b.CertificadoId == certId));
+    }
+
+    [Fact]
+    public async Task AprobarYVolverACerrado_SoloDesdeElEstadoQueCorresponde()
+    {
+        var e = await CrearEstructuraAsync();
+        var (certId, bloqueId) = await CrearCertificadoAsync(e, 1);
+        var servicio = Servicio(Roles.Admin);
+        await servicio.GuardarItemsAsync(certId, new() { [bloqueId] = new() { [e.ItemCantId] = 10m } });
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.AprobarAsync(certId));   // borrador
+
+        await servicio.CerrarAsync(certId);
+        await servicio.AprobarAsync(certId);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.ReabrirAsync(certId));   // aprobado
+        await servicio.DesaprobarAsync(certId);
+
+        await using var db = fx.CrearContexto();
+        Assert.Equal(EstadoCertificado.Cerrado, (await db.Certificados.SingleAsync(c => c.Id == certId)).Estado);
     }
 
     [Fact]
@@ -382,6 +663,7 @@ public class CertificadoServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbF
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             sinRol.GuardarItemsAsync(certId, new() { [bloqueId] = new() { [e.ItemCantId] = 10m } }));
         await Assert.ThrowsAsync<InvalidOperationException>(() => sinRol.CerrarAsync(certId));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => sinRol.EliminarAsync(certId));
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await sinRol.EliminarAsync(certId, await RowVersionAsync(certId)));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sinRol.CrearAsync(e.ObraId, new Models.ViewModels.CertificadoNuevoVM()));
     }
 }
