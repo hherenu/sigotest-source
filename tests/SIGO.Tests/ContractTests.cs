@@ -64,7 +64,7 @@ public sealed class ContractTests : IClassFixture<SigoWebApplicationFactory>
     [Theory]
     [InlineData("/")]
     [InlineData("/obras")]
-    [InlineData("/Certificado/Excel/1")]
+    [InlineData("/Certificado/DescargarExcel/1")]   // la ruta real del controller (antes una inexistente)
     public async Task TodoLoDemas_ExigeAutenticacion(string url)
     {
         using var client = CrearCliente();
