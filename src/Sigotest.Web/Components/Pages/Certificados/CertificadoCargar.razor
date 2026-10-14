@@ -35,7 +35,7 @@ else
                           IsBusy="@procesando" BusyText="Guardando..." Click="@GuardarAsync" />
             <RadzenButton Text="Importar % desde Excel" Icon="upload" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary"
                           Variant="Variant.Flat" Disabled="@procesando" Click="@ImportarExcelAsync" />
-            <RadzenButton Text="Ver Detalle" Icon="visibility" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info"
+            <RadzenButton Text="Ver Detalle" Icon="visibility" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
                           Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"certificados/{Id}"))" />
             <RadzenButton Text="Volver a Certificados" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
                           Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"obras/{vm.ObraId}/certificados"))" />
