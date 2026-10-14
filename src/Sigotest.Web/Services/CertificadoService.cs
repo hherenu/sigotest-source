@@ -69,6 +69,8 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
     /// Los % "PorBase" vienen null cuando el ítem no tiene base de cantidad ni monto:
     /// cada punto de uso decide su fallback sobre <see cref="AcumuladosItem.PctAnteriorDirecto"/>
     /// (Cerrar guarda el número; el VM muestra vacío cuando es 0).
+    /// Los llamadores pasan solo las filas del ítem (agrupadas con ToLookup): recorrer las
+    /// de toda la estructura por cada ítem crecía con ítems² × certificados cerrados.
     /// </summary>
     public static AcumuladosItem AcumuladosDeItem(
         IEnumerable<ItemCertificado> anteriores, ItemEstructura item, decimal cantMes, decimal montoMes)
@@ -154,7 +156,7 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
             var estructura = estructuras.GetValueOrDefault(bloque.EstructuraCostosId)
                 ?? throw new InvalidOperationException("La estructura de costos del bloque ya no existe.");
             var actuales = actualesPorBloque[bloque.Id].ToList();
-            var anteriores = anterioresPorEstructura[bloque.EstructuraCostosId];
+            var anterioresPorItem = anterioresPorEstructura[bloque.EstructuraCostosId].ToLookup(a => a.ItemEstructuraId);
 
             // En un certificado cerrado, un ítem sin fila de snapshot fue agregado a la
             // estructura DESPUÉS del cierre: no forma parte del certificado emitido y no
@@ -199,7 +201,7 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
                     // cantidad redondeada, que introducía deriva al reabrir el editor).
                     pctMes  = actual?.PorcentajeActual;
 
-                    var acum = AcumuladosDeItem(anteriores, item, cantMes, montoMes);
+                    var acum = AcumuladosDeItem(anterioresPorItem[item.Id], item, cantMes, montoMes);
                     cantAnt  = acum.CantidadAnterior;
                     montoAnt = acum.MontoAnterior;
                     // Sin base contractual, el avance se acumula directamente en % (única
@@ -492,13 +494,21 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
         // guardar-vs-cerrar terminan en conflicto de concurrencia (ver la extensión).
         db.AplicarTokenSesion(cert, rowVersionSesion, c => c.Estado);
 
+        // Las estructuras de todos los bloques en una query (antes era una por bloque),
+        // solo lectura: de ellas sale el contrato con que se calcula cada fila.
+        var idsEstructuras = cert.Estructuras.Select(b => b.EstructuraCostosId).Distinct().ToList();
+        var estructuras = await db.EstructurasCostos.AsNoTracking()
+            .Include(e => e.Items)
+            .Where(e => idsEstructuras.Contains(e.Id))
+            .ToDictionaryAsync(e => e.Id);
+
         foreach (var bloque in cert.Estructuras)
         {
             if (!porcentajesPorBloque.TryGetValue(bloque.Id, out var porcentajes)) continue;
 
-            var estructura = await db.EstructurasCostos
-                .Include(e => e.Items)
-                .FirstAsync(e => e.Id == bloque.EstructuraCostosId);
+            // Mismo criterio que BuildVmAsync y CerrarAsync: huérfana → excepción manejable.
+            var estructura = estructuras.GetValueOrDefault(bloque.EstructuraCostosId)
+                ?? throw new InvalidOperationException("La estructura de costos del bloque ya no existe.");
 
             // El guardado recrea las filas: lo que no viene del editor (observaciones,
             // override de TipoMovimiento) se arrastra de la fila anterior del mismo ítem.
@@ -572,7 +582,7 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
             // Mismo criterio que BuildVmAsync: huérfana → excepción manejable.
             var estructura = estructuras.GetValueOrDefault(bloque.EstructuraCostosId)
                 ?? throw new InvalidOperationException("La estructura de costos del bloque ya no existe.");
-            var anteriores = anterioresPorEstructura[bloque.EstructuraCostosId];
+            var anterioresPorItem = anterioresPorEstructura[bloque.EstructuraCostosId].ToLookup(a => a.ItemEstructuraId);
 
             decimal subAnterior = 0, subActual = 0;
 
@@ -583,7 +593,7 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
                 // Del % guardado con el contrato vigente, el mismo que se congela abajo: si el
                 // contrato del ítem cambió con el borrador abierto, lo guardado quedó viejo.
                 var (cantAct, montoAct) = MovimientoVigente(row, item);
-                var acum = AcumuladosDeItem(anteriores, item, cantAct, montoAct);
+                var acum = AcumuladosDeItem(anterioresPorItem[item.Id], item, cantAct, montoAct);
                 var cantAnt  = acum.CantidadAnterior;
                 var montoAnt = acum.MontoAnterior;
 
