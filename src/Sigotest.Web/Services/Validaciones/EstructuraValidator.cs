@@ -17,6 +17,33 @@ public static class EstructuraValidator
     public static string? DescripcionItem(string? descripcion) =>
         string.IsNullOrWhiteSpace(descripcion) ? "La descripción es obligatoria" : null;
 
+    /// <summary>
+    /// El padre de un ítem debe ser un agrupador de su misma estructura y, si el ítem es
+    /// un agrupador, no puede estar debajo de él: un ciclo dejaría al rubro y a todo lo
+    /// que cuelga de él fuera del árbol que muestran las páginas. La UI solo ofrece
+    /// agrupadores de la estructura, pero el servicio no puede confiar en eso.
+    /// <paramref name="itemId"/> es 0 en el alta.
+    /// </summary>
+    public static string? Padre(int? padreId, int itemId,
+        IReadOnlyCollection<(int Id, bool EsAgrupador, int? PadreId)> itemsDeLaEstructura)
+    {
+        if (padreId is not int p) return null;
+        if (p == itemId) return "Un ítem no puede ser su propio agrupador padre.";
+
+        var porId = itemsDeLaEstructura.ToDictionary(i => i.Id);
+        if (!porId.TryGetValue(p, out var padre))
+            return "El agrupador padre no pertenece a esta estructura.";
+        if (!padre.EsAgrupador)
+            return "El padre elegido no es un agrupador.";
+
+        // Subida por los ancestros del padre: si aparece el ítem, quedaría debajo de sí mismo.
+        var vistos = new HashSet<int>();
+        for (var a = padre.PadreId; a is int id && vistos.Add(id); a = porId.TryGetValue(id, out var x) ? x.PadreId : null)
+            if (id == itemId)
+                return "El agrupador padre está dentro de este ítem: se formaría un ciclo.";
+        return null;
+    }
+
     /// <summary>Resultado de <see cref="Normalizar(bool,int?,string?,string?,string?,decimal?,decimal?,bool)"/>.</summary>
     public sealed record ItemNormalizado(
         int? AgrupadorPadreId, string? Codigo, string Descripcion,

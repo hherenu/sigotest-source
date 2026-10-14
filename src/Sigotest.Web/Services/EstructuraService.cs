@@ -150,6 +150,7 @@ public class EstructuraService(IDbContextFactory<AppDbContext> dbFactory, ICurre
         var n = EstructuraValidator.Normalizar(nuevo, conservarPadreDeAgrupador: false);
 
         await using var db = await dbFactory.CreateDbContextAsync();
+        await ExigirPadreValidoAsync(db, estructuraId, n.AgrupadorPadreId, itemId: 0);
         db.ItemsEstructura.Add(NuevoItem(estructuraId, nuevo.EsAgrupador, n, await MaxOrdenAsync(db, estructuraId) + 1));
         await db.SaveChangesAsync();
     }
@@ -172,6 +173,8 @@ public class EstructuraService(IDbContextFactory<AppDbContext> dbFactory, ICurre
             // — conflicto de concurrencia (la página ofrece recargar), no "no encontrado".
             ?? throw new DbUpdateConcurrencyException(
                 "El ítem fue eliminado por otro usuario mientras se editaba.");
+        // La estructura sale de la DB, no del VM: el padre se valida contra la del ítem.
+        await ExigirPadreValidoAsync(db, item.EstructuraCostosId, n.AgrupadorPadreId, item.Id);
 
         item.AgrupadorPadreId = n.AgrupadorPadreId;
         item.Codigo = n.Codigo;
@@ -329,6 +332,21 @@ public class EstructuraService(IDbContextFactory<AppDbContext> dbFactory, ICurre
         await db.ItemsEstructura
             .Where(i => i.EstructuraCostosId == estructuraId)
             .MaxAsync(i => (int?)i.Orden) ?? 0;
+
+    /// <summary>
+    /// Aplica <see cref="EstructuraValidator.Padre"/> con los ítems de la estructura leídos
+    /// de la DB (solo si hay padre: sin padre no hay nada que leer).
+    /// </summary>
+    private static async Task ExigirPadreValidoAsync(AppDbContext db, int estructuraId, int? padreId, int itemId)
+    {
+        if (padreId is null) return;
+        var items = await db.ItemsEstructura.AsNoTracking()
+            .Where(i => i.EstructuraCostosId == estructuraId)
+            .Select(i => new { i.Id, i.EsAgrupador, i.AgrupadorPadreId })
+            .ToListAsync();
+        Validacion.Exigir(EstructuraValidator.Padre(padreId, itemId,
+            items.Select(i => (i.Id, i.EsAgrupador, i.AgrupadorPadreId)).ToList()));
+    }
 
     /// <summary>Ítem nuevo con los campos ya normalizados por el validator (el alta manual y la importación lo arman igual).</summary>
     private static ItemEstructura NuevoItem(int estructuraId, bool esAgrupador, EstructuraValidator.ItemNormalizado n, int orden) => new()

@@ -135,4 +135,31 @@ public class EstructuraValidatorTests
         Assert.Equal("La descripción es obligatoria", EstructuraValidator.DescripcionItem("   "));
         Assert.Null(EstructuraValidator.DescripcionItem("Excavación"));
     }
+
+    // ── Padre de un ítem ─────────────────────────────────────────────────────────
+
+    // Rubro 1 › (Sub-rubro 2 › Ítem 3); Ítem 4 en la raíz.
+    private static readonly (int Id, bool EsAgrupador, int? PadreId)[] ItemsDeEstructura =
+        [(1, true, null), (2, true, 1), (3, false, 2), (4, false, null)];
+
+    [Fact]
+    public void Padre_AgrupadorDeLaEstructura_OSinPadre_Pasa()
+    {
+        Assert.Null(EstructuraValidator.Padre(null, 4, ItemsDeEstructura));
+        Assert.Null(EstructuraValidator.Padre(2, 4, ItemsDeEstructura));
+        Assert.Null(EstructuraValidator.Padre(1, 0, ItemsDeEstructura));    // alta
+    }
+
+    [Fact]
+    public void Padre_DeOtraEstructuraNoAgrupadorOElMismoItem_Rechaza()
+    {
+        Assert.Contains("no pertenece", EstructuraValidator.Padre(99, 4, ItemsDeEstructura));
+        Assert.Contains("no es un agrupador", EstructuraValidator.Padre(3, 4, ItemsDeEstructura));
+        Assert.Contains("propio", EstructuraValidator.Padre(2, 2, ItemsDeEstructura));
+    }
+
+    [Fact]
+    public void Padre_QueCuelgaDelItem_FormariaUnCiclo() =>
+        // El rubro 1 no puede pasar a colgar del sub-rubro 2, que cuelga de él.
+        Assert.Contains("ciclo", EstructuraValidator.Padre(2, 1, ItemsDeEstructura));
 }
