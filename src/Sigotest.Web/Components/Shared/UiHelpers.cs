@@ -309,4 +309,26 @@ public static class Arbol
         Build(null, 0);
         return flat;
     }
+
+    /// <summary>
+    /// Suma de un valor de las hojas para cada agrupador, contando también las que cuelgan
+    /// de sus sub-agrupadores: un rubro con sub-rubros suma todo lo que tiene debajo (antes
+    /// solo sus hojas directas, y quedaba en blanco). Cada hoja suma a toda su cadena de
+    /// padres; un ciclo en los datos corta la subida en vez de colgar la página.
+    /// </summary>
+    public static Dictionary<int, decimal> SumaPorAgrupador<T>(
+        IReadOnlyCollection<T> items,
+        Func<T, int?> padreId, Func<T, int> id, Func<T, bool> esAgrupador, Func<T, decimal> valor)
+    {
+        var padres = items.ToDictionary(id, padreId);
+        var suma = new Dictionary<int, decimal>();
+        foreach (var hoja in items.Where(i => !esAgrupador(i)))
+        {
+            var v = valor(hoja);
+            var vistos = new HashSet<int>();
+            for (var p = padreId(hoja); p is int pid && vistos.Add(pid); p = padres.GetValueOrDefault(pid))
+                suma[pid] = suma.GetValueOrDefault(pid) + v;
+        }
+        return suma;
+    }
 }

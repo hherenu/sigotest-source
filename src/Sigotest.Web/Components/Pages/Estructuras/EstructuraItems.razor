@@ -213,13 +213,11 @@ else
     private void Recompute()
     {
         montoTotal = estructura!.MontoTotal;
-        // El monto de cada fila (suma de hojas directas para los agrupadores) se
-        // precalcula UNA vez acá: en los templates corría por fila × columna en cada
-        // render, O(n²) sobre la estructura completa.
-        var montoPorAgrupador = estructura.Items
-            .Where(i => !i.EsAgrupador && i.AgrupadorPadreId.HasValue && i.Monto.HasValue)
-            .GroupBy(i => i.AgrupadorPadreId!.Value)
-            .ToDictionary(g => g.Key, g => g.Sum(i => i.Monto!.Value));
+        // El monto de cada fila (para los agrupadores, la suma de todas las hojas que
+        // cuelgan de él, sub-rubros incluidos) se precalcula UNA vez acá: en los
+        // templates corría por fila × columna en cada render, O(n²) sobre la estructura.
+        var montoPorAgrupador = Arbol.SumaPorAgrupador(estructura.Items,
+            i => i.AgrupadorPadreId, i => i.Id, i => i.EsAgrupador, i => i.Monto ?? 0);
         filas = Arbol
             .Aplanar(estructura.Items, i => i.AgrupadorPadreId, i => i.Id, i => i.Orden, i => i.EsAgrupador)
             .Select(t => new Fila(t.Item, t.Nivel,

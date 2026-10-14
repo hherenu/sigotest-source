@@ -124,6 +124,35 @@ public class HelpersTests
         Assert.Equal("INDEC_INFORMA_01_26", pubs.OrderBy(PublicacionIndec.Orden).Last());
     }
 
+    // ── Árbol de estructura ──────────────────────────────────────────────────────
+
+    private sealed record Nodo(int Id, int? Padre, bool EsAgrupador, decimal Monto = 0);
+
+    private static Dictionary<int, decimal> Sumas(params Nodo[] nodos) =>
+        Arbol.SumaPorAgrupador(nodos, n => n.Padre, n => n.Id, n => n.EsAgrupador, n => n.Monto);
+
+    [Fact]
+    public void SumaPorAgrupador_UnRubroSumaTambienLoDeSusSubRubros()
+    {
+        // Rubro 1 › (hoja 2 de $10, Sub-rubro 3 › (hojas 4 y 5)); Rubro 6 sin hojas.
+        var sumas = Sumas(
+            new(1, null, true), new(2, 1, false, 10m), new(3, 1, true),
+            new(4, 3, false, 100m), new(5, 3, false, 1000m), new(6, null, true));
+
+        Assert.Equal(1110m, sumas[1]);   // antes solo la hoja directa: $10
+        Assert.Equal(1100m, sumas[3]);
+        Assert.False(sumas.ContainsKey(6));
+    }
+
+    [Fact]
+    public void SumaPorAgrupador_UnCicloEnLosDatosNoCuelga()
+    {
+        var sumas = Sumas(new(1, 2, true), new(2, 1, true), new(3, 1, false, 5m));
+
+        Assert.Equal(5m, sumas[1]);
+        Assert.Equal(5m, sumas[2]);
+    }
+
     [Fact]
     public void PubMayus_SigueEtiquetandoIgualSobreElParseoCompartido()
     {
