@@ -45,6 +45,39 @@ public class HelpersTests
         Assert.Null(PlanMails.UrlPlan("  ", 7));
     }
 
+    // ── Persistencia ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Persistencia_ErrorDeBaseEnvueltoPorEF_SeInformaComoErrorDeBase()
+    {
+        // Sin reintentos configurados, EF envuelve los errores transitorios (deadlock,
+        // timeout) en una InvalidOperationException en inglés: no es una regla de negocio y
+        // se informa el error de base que lleva adentro (el deadlock real lo prueba
+        // EstructuraServiceTests.AgregarItem_AltasSimultaneas_NoRepitenElOrden).
+        var notif = new Radzen.NotificationService();
+        var envuelto = new InvalidOperationException("An exception has been raised that is likely due to a transient failure.",
+            new Microsoft.EntityFrameworkCore.DbUpdateException("x", new Exception("detalle del proveedor")));
+
+        Assert.False(await Persistencia.EjecutarAsync(() => throw envuelto, notif));
+
+        var aviso = Assert.Single(notif.Messages);
+        Assert.Equal("Error al guardar", aviso.Summary);
+        Assert.Equal("detalle del proveedor", aviso.Detail);
+    }
+
+    [Fact]
+    public async Task Persistencia_ReglaDeNegocio_SeInformaConSuMensaje()
+    {
+        var notif = new Radzen.NotificationService();
+
+        Assert.False(await Persistencia.EjecutarAsync(
+            () => throw new InvalidOperationException("Solo se puede cerrar un certificado en borrador."), notif));
+
+        var aviso = Assert.Single(notif.Messages);
+        Assert.Equal("No se pudo completar", aviso.Summary);
+        Assert.Equal("Solo se puede cerrar un certificado en borrador.", aviso.Detail);
+    }
+
     [Fact]
     public void MesNombreSeguro_AcotaLosDatosSucios()
     {

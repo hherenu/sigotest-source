@@ -30,24 +30,22 @@ public static class Persistencia
         }
         catch (DbUpdateException ex)
         {
-            // Los códigos frecuentes de SQL Server se traducen a un mensaje entendible
-            // en vez del error crudo del proveedor en inglés.
-            var msg = (ex.InnerException as Microsoft.Data.SqlClient.SqlException)?.Number switch
-            {
-                547 => "No se puede completar: el registro está referenciado por otros datos "
-                     + "(certificados, redeterminaciones, planes o ítems que dependen de él).",
-                2601 or 2627 => "Ya existe un registro con esa clave (valor duplicado).",
-                _ => ex.InnerException?.Message ?? ex.Message
-            };
-            notif.Notify(NotificationSeverity.Error, "Error al guardar", msg, 8000);
+            NotificarErrorDeBase(ex, notif);
         }
         // Fallos del proveedor fuera de SaveChanges (SqlException en una query o al
         // abrir la conexión): sin esto, un corte transitorio de la DB dentro de la
         // acción tumbaba el circuito pese al wrapper.
         catch (System.Data.Common.DbException ex)
         {
-            notif.Notify(NotificationSeverity.Error, "Error de base de datos",
-                $"No se pudo acceder a la base de datos. Reintentá en unos segundos. ({ex.Message})", 8000);
+            NotificarErrorDeBase(ex, notif);
+        }
+        // Sin reintentos configurados, EF envuelve los errores transitorios de SQL Server
+        // (un deadlock entre transacciones Serializable, un timeout) en una
+        // InvalidOperationException con un mensaje en inglés: no es una regla de negocio,
+        // se traduce como el error de base que lleva adentro.
+        catch (InvalidOperationException ex) when (ex.InnerException is DbUpdateException or System.Data.Common.DbException)
+        {
+            NotificarErrorDeBase(ex.InnerException, notif);
         }
         // Reglas de negocio de los servicios (ej. "solo se puede cerrar un borrador").
         catch (InvalidOperationException ex)
@@ -55,6 +53,37 @@ public static class Persistencia
             notif.Notify(NotificationSeverity.Error, "No se pudo completar", ex.Message, 6000);
         }
         return false;
+    }
+
+    /// <summary>
+    /// Mensaje del error de base: los códigos frecuentes de SQL Server se traducen a un
+    /// mensaje entendible en vez del error crudo del proveedor en inglés.
+    /// </summary>
+    private static void NotificarErrorDeBase(Exception ex, NotificationService notif)
+    {
+        // Las transacciones Serializable (altas con número correlativo, cierres,
+        // importación) eligen una víctima cuando dos guardan a la vez sobre las mismas
+        // filas: la operación no se hizo y alcanza con repetirla.
+        const string Deadlock = "Otro usuario estaba guardando datos relacionados en el mismo momento. Volvé a intentar.";
+
+        if (ex is DbUpdateException)
+        {
+            var msg = (ex.InnerException as Microsoft.Data.SqlClient.SqlException)?.Number switch
+            {
+                547 => "No se puede completar: el registro está referenciado por otros datos "
+                     + "(certificados, redeterminaciones, planes o ítems que dependen de él).",
+                2601 or 2627 => "Ya existe un registro con esa clave (valor duplicado).",
+                1205 => Deadlock,
+                _ => ex.InnerException?.Message ?? ex.Message
+            };
+            notif.Notify(NotificationSeverity.Error, "Error al guardar", msg, 8000);
+            return;
+        }
+
+        notif.Notify(NotificationSeverity.Error, "Error de base de datos",
+            (ex as Microsoft.Data.SqlClient.SqlException)?.Number == 1205
+                ? Deadlock
+                : $"No se pudo acceder a la base de datos. Reintentá en unos segundos. ({ex.Message})", 8000);
     }
 }
 
