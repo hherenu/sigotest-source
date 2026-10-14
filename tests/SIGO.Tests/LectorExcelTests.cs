@@ -171,6 +171,17 @@ public class LectorExcelTests
         Assert.Equal([1, 100], LectorExcel.Leer(new MemoryStream(bytes), maxFilasRecorridas: 100).Hojas[0].Filas.Select(f => f.Numero));
     }
 
+    [Theory]
+    [InlineData("u", true)]
+    [InlineData("un.", true)]
+    [InlineData("um", true)]
+    [InlineData("unid.", true)]
+    [InlineData("unidad", true)]
+    [InlineData("cantidad", false)]
+    [InlineData("u$s", false)]
+    public void EsEncabezadoUnidad_ReconoceLasAbreviaturasHabituales(string normalizado, bool esperado) =>
+        Assert.Equal(esperado, TextoImport.EsEncabezadoUnidad(normalizado));
+
     [Fact]
     public void Leer_ArchivoQueNoEsPlanilla_LanzaMensajeParaElUsuario()
     {

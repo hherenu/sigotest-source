@@ -76,9 +76,13 @@ public static class TextoImport
     public static FilaExcel? FilaSiguiente(HojaExcel hoja, int indice) =>
         indice + 1 < hoja.Filas.Count ? hoja.Filas[indice + 1] : null;
 
-    /// <summary>Encabezado de la columna de unidad: «U», «Un», «Ud», «Unidad».</summary>
+    /// <summary>
+    /// Encabezado de la columna de unidad: «U», «Un», «Ud», «UM», «Unid.», «Unidad». Sin
+    /// reconocerla, los ítems se importaban sin unidad y un «No aplica» con TOTAL 0 se
+    /// tomaba por rubro (la unidad es lo que lo distingue).
+    /// </summary>
     public static bool EsEncabezadoUnidad(string normalizado) =>
-        normalizado is "u" or "u." or "un" or "ud" || normalizado.StartsWith("unidad");
+        normalizado is "u" or "u." or "un" or "un." or "ud" or "ud." or "um" or "u.m." || normalizado.StartsWith("unid");
 
     /// <summary>
     /// Columnas Item/Rubro y Descripción de una fila de encabezado, o false si no es

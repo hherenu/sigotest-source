@@ -43,8 +43,9 @@ error se registra) y no impide usar las demás.
 ## Estructura de costos (`/estructuras/{id}/importar`)
 
 **Encabezado por contenido.** Fila con `Item` o `Rubro` y `Descripción` (sin acentos ni
-mayúsculas). Las columnas se toman por nombre: `U`, `Cantidad`, `Precio/Valor Unitario`,
-`Subtotal`, `TOTAL`; las de USD se ignoran. Puede haber columnas antes del código.
+mayúsculas). Las columnas se toman por nombre: `U` (también `Un`, `Ud`, `UM`, `Unid.`,
+`Unidad`), `Cantidad`, `Precio/Valor Unitario`, `Subtotal`, `TOTAL`; las de USD se
+ignoran. Puede haber columnas antes del código.
 
 **Hoja.** Se preseleccionan antes las hojas con ítems: una con encabezado pero nada
 debajo (el «RESUMEN $» de Premetro) se marca «sin ítems» y solo se elige si no hay otra

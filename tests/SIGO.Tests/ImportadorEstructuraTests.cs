@@ -374,6 +374,21 @@ public class ImportadorEstructuraTests
         Assert.Contains("celda de texto", item.Detalle);
     }
 
+    [Fact]
+    public void EncabezadoDeUnidadAbreviado_SeReconoce()
+    {
+        // «Unid.» es el rótulo de la grilla de la app: sin reconocerlo, los ítems quedaban
+        // sin unidad.
+        var hoja = Hoja(
+            ["Item", "Descripción", "Unid.", "Cantidad", "Precio Unitario", "Precio Subtotal", "TOTAL"],
+            ["A.1", "Ítem", "m2", 2, 3, 6]);
+
+        var a = ImportadorEstructura.Analizar(hoja);
+
+        Assert.Contains("U=C", a.ColumnasDetectadas);
+        Assert.Equal("m2", a.Secciones[0].Filas[0].Unidad);
+    }
+
     // ── Elección de hoja ─────────────────────────────────────────────────────────
 
     [Fact]
