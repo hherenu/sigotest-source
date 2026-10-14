@@ -57,7 +57,7 @@ public class EstructuraService(IDbContextFactory<AppDbContext> dbFactory, ICurre
         var estructura = new EstructuraCostos
         {
             ObraId = obraId,
-            Nombre = vm.Nombre!,
+            Nombre = vm.Nombre!.Trim(),
             FechaCreacion = vm.FechaCreacion
         };
         db.EstructurasCostos.Add(estructura);
@@ -261,8 +261,7 @@ public class EstructuraService(IDbContextFactory<AppDbContext> dbFactory, ICurre
             Validacion.Exigir(EstructuraValidator.DescripcionItem(f.Descripcion));
 
         await using var db = await dbFactory.CreateDbContextAsync();
-        var estructura = await db.EstructurasCostos.FirstOrDefaultAsync(e => e.Id == estructuraId)
-            ?? throw new InvalidOperationException("La estructura ya no existe.");
+        var estructura = await db.EstructurasCostos.FirstOrThrowAsync(e => e.Id == estructuraId, "La estructura ya no existe.");
 
         db.AplicarTokenSesion(estructura, rowVersion, e => e.Nombre);
 

@@ -8,9 +8,9 @@ using SIGO.Services;
 namespace SIGO.Tests;
 
 /// <summary>
-/// Alta y edición de ítems de estructura contra LocalDB: el servicio valida el padre
-/// (agrupador de la misma estructura, sin ciclos) y los números (no negativos y dentro del
-/// rango de la base) aunque la página ya los acote.
+/// Alta, edición y baja de ítems de estructura contra LocalDB: el servicio valida el padre
+/// (agrupador de la misma estructura, sin ciclos) y el rango de los números aunque la página
+/// ya los acote, y la baja de un agrupador deja a sus hijos en la raíz.
 /// </summary>
 public class EstructuraServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbFixture>
 {
@@ -176,5 +176,32 @@ public class EstructuraServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbFi
         var guardado = await db.ItemsEstructura.SingleAsync(i => i.Id == e.ItemId);
         Assert.Equal(e.RubroId, guardado.AgrupadorPadreId);
         Assert.Equal(20m, guardado.Monto);
+    }
+
+    [Fact]
+    public async Task EliminarItem_Agrupador_DejaASusHijosEnLaRaiz()
+    {
+        var e = await CrearAsync();
+        var sub = await VmAsync(e.SubRubroId);
+
+        Assert.True(await Servicio().EliminarItemAsync(sub.Id, sub.RowVersion));
+
+        await using var db = fx.CrearContexto();
+        Assert.Null((await db.ItemsEstructura.SingleAsync(i => i.Id == e.ItemId)).AgrupadorPadreId);
+        Assert.False(await db.ItemsEstructura.AnyAsync(i => i.Id == e.SubRubroId));
+    }
+
+    [Fact]
+    public async Task Crear_RecortaElNombre()
+    {
+        var e = await CrearAsync();
+        int obraId;
+        await using (var db = fx.CrearContexto())
+            obraId = (await db.EstructurasCostos.SingleAsync(x => x.Id == e.EstructuraId)).ObraId;
+
+        var id = await Servicio().CrearAsync(obraId, new EstructuraFormVM { Nombre = "  Adicional N°1  " });
+
+        await using var db2 = fx.CrearContexto();
+        Assert.Equal("Adicional N°1", (await db2.EstructurasCostos.SingleAsync(x => x.Id == id)).Nombre);
     }
 }
