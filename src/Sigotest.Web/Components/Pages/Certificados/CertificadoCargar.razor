@@ -167,6 +167,7 @@ else
     private List<EstructuraOpcionVM> disponibles = new();
     private int? nuevoBloqueEstructuraId;
     private bool procesando;
+    private bool importando;
     // true tras un guardado exitoso: la navegación al detalle no debe pedir
     // confirmación aunque pct difiera del VM (que quedó con los valores previos).
     private bool navegacionSegura;
@@ -315,12 +316,21 @@ else
     /// </summary>
     private async Task ImportarExcelAsync()
     {
-        if (procesando || vm is null) return;
+        if (procesando || importando || vm is null) return;
 
-        var resultado = await DialogService.OpenAsync<CertificadoImportarDialog>(
-            "Importar % del mes desde Excel",
-            new Dictionary<string, object?> { [nameof(CertificadoImportarDialog.Vm)] = vm },
-            new DialogOptions { Width = "min(1100px, 92vw)" });
+        // Flag propio y no `procesando` (que pondría «Guardando...» en los botones Guardar
+        // mientras el diálogo está abierto), puesto ANTES de abrir: un doble clic no debe
+        // apilar dos diálogos de importación.
+        importando = true;
+        object? resultado;
+        try
+        {
+            resultado = await DialogService.OpenAsync<CertificadoImportarDialog>(
+                "Importar % del mes desde Excel",
+                new Dictionary<string, object?> { [nameof(CertificadoImportarDialog.Vm)] = vm },
+                new DialogOptions { Width = "min(1100px, 92vw)" });
+        }
+        finally { importando = false; }
         if (resultado is not List<AplicacionBloque> aplicaciones) return;
 
         var volcados = 0;
