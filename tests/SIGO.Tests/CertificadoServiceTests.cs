@@ -450,6 +450,74 @@ public class CertificadoServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbF
 
     // ── Alta, guardado, bloques y transiciones ───────────────────────────────────
 
+    [Theory]
+    [InlineData(0, 5, 2030, "número")]
+    [InlineData(1, 13, 2030, "mes")]
+    [InlineData(1, 0, 2030, "mes")]
+    [InlineData(1, 5, 2009, "año")]
+    [InlineData(1, 5, 2100, "año")]
+    public async Task Crear_ConNumeroMesOAnioFueraDeRango_Rechaza(int numero, int mes, int anio, string campo)
+    {
+        var e = await CrearEstructuraAsync();
+
+        var (id, rechazo) = await Servicio(Roles.CCyR).CrearAsync(e.ObraId, new Models.ViewModels.CertificadoNuevoVM
+        {
+            Numero = numero, Mes = mes, Anio = anio, EstructuraCostosId = e.EstructuraId, FechaEmision = new DateTime(2030, 1, 1)
+        });
+
+        Assert.Null(id);
+        Assert.Contains(campo, rechazo, StringComparison.OrdinalIgnoreCase);
+        await using var db = fx.CrearContexto();
+        Assert.False(await db.Certificados.AnyAsync(c => c.ObraId == e.ObraId));
+    }
+
+    [Fact]
+    public async Task Crear_ConElPrimerAnioAdmitido_Crea()
+    {
+        // 2010 es el primer año de certificado admitido (obras con certificación histórica).
+        var e = await CrearEstructuraAsync();
+
+        var (id, rechazo) = await Servicio(Roles.CCyR).CrearAsync(e.ObraId, new Models.ViewModels.CertificadoNuevoVM
+        {
+            Numero = 1, Mes = 1, Anio = 2010, EstructuraCostosId = e.EstructuraId, FechaEmision = new DateTime(2010, 1, 31)
+        });
+
+        Assert.Null(rechazo);
+        Assert.NotNull(id);
+    }
+
+    [Fact]
+    public async Task Crear_SinFechaDeEmision_Rechaza()
+    {
+        // Un selector de fecha vaciado deja el valor por defecto (01/01/0001).
+        var e = await CrearEstructuraAsync();
+
+        var (id, rechazo) = await Servicio(Roles.CCyR).CrearAsync(e.ObraId, new Models.ViewModels.CertificadoNuevoVM
+        {
+            Numero = 1, Mes = 5, Anio = 2030, EstructuraCostosId = e.EstructuraId, FechaEmision = default
+        });
+
+        Assert.Null(id);
+        Assert.Contains("fecha de emisión", rechazo);
+    }
+
+    [Fact]
+    public async Task Crear_ValidoArmaElBorradorConSuPrimerBloque()
+    {
+        var e = await CrearEstructuraAsync();
+
+        var (id, rechazo) = await Servicio(Roles.CCyR).CrearAsync(e.ObraId, new Models.ViewModels.CertificadoNuevoVM
+        {
+            Numero = 1, Mes = 5, Anio = 2030, EstructuraCostosId = e.EstructuraId, FechaEmision = new DateTime(2030, 5, 31)
+        });
+
+        Assert.Null(rechazo);
+        await using var db = fx.CrearContexto();
+        var cert = await db.Certificados.Include(c => c.Estructuras).SingleAsync(c => c.Id == id);
+        Assert.Equal(EstadoCertificado.Borrador, cert.Estado);
+        Assert.Equal(e.EstructuraId, Assert.Single(cert.Estructuras).EstructuraCostosId);
+    }
+
     [Fact]
     public async Task GuardarItems_ConservaObservacionesYTipoMovimiento_YDescartaLoQueNoEsCarga()
     {
@@ -516,5 +584,6 @@ public class CertificadoServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbF
             sinRol.GuardarItemsAsync(certId, new() { [bloqueId] = new() { [e.ItemCantId] = 10m } }));
         await Assert.ThrowsAsync<InvalidOperationException>(() => sinRol.CerrarAsync(certId));
         await Assert.ThrowsAsync<InvalidOperationException>(async () => await sinRol.EliminarAsync(certId, await RowVersionAsync(certId)));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sinRol.CrearAsync(e.ObraId, new Models.ViewModels.CertificadoNuevoVM()));
     }
 }

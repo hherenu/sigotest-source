@@ -67,6 +67,29 @@ public static class CertificadoValidator
         return null;
     }
 
+    /// <summary>Rango de años del alta (el form de la página usa los mismos límites).</summary>
+    public const int AnioMinimo = 2010;
+    public const int AnioMaximo = 2099;
+
+    /// <summary>
+    /// Datos del alta que la página ya acota (número ≥ 1, mes 1-12, año en rango) y que el
+    /// servicio no puede dar por buenos: un mes 13 persistido rompería después las
+    /// pantallas que muestran el período (Fmt.MesNombre no lo admite). La fecha de emisión
+    /// va en el mismo rango de años: un selector vaciado no puede guardar el 01/01/0001.
+    /// </summary>
+    public static string? Alta(int numero, int mes, int anio, DateTime fechaEmision)
+    {
+        if (numero < 1)
+            return "El número de certificado debe ser 1 o mayor.";
+        if (mes is < 1 or > 12)
+            return "El mes debe estar entre 1 y 12.";
+        if (anio is < AnioMinimo or > AnioMaximo)
+            return $"El año debe estar entre {AnioMinimo} y {AnioMaximo}.";
+        if (fechaEmision.Year is < AnioMinimo or > AnioMaximo)
+            return $"La fecha de emisión debe estar entre {AnioMinimo} y {AnioMaximo}.";
+        return null;
+    }
+
     /// <summary>
     /// Numeración del alta: la cadena del "Anterior" exige números únicos, sin huecos
     /// hacia arriba y nunca por debajo del último cerrado (su acumulado ya quedó

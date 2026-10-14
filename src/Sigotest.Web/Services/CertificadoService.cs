@@ -354,6 +354,9 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
     public async Task<(int? CertificadoId, string? Rechazo)> CrearAsync(int obraId, CertificadoNuevoVM vm)
     {
         ExigirRol("crear el certificado");
+        if (CertificadoValidator.Alta(vm.Numero, vm.Mes, vm.Anio, vm.FechaEmision) is string invalido)
+            return (null, invalido);
+
         await using var db = await dbFactory.CreateDbContextAsync();
 
         var yaExiste = await db.Certificados.AnyAsync(c => c.ObraId == obraId && c.Numero == vm.Numero);
