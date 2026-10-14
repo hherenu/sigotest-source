@@ -146,7 +146,9 @@
         try
         {
             // La lectura de un libro grande tarda unos segundos: fuera del hilo del circuito.
-            return await Task.Run(() => LectorExcel.Leer(copia), token);
+            // El token llega también al lector: sin él, cerrar el diálogo solo evitaba que
+            // la lectura arrancara, y una ya en curso seguía ocupando CPU hasta terminar.
+            return await Task.Run(() => LectorExcel.Leer(copia, token), token);
         }
         catch (OperationCanceledException)
         {

@@ -11,7 +11,10 @@ Piezas (`src/Sigotest.Web/Services/Importacion`):
 
 - `LectorExcel`: lee .xls, .xlsx y .xlsm con ExcelDataReader a una grilla en memoria
   (valores cacheados de fórmulas, formato numérico por celda, errores de Excel, columnas
-  acotadas a 120, hasta 50.000 filas con datos por hoja, hojas ocultas marcadas).
+  acotadas a 120, hasta 50.000 filas con datos por hoja, hojas ocultas marcadas). El
+  libro entero se acota a 500 hojas y 2.000.000 de filas recorridas, vacías incluidas
+  (una celda suelta en la última fila de Excel obliga a recorrer el millón anterior):
+  pasado un tope, se rechaza con un mensaje que pide subir una copia con menos hojas.
 - `TextoImport`: normalización de textos y helpers de encabezado y de fila de total
   compartidos por los dos importadores.
 - `ImportadorEstructura`: parser puro de desglose / cotización / balance a filas
@@ -27,7 +30,8 @@ por el circuito en partes, sin endpoint HTTP. Primero valida extensión y tamañ
 `OpenReadStream` vuelve a exigir en el servidor): un archivo rechazado no toca la planilla
 vigente. Si lo admite, avisa a la página antes de leer, para que nunca quede a la vista el
 libro anterior con el nombre del nuevo. Descarta una lectura vieja que termina tarde y
-cancela la lectura si se cierra el diálogo o se sale de la página. Se puede volver a elegir
+cancela la lectura si se cierra el diálogo o se sale de la página (el token llega al
+lector, que lo revisa entre hojas y cada 1.024 filas). Se puede volver a elegir
 el mismo archivo corregido porque el script de `InputFile` limpia el input en cada clic;
 después de leer o de «Quitar», el foco vuelve al selector.
 

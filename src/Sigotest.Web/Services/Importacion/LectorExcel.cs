@@ -12,12 +12,21 @@ namespace SIGO.Services.Importacion;
 /// hoja está oculta. Las columnas se acotan a <see cref="MaxColumnas"/> porque una hoja
 /// con formato aplicado hasta la XFC declara 16.384 columnas y recorrerlas todas por
 /// fila tarda minutos; las filas con datos, a <see cref="MaxFilasConDatos"/> por hoja.
+/// El libro entero se acota a <see cref="MaxHojas"/> hojas y <see cref="MaxFilasRecorridas"/>
+/// filas recorridas (las vacías también cuestan: una celda suelta en la fila 1.048.576
+/// obliga a recorrer el millón anterior), y la lectura se puede cancelar: sin topes ni
+/// cancelación, un archivo de pocos MB armado así podía ocupar CPU del servidor mucho
+/// tiempo aunque el usuario ya se hubiera ido.
 /// </summary>
 public static class LectorExcel
 {
     public const int MaxColumnas = 120;
     /// <summary>Las planillas reales no pasan de unas mil filas: el tope solo frena una hoja patológica.</summary>
     public const int MaxFilasConDatos = 50_000;
+    /// <summary>Los libros reales traen decenas de hojas (copias de meses anteriores incluidas).</summary>
+    public const int MaxHojas = 500;
+    /// <summary>Filas recorridas entre todas las hojas, vacías incluidas: alcanza para una hoja con una celda en la última fila de Excel.</summary>
+    public const int MaxFilasRecorridas = 2_000_000;
     public const int TamanoMaximoBytes = 12 * 1024 * 1024;
     public static readonly string[] ExtensionesAdmitidas = [".xls", ".xlsx", ".xlsm"];
 
@@ -48,8 +57,7 @@ public static class LectorExcel
         {
             // Redondeado hacia arriba: 12,04 MB no puede decir «pesa 12 MB y el máximo es 12 MB».
             var mb = Math.Ceiling(tamanoBytes * 10 / BytesPorMb) / 10;
-            return $"La planilla pesa {mb.ToString("0.#", EsAr)} MB y el máximo es {DescribirTamano(TamanoMaximoBytes)}. " +
-                   "Guardá una copia solo con las hojas que vas a importar y subí esa.";
+            return $"La planilla pesa {mb.ToString("0.#", EsAr)} MB y el máximo es {DescribirTamano(TamanoMaximoBytes)}. {SugerenciaCopia}";
         }
         return null;
     }
@@ -64,13 +72,17 @@ public static class LectorExcel
     /// Lee todas las hojas del libro. Lanza InvalidOperationException con un mensaje
     /// para el usuario si el archivo no es una planilla o está protegido.
     /// </summary>
-    public static LibroExcel Leer(byte[] contenido) => Leer(new MemoryStream(contenido, writable: false));
+    public static LibroExcel Leer(byte[] contenido, CancellationToken cancelacion = default) =>
+        Leer(new MemoryStream(contenido, writable: false), cancelacion);
 
     /// <summary>
-    /// Igual que <see cref="Leer(byte[])"/> sobre un stream con seek (ExcelDataReader lo
-    /// necesita para los .xlsx y los .xls). Lee desde el principio.
+    /// Igual que <see cref="Leer(byte[], CancellationToken)"/> sobre un stream con seek
+    /// (ExcelDataReader lo necesita para los .xlsx y los .xls). Lee desde el principio.
+    /// Cancelado, lanza OperationCanceledException. Los topes son parámetros para que los
+    /// tests los ejerciten con libros chicos; la app usa siempre los de la clase.
     /// </summary>
-    public static LibroExcel Leer(Stream contenido)
+    public static LibroExcel Leer(Stream contenido, CancellationToken cancelacion = default,
+        int maxHojas = MaxHojas, int maxFilasRecorridas = MaxFilasRecorridas)
     {
         if (contenido.Length == 0)
             throw new InvalidOperationException("El archivo está vacío.");
@@ -80,9 +92,14 @@ public static class LectorExcel
             contenido.Position = 0;
             using var reader = ExcelReaderFactory.CreateReader(contenido);
             var hojas = new List<HojaExcel>();
+            var recorridas = 0;
             do
             {
-                hojas.Add(LeerHoja(reader, hojas.Count + 1));
+                cancelacion.ThrowIfCancellationRequested();
+                if (hojas.Count == maxHojas)
+                    throw new InvalidOperationException(
+                        $"La planilla tiene más de {maxHojas.ToString("N0", EsAr)} hojas. {SugerenciaCopia}");
+                hojas.Add(LeerHoja(reader, hojas.Count + 1, ref recorridas, maxFilasRecorridas, cancelacion));
             } while (reader.NextResult());
             return new LibroExcel(hojas);
         }
@@ -100,14 +117,18 @@ public static class LectorExcel
         }
         // Un .xlsx truncado o con el zip dañado sale como InvalidDataException del
         // ZipArchive, y algunos .xls raros con otras excepciones del lector: para el
-        // usuario todas son «archivo ilegible», no un error del circuito.
-        catch (Exception ex) when (ex is not InvalidOperationException)
+        // usuario todas son «archivo ilegible», no un error del circuito. La cancelación
+        // sigue siendo cancelación (el selector la descarta sin avisar).
+        catch (Exception ex) when (ex is not InvalidOperationException and not OperationCanceledException)
         {
             throw new InvalidOperationException($"No se pudo leer la planilla: el archivo está dañado o no es un Excel válido ({ex.GetType().Name}).", ex);
         }
     }
 
-    private static HojaExcel LeerHoja(IExcelDataReader reader, int indice)
+    private const string SugerenciaCopia = "Guardá una copia solo con las hojas que vas a importar y subí esa.";
+
+    private static HojaExcel LeerHoja(IExcelDataReader reader, int indice,
+        ref int recorridas, int maxFilasRecorridas, CancellationToken cancelacion)
     {
         var filas = new List<FilaExcel>();
         var columnas = Math.Min(reader.FieldCount, MaxColumnas);
@@ -116,6 +137,11 @@ public static class LectorExcel
         while (reader.Read())
         {
             numero++;
+            if (++recorridas > maxFilasRecorridas)
+                throw new InvalidOperationException(
+                    $"La planilla es demasiado grande para leerla: entre todas sus hojas pasa de {maxFilasRecorridas.ToString("N0", EsAr)} filas " +
+                    $"(suele deberse a celdas usadas muy por debajo de los datos). {SugerenciaCopia}");
+            if (recorridas % 1024 == 0) cancelacion.ThrowIfCancellationRequested();
             CeldaExcel[]? celdas = null;
             var ultima = -1;
             for (var c = 0; c < columnas; c++)

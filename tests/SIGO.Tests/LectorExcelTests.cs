@@ -130,6 +130,48 @@ public class LectorExcelTests
     }
 
     [Fact]
+    public void Leer_Cancelado_LanzaCancelacionYNoUnMensajeDeArchivoIlegible()
+    {
+        // El selector descarta la cancelación sin avisar; envuelta como «archivo dañado»
+        // mostraba un error al usuario que ya había cerrado el diálogo.
+        var bytes = Libro(wb => wb.Worksheets.Add("Datos").Cell("A1").Value = "Item");
+
+        Assert.Throws<OperationCanceledException>(() => LectorExcel.Leer(bytes, new CancellationToken(canceled: true)));
+    }
+
+    [Fact]
+    public void Leer_ConMasHojasQueElTope_MensajeParaElUsuario()
+    {
+        var bytes = Libro(wb =>
+        {
+            foreach (var nombre in new[] { "A", "B", "C" })
+                wb.Worksheets.Add(nombre).Cell("A1").Value = nombre;
+        });
+
+        var ex = Assert.Throws<InvalidOperationException>(() => LectorExcel.Leer(new MemoryStream(bytes), maxHojas: 2));
+
+        Assert.Contains("más de 2 hojas", ex.Message);
+        Assert.Equal(3, LectorExcel.Leer(new MemoryStream(bytes), maxHojas: 3).Hojas.Count);
+    }
+
+    [Fact]
+    public void Leer_LasFilasVaciasCuentanParaElTopeDeFilasRecorridas()
+    {
+        // Una celda suelta en la fila 100 obliga a recorrer las 99 vacías de arriba.
+        var bytes = Libro(wb =>
+        {
+            var ws = wb.Worksheets.Add("Datos");
+            ws.Cell("A1").Value = "Item";
+            ws.Cell("A100").Value = "suelta";
+        });
+
+        var ex = Assert.Throws<InvalidOperationException>(() => LectorExcel.Leer(new MemoryStream(bytes), maxFilasRecorridas: 50));
+
+        Assert.Contains("demasiado grande", ex.Message);
+        Assert.Equal([1, 100], LectorExcel.Leer(new MemoryStream(bytes), maxFilasRecorridas: 100).Hojas[0].Filas.Select(f => f.Numero));
+    }
+
+    [Fact]
     public void Leer_ArchivoQueNoEsPlanilla_LanzaMensajeParaElUsuario()
     {
         var ex = Assert.Throws<InvalidOperationException>(() => LectorExcel.Leer("esto no es un excel"u8.ToArray()));
