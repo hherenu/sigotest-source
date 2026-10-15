@@ -16,11 +16,13 @@ Piezas (`src/Sigotest.Web/Services/Importacion`):
   (una celda suelta en la última fila de Excel obliga a recorrer el millón anterior):
   pasado un tope, se rechaza con un mensaje que pide subir una copia con menos hojas.
 - `TextoImport`: normalización de textos y helpers de encabezado y de fila de total
-  compartidos por los dos importadores.
+  compartidos por los importadores.
 - `ImportadorEstructura`: parser puro de desglose / cotización / balance a filas
   clasificadas; `EstructuraService.ImportarItemsAsync` las persiste.
 - `ImportadorCertificado`: parser puro de la hoja CERTIFICADO a secciones y matching
   contra los bloques; el resultado se vuelca en la grilla de carga, no se guarda.
+- `PlantillaIndices`: genera y lee la plantilla de valores mensuales de índices INDEC
+  (ver `docs/importacion-indices.md`).
 
 La subida es el componente compartido `SelectorPlanilla` (`Components/Shared`), con
 `InputFile` de Blazor y no `RadzenFileInput`, que manda el archivo entero como data URL en

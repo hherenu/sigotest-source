@@ -24,6 +24,18 @@ public class IndiceService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUs
     public static string? NormalizarPublicacion(string? idPublicacion) =>
         string.IsNullOrWhiteSpace(idPublicacion) ? null : idPublicacion.Trim();
 
+    /// <summary>
+    /// Índice de las tasas activas del Banco Nación: sus valores no salen de la revista INDEC
+    /// y se cargan sin publicación, de a uno, desde «Valores mensuales» (decisión 2026-10-07).
+    /// Cargado con una publicación le ganaría a la tasa en el cálculo de esa publicación
+    /// (RedeterminacionService elige primero la publicación pedida), por eso no va en la
+    /// plantilla de importación (<see cref="Importacion.PlantillaIndices"/>).
+    /// </summary>
+    public const string CodigoTasasBancoNacion = "COSTO_FINANCIERO";
+
+    public static bool EsTasasBancoNacion(string? codigo) =>
+        string.Equals(codigo?.Trim(), CodigoTasasBancoNacion, StringComparison.OrdinalIgnoreCase);
+
     // ── Catálogo de índices ──────────────────────────────────────────────────────
 
     /// <summary>Proyección entidad → VM, única para listado y detalle.</summary>
