@@ -424,6 +424,9 @@ html, body {
     flex-wrap: wrap;
     gap: .5rem;
     min-height: 2.25rem;
+    /* Mismo cuerpo que el texto Body2 de las tarjetas donde se usa: a 1rem el nombre en
+       negrita sobresalía de todo lo demás. */
+    font-size: .875rem;
 }
 .app-selector-planilla-boton {
     position: relative;

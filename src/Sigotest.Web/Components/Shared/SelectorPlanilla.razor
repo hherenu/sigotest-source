@@ -3,7 +3,7 @@
 @inject NotificationService Notifications
 @inject ILogger<SelectorPlanilla> Logger
 
-@* Selector de planilla Excel de las importaciones (estructuras y certificados). Usa
+@* Selector de planilla Excel de las importaciones (estructuras, certificados e índices). Usa
    InputFile de Blazor y no RadzenFileInput: InputFile manda el archivo por el circuito en
    partes, mientras que RadzenFileInput lo manda entero como data URL en un solo mensaje y
    obligaría a subir el límite de mensajes del hub. El input va transparente sobre un
@@ -197,7 +197,10 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!enfocarInput || input?.Element is not ElementReference elemento) return;
+        // El pedido espera a que el input vuelva a estar habilitado: una página que deshabilita
+        // el selector mientras analiza (índices) lo consumía sobre el input deshabilitado y el
+        // foco se perdía.
+        if (!enfocarInput || Disabled || leyendo || input?.Element is not ElementReference elemento) return;
         enfocarInput = false;
         try
         {
