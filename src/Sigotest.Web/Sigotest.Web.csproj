@@ -20,7 +20,7 @@
     <!-- Lectura de planillas subidas (.xls, .xlsx y .xlsm): ClosedXML solo lee .xlsx y
          las planillas reales de las contratistas llegan en los tres formatos. -->
     <PackageReference Include="ExcelDataReader" Version="3.9.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" Version="10.0.10" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" Version="10.0.13" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -32,6 +32,9 @@
     </PackageReference>
     <PackageReference Include="Radzen.Blazor" Version="10.4.3" />
     <PackageReference Include="System.DirectoryServices.AccountManagement" Version="10.0.10" />
+    <!-- Fija la dependencia transitiva: EF Core SqlServer 10.0.8 → Microsoft.Data.SqlClient 6.1.1
+         la trae como 9.0.4, con vulnerabilidades conocidas (NU1902/NU1903). -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
   </ItemGroup>
 
 </Project>
