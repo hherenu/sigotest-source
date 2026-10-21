@@ -16,131 +16,215 @@
     </Acciones>
 </CabeceraPagina>
 
-<RadzenRow Gap="1rem" RowGap="1rem">
-    <RadzenColumn Size="12" SizeMD="4">
-        <RadzenCard Variant="Variant.Outlined">
-            <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">Datos de la publicación</RadzenText>
+@* Mismo esquema que Importar ítems (EstructuraImportar): los datos y las acciones en una
+   tarjeta arriba, en el orden en que se usan, y la vista previa debajo a todo el ancho
+   (una plantilla completa son unas 500 filas). No hay RadzenTemplateForm (el pegado no es
+   un form): el ID obligatorio se valida al Analizar con notificación y el servicio lo
+   vuelve a exigir. Cambiar cualquier entrada del análisis (ID, período, pegado) descarta la
+   vista previa: «Ya existe» se evalúa contra ESA publicación y el período por defecto va
+   en las filas de 2 columnas, así que la vista previa vieja ya no vale. *@
+<RadzenCard Variant="Variant.Outlined" class="rz-mb-3">
+    <RadzenRow Gap="1.5rem" RowGap="1.5rem">
+        @* 3/6/3 desde 1280 px (SizeLG; en Radzen 10 «XL» recién es 1920 px): el paso 2 entra en una línea. Más
+           angosto, los pasos se apilan en vez de partir el archivo y sus acciones. *@
+        <RadzenColumn Size="12" SizeLG="3">
             <RadzenStack Gap="0.75rem">
-                @* No hay RadzenTemplateForm (el pegado no es un form): el obligatorio se
-                   valida al Analizar con notificación, y el servicio lo vuelve a exigir.
-                   Cambiar cualquier entrada del análisis (ID, período, pegado) descarta la vista
-                   previa: «Ya existe» se evalúa contra ESA publicación y el período por defecto
-                   va en las filas de 2 columnas, así que la vista previa vieja ya no vale. *@
-                @* El ejemplo va en Helper: Radzen no renderiza Placeholder dentro de un FormField. *@
+                <RadzenText TextStyle="TextStyle.Overline" TagName="TagName.H2" class="rz-mb-0">1 · Publicación</RadzenText>
+                @* El ejemplo va en Helper: Radzen no renderiza Placeholder dentro de un FormField.
+                   Con una planilla cargada el ID es el del archivo y no se edita: sus meses salen
+                   de esa publicación, y con otro ID se importarían bajo una publicación ajena. *@
                 <RadzenFormField Text="ID Publicación (INDEC_INFORMA_MM_AA) *" Variant="Variant.Outlined" style="width:100%">
                     <ChildContent>
-                        <RadzenTextBox @bind-Value="idPublicacion" @bind-Value:after="DescartarAnalisis" style="width:100%" />
+                        <RadzenTextBox @bind-Value="idPublicacion" @bind-Value:after="DescartarAnalisis" ReadOnly="@(planilla is not null)" style="width:100%" />
                     </ChildContent>
                     <Helper>
-                        <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">Ej: INDEC_INFORMA_05_26</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">
+                            @(planilla is not null ? "Tomado de la planilla." : "Ej: INDEC_INFORMA_05_26")
+                        </RadzenText>
                     </Helper>
                 </RadzenFormField>
-                <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
-                    Identifica la publicación de la que salen los valores; el cálculo de redeterminaciones elige los
-                    valores por publicación. Los valores sin publicación, como las tasas del Banco Nación
-                    (COSTO_FINANCIERO), no se importan por acá: se cargan de a uno desde «Valores mensuales» del índice.
+                <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">
+                    Las tasas del Banco Nación (@IndiceService.CodigoTasasBancoNacion) van sin publicación: se cargan desde
+                    «Valores mensuales» del índice.
                 </RadzenText>
-                <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
-                    Período al que corresponden los valores de 2 columnas (las filas de 4 columnas traen su propio período):
-                </RadzenText>
-                <RadzenFormField Text="Año" Variant="Variant.Outlined" style="width:100%">
-                    <RadzenNumeric @bind-Value="anio" @bind-Value:after="DescartarAnalisis" Min="2000" Max="2100" ShowUpDown="false" style="width:100%" />
-                </RadzenFormField>
-                <RadzenFormField Text="Mes" Variant="Variant.Outlined" style="width:100%">
-                    <RadzenDropDown @bind-Value="mes" @bind-Value:after="DescartarAnalisis" Data="@(Enumerable.Range(1, 12))" TValue="int" style="width:100%">
-                        <Template Context="m">@Fmt.MesNombre(m)</Template>
-                    </RadzenDropDown>
-                </RadzenFormField>
-
-                <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
-                    Pegá desde Excel una fila por índice, en uno de estos formatos (separados por tabulación o «;»):<br />
-                    <b>CÓDIGO&nbsp;·&nbsp;VALOR</b> (usa el período de arriba)<br />
-                    <b>CÓDIGO&nbsp;·&nbsp;AÑO&nbsp;·&nbsp;MES&nbsp;·&nbsp;VALOR</b><br />
-                    Si una fila sale «Código desconocido», el índice falta en el catálogo: el botón
-                    <b>Agregar al catálogo</b> de esa fila lo crea sin perder el pegado.
-                </RadzenText>
-                @* Immediate: cada edición del pegado (evento input) descarta la vista previa al
-                   instante, sin esperar al blur. El pegado grande que se perdía («Nada para
-                   analizar») lo resolvió el límite de mensaje del hub en Program.cs, no esto. *@
-                <RadzenTextArea @bind-Value="textoPegado" @bind-Value:after="DescartarAnalisis" Immediate="true" Rows="12" style="width:100%; font-family:monospace"
-                                aria-label="Filas pegadas desde Excel (código y valor)"
-                                Placeholder="ALBANILERIA	11883,8&#10;MANO_OBRA	11129,8&#10;…" />
-
-                <RadzenButton Text="Analizar" Icon="search" ButtonStyle="ButtonStyle.Secondary" Style="width:100%"
-                              Disabled="@procesando" Click="@AnalizarAsync" />
-                <RadzenButton Text="@($"Importar {filasOk} valores")" Icon="upload" ButtonStyle="ButtonStyle.Primary" Style="width:100%"
-                              Disabled="@(procesando || filasOk == 0)" IsBusy="@importando" BusyText="Importando..."
-                              Click="@ImportarAsync" />
             </RadzenStack>
-        </RadzenCard>
-    </RadzenColumn>
+        </RadzenColumn>
 
-    <RadzenColumn Size="12" SizeMD="8">
-        <RadzenCard Variant="Variant.Outlined">
-            <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">Vista previa</RadzenText>
-            @if (filas.Count == 0)
-            {
+        <RadzenColumn Size="12" SizeLG="6">
+            <RadzenStack Gap="0.75rem">
+                <RadzenText TextStyle="TextStyle.Overline" TagName="TagName.H2" class="rz-mb-0">2 · Plantilla Excel</RadzenText>
+                @* Plantilla (PlantillaIndices): la descarga lleva el catálogo vigente y los meses de
+                   la publicación; en cada índice se pega la fila de valores del PDF y Excel la
+                   reparte en los meses. Subida, sus valores pasan por el mismo análisis que el
+                   pegado, que se oculta mientras haya un archivo elegido: una sola fuente.
+                   Descargar es exportación (Light flat, convenciones-ui) y queda distinta de
+                   «Elegir planilla», que es la acción del paso. Todos los botones de la tarjeta
+                   van en tamaño chico, el del selector. *@
                 <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
-                    Todavía no hay filas analizadas. Pegá los valores y presioná «Analizar».
+                    Pegá en cada índice la fila de valores del PDF: se reparte sola en los
+                    @PlantillaIndices.CantidadMeses meses de la publicación.
                 </RadzenText>
-            }
-            else
-            {
-                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap" class="rz-mb-3">
-                    <RadzenBadge Text="@($"{filasOk} a importar")" BadgeStyle="BadgeStyle.Success" />
-                    @if (filas.Count(f => f.Estado == EstadoFilaImport.YaExiste) is int ye and > 0)
-                    {
-                        <RadzenBadge Text="@($"{ye} ya existen (se omiten)")" BadgeStyle="BadgeStyle.Warning" />
-                    }
-                    @if (filas.Count(f => f.Estado is EstadoFilaImport.CodigoDesconocido or EstadoFilaImport.FilaInvalida or EstadoFilaImport.DuplicadaEnPegado) is int er and > 0)
-                    {
-                        <RadzenBadge Text="@($"{er} con error")" BadgeStyle="BadgeStyle.Danger" />
-                    }
-                </RadzenStack>
+                <div>
+                    <RadzenButton Text="Descargar plantilla" Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                                  Disabled="@procesando" Click="@DescargarPlantilla" />
+                </div>
+                <SelectorPlanilla Disabled="@procesando" Cambio="@OnPlanillaAsync" />
+            </RadzenStack>
+        </RadzenColumn>
 
-                @* Anchos declarados en todas las columnas: la suma supera la tarjeta y la tabla
-                   scrollea a lo ancho (CSS global) en vez de truncar el código o el botón de
-                   Estado. Columnas redimensionables como en las grillas de catálogo. *@
-                <RadzenDataGrid Data="@filas" TItem="FilaImport" Density="Density.Compact"
-                                AllowSorting="true" AllowPaging="true" PageSize="20" AllowColumnResize="true">
-                    <Columns>
-                        <RadzenDataGridColumn TItem="FilaImport" Property="Linea" Title="Línea" Width="70px" TextAlign="TextAlign.Center" />
-                        <RadzenDataGridColumn TItem="FilaImport" Property="Codigo" Title="Código" Width="250px" />
-                        <RadzenDataGridColumn TItem="FilaImport" Title="Período" Width="110px">
-                            <Template Context="f">@(f.Anio > 0 ? $"{Fmt.MesCorto(f.Mes)} {f.Anio}" : "—")</Template>
-                        </RadzenDataGridColumn>
-                        <RadzenDataGridColumn TItem="FilaImport" Title="Valor" Width="120px" TextAlign="TextAlign.Right">
-                            <Template Context="f">@(f.Valor is decimal v ? v.ToString("N4") : "—")</Template>
-                        </RadzenDataGridColumn>
-                        <RadzenDataGridColumn TItem="FilaImport" Title="Estado" Width="460px">
-                            <Template Context="f">
-                                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                                    <RadzenBadge Text="@EtiquetaEstado(f.Estado)" BadgeStyle="@BadgeEstado(f.Estado)" />
-                                    @if (f.Detalle is not null)
-                                    {
-                                        <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0" style="white-space:normal">@f.Detalle</RadzenText>
-                                    }
-                                    @if (f.Estado == EstadoFilaImport.CodigoDesconocido)
-                                    {
-                                        <RadzenButton Text="Agregar al catálogo" Icon="add" Size="ButtonSize.ExtraSmall"
-                                                      ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Flat"
-                                                      Disabled="@procesando" Click="@(() => AgregarAlCatalogoAsync(f.Codigo))" />
-                                    }
-                                </RadzenStack>
-                            </Template>
-                        </RadzenDataGridColumn>
-                    </Columns>
-                </RadzenDataGrid>
-            }
-        </RadzenCard>
-    </RadzenColumn>
-</RadzenRow>
+        <RadzenColumn Size="12" SizeLG="3">
+            <RadzenStack Gap="0.75rem">
+                <RadzenText TextStyle="TextStyle.Overline" TagName="TagName.H2" class="rz-mb-0">3 · Revisar e importar</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
+                    Solo se importan las filas «A importar».
+                </RadzenText>
+                @* Con un archivo elegido que no se puede usar (o que se está leyendo) no hay qué analizar. *@
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                    <RadzenButton Text="Analizar" Icon="search" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary"
+                                  Disabled="@(procesando || (archivoPlanilla is not null && planilla is null))" Click="@AnalizarAsync" />
+                    <RadzenButton Text="@(filasOk == 0 ? "Importar" : $"Importar {filasOk} valores")" Icon="upload" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                                  Disabled="@(procesando || filasOk == 0)" IsBusy="@importando" BusyText="Importando..."
+                                  Click="@ImportarAsync" />
+                </RadzenStack>
+            </RadzenStack>
+        </RadzenColumn>
+    </RadzenRow>
+</RadzenCard>
+
+@if (archivoPlanilla is null)
+{
+    @* El pegado es la alternativa a la plantilla: plegado para no competir con ella, en un
+       RadzenFieldset como los de ObraForm. Se recuerda si el usuario lo abrió. *@
+    <RadzenFieldset Text="¿Preferís pegar filas?" AllowCollapse="true" Collapsed="@pegadoPlegado"
+                    Expand="@(() => pegadoPlegado = false)" Collapse="@(() => pegadoPlegado = true)" class="rz-mb-3">
+        <RadzenRow Gap="1rem" RowGap="1rem">
+            <RadzenColumn Size="12" SizeMD="4">
+                <RadzenStack Gap="0.75rem">
+                    <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
+                        Período de las filas de 2 columnas (las de 4 columnas traen el suyo):
+                    </RadzenText>
+                    <RadzenFormField Text="Año" Variant="Variant.Outlined" style="width:100%">
+                        <RadzenNumeric @bind-Value="anio" @bind-Value:after="DescartarAnalisis" Min="2000" Max="2100" ShowUpDown="false" style="width:100%" />
+                    </RadzenFormField>
+                    <RadzenFormField Text="Mes" Variant="Variant.Outlined" style="width:100%">
+                        <RadzenDropDown @bind-Value="mes" @bind-Value:after="DescartarAnalisis" Data="@(Enumerable.Range(1, 12))" TValue="int" style="width:100%">
+                            <Template Context="m">@Fmt.MesNombre(m)</Template>
+                        </RadzenDropDown>
+                    </RadzenFormField>
+                </RadzenStack>
+            </RadzenColumn>
+            <RadzenColumn Size="12" SizeMD="8">
+                <RadzenStack Gap="0.75rem">
+                    <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
+                        Una fila por índice copiada de un Excel propio, separada por tabulación o «;»:
+                        <b>CÓDIGO&nbsp;·&nbsp;VALOR</b> (usa el período de la izquierda) o
+                        <b>CÓDIGO&nbsp;·&nbsp;AÑO&nbsp;·&nbsp;MES&nbsp;·&nbsp;VALOR</b>.
+                    </RadzenText>
+                    @* Immediate: cada edición del pegado (evento input) descarta la vista previa al
+                       instante, sin esperar al blur. El pegado grande que se perdía («Nada para
+                       analizar») lo resolvió el límite de mensaje del hub en Program.cs, no esto. *@
+                    <RadzenTextArea @bind-Value="textoPegado" @bind-Value:after="DescartarAnalisis" Immediate="true" Rows="8" style="width:100%; font-family:monospace"
+                                    aria-label="Filas pegadas desde Excel (código y valor)" Placeholder="@EjemploPegado" />
+                </RadzenStack>
+            </RadzenColumn>
+        </RadzenRow>
+    </RadzenFieldset>
+}
+
+<RadzenCard Variant="Variant.Outlined">
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween"
+                 Wrap="FlexWrap.Wrap" Gap="0.75rem" class="rz-mb-3">
+        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Vista previa</RadzenText>
+        @if (filas.Count > 0)
+        {
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                <RadzenBadge Text="@($"{filasOk} a importar")" BadgeStyle="BadgeStyle.Success" />
+                @if (filas.Count(f => f.Estado == EstadoFilaImport.YaExiste) is int ye and > 0)
+                {
+                    <RadzenBadge Text="@($"{ye} ya existen (se omiten)")" BadgeStyle="BadgeStyle.Warning" />
+                }
+                @if (filas.Count(f => f.Estado is EstadoFilaImport.CodigoDesconocido or EstadoFilaImport.FilaInvalida or EstadoFilaImport.DuplicadaEnPegado) is int er and > 0)
+                {
+                    <RadzenBadge Text="@($"{er} con error")" BadgeStyle="BadgeStyle.Danger" />
+                }
+            </RadzenStack>
+        }
+    </RadzenStack>
+    @if (leyendoPlanilla)
+    {
+        <EstadoCargando Texto="Leyendo la planilla…" />
+    }
+    else if (errorPlanilla is not null)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Warning" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false">
+            @errorPlanilla Quitá la planilla para volver al pegado o elegí otra.
+        </RadzenAlert>
+    }
+    else if (filas.Count == 0)
+    {
+        <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
+            @(planilla is not null
+                ? "No hay filas analizadas. «Analizar» vuelve a leer la planilla."
+                : "Todavía no hay filas analizadas. Subí la plantilla completada, o pegá las filas y presioná «Analizar».")
+        </RadzenText>
+    }
+    else
+    {
+        @* Anchos declarados en todas las columnas: en pantallas angostas la suma supera la
+           tarjeta y la tabla scrollea a lo ancho (CSS global) en vez de truncar el código o
+           el botón de Estado. Estado es la única que crece: a todo el ancho entra el motivo
+           completo de una fila inválida. Columnas redimensionables como en los catálogos. *@
+        <RadzenDataGrid Data="@filas" TItem="FilaImport" Density="Density.Compact"
+                        AllowSorting="true" AllowPaging="true" PageSize="20" AllowColumnResize="true">
+            <Columns>
+                <RadzenDataGridColumn TItem="FilaImport" Property="Linea" Title="Línea" Width="70px" TextAlign="TextAlign.Center" />
+                <RadzenDataGridColumn TItem="FilaImport" Property="Codigo" Title="Código" Width="250px" />
+                <RadzenDataGridColumn TItem="FilaImport" Title="Período" Width="110px">
+                    <Template Context="f">@(f.Anio > 0 ? $"{Fmt.MesCorto(f.Mes)} {f.Anio}" : "—")</Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="FilaImport" Title="Valor" Width="120px" TextAlign="TextAlign.Right">
+                    <Template Context="f">@(f.Valor is decimal v ? v.ToString("N4") : "—")</Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="FilaImport" Title="Estado" MinWidth="460px">
+                    <Template Context="f">
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                            <RadzenBadge Text="@EtiquetaEstado(f.Estado)" BadgeStyle="@BadgeEstado(f.Estado)" />
+                            @if (f.Detalle is not null)
+                            {
+                                <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0" style="white-space:normal">@f.Detalle</RadzenText>
+                            }
+                            @if (f.Estado == EstadoFilaImport.CodigoDesconocido)
+                            {
+                                <RadzenButton Text="Agregar al catálogo" Icon="add" Size="ButtonSize.ExtraSmall"
+                                              ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Flat"
+                                              Disabled="@procesando" Click="@(() => AgregarAlCatalogoAsync(f.Codigo))" />
+                            }
+                        </RadzenStack>
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    }
+</RadzenCard>
 
 @code {
     private string? idPublicacion;
     private int anio = DateTime.Now.Year;
     private int mes = DateTime.Now.Month;
     private string? textoPegado;
+    private bool pegadoPlegado = true;
+    // En C# y no en el atributo: dentro de un parámetro de componente «&#10;» no se decodifica
+    // y el ejemplo mostraba el texto literal en vez del salto de línea.
+    private const string EjemploPegado = "ALBANILERIA\t11883,8\nMANO_OBRA\t11129,8\n…";
+    // Archivo elegido en el selector (se esté leyendo, reconocido o rechazado): mientras haya
+    // uno, el pegado no se muestra ni se analiza.
+    private string? archivoPlanilla;
+    private bool leyendoPlanilla;
+    // Motivo por el que el archivo elegido no se puede usar: queda a la vista hasta quitarlo.
+    private string? errorPlanilla;
+    // Plantilla reconocida: se analizan sus valores. Se guarda el libro y no las filas: el
+    // análisis muta las filas, así que cada análisis vuelve a leerlas.
+    private LibroExcel? planilla;
 
     private List<FilaImport> filas = new();
     // `procesando` bloquea todas las acciones (analizar, alta rápida, importar);
@@ -171,13 +255,17 @@
                 return;
             }
 
-            // El parseo puro (formatos, culturas de decimales) vive en Services.ImportadorIndec;
-            // el análisis contra la base (catálogo y duplicados) en IndiceService.
-            filas = ImportadorIndec.ParsearLineas(textoPegado, anio, mes);
+            // El parseo puro (formatos, culturas de decimales) vive en Services.ImportadorIndec
+            // y PlantillaIndices; el análisis contra la base (catálogo y duplicados) en IndiceService.
+            filas = planilla is not null
+                ? PlantillaIndices.Leer(planilla).Filas
+                : ImportadorIndec.ParsearLineas(textoPegado, anio, mes);
             if (filas.Count == 0)
             {
                 Notifications.Notify(NotificationSeverity.Warning, "Nada para analizar",
-                    "Pegá al menos una fila con código y valor.", 5000);
+                    planilla is not null
+                        ? "La planilla no tiene valores: pegá la fila del PDF en cada índice o tipeá los valores de los meses."
+                        : "Pegá al menos una fila con código y valor.", 5000);
                 return;
             }
 
@@ -185,14 +273,52 @@
         }
         catch (System.Data.Common.DbException ex)
         {
+            // Sin el análisis contra la base, las filas siguen «A importar» y sin índice:
+            // no pueden quedar habilitando Importar.
+            filas = new();
             Notifications.Notify(NotificationSeverity.Error, "Error de base de datos",
                 $"No se pudo acceder a la base de datos. ({ex.Message})", 8000);
         }
         finally { procesando = false; }
     }
 
+    // La plantilla lleva los meses de la publicación y la publicación misma: sin un ID
+    // válido no hay qué generar (el controller lo vuelve a exigir).
+    private void DescargarPlantilla()
+    {
+        if (IndiceValidator.PublicacionImportacion(idPublicacion) is string errorPub)
+        {
+            Notifications.Notify(NotificationSeverity.Warning, "ID de publicación inválido", errorPub, 6000);
+            return;
+        }
+        Nav.NavigateTo($"/Indices/DescargarPlantilla?idPublicacion={Uri.EscapeDataString(idPublicacion!.Trim())}", forceLoad: true);
+    }
+
+    // Cada cambio del selector descarta el análisis anterior: al elegir otro archivo llega
+    // primero Leyendo (sin libro), y al quitarlo (o si no se pudo leer) llega sin nombre y
+    // vuelve el pegado. La publicación es la del archivo, que definió sus meses.
+    private async Task OnPlanillaAsync(SelectorPlanilla.Estado estado)
+    {
+        archivoPlanilla = estado.Nombre;
+        leyendoPlanilla = estado.Leyendo;
+        errorPlanilla = null;
+        planilla = null;
+        DescartarAnalisis();
+        if (estado.Libro is null) return;
+
+        var lectura = PlantillaIndices.Leer(estado.Libro);
+        if (lectura.Error is not null)
+        {
+            errorPlanilla = lectura.Error;
+            return;
+        }
+        planilla = estado.Libro;
+        idPublicacion = lectura.IdPublicacion;
+        await AnalizarAsync();
+    }
+
     // Alta rápida desde la fila "Código desconocido": el diálogo precarga el código
-    // detectado y al guardar se re-analiza el pegado completo, así TODAS las filas de
+    // detectado y al guardar se re-analiza todo (pegado o planilla), así TODAS las filas de
     // ese código pasan a "A importar" de una vez (el mismo código suele repetirse, un
     // mes por fila). `procesando` sube ANTES de abrir el diálogo (convenciones-ui): un
     // doble clic no apila dos diálogos ni intenta crear el índice dos veces.
@@ -235,7 +361,7 @@
             Notifications.Notify(NotificationSeverity.Success, "Importación completada",
                 $"{cantidad} valores cargados con publicación {pub}.", 5000);
             filas = new();
-            textoPegado = null;
+            if (planilla is null) textoPegado = null;
         }
         finally { procesando = false; importando = false; }
     }
@@ -245,7 +371,7 @@
         EstadoFilaImport.Ok => "A importar",
         EstadoFilaImport.YaExiste => "Ya existe",
         EstadoFilaImport.CodigoDesconocido => "Código desconocido",
-        EstadoFilaImport.DuplicadaEnPegado => "Repetida en el pegado",
+        EstadoFilaImport.DuplicadaEnPegado => "Repetida",
         _ => "Fila inválida"
     };
 

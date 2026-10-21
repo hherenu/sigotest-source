@@ -65,6 +65,7 @@ public sealed class ContractTests : IClassFixture<SigoWebApplicationFactory>
     [InlineData("/")]
     [InlineData("/obras")]
     [InlineData("/Certificado/DescargarExcel/1")]   // la ruta real del controller (antes una inexistente)
+    [InlineData("/Indices/DescargarPlantilla?idPublicacion=INDEC_INFORMA_07_26")]
     public async Task TodoLoDemas_ExigeAutenticacion(string url)
     {
         using var client = CrearCliente();

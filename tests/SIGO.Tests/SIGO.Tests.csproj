@@ -24,4 +24,9 @@
     <ProjectReference Include="..\..\src\Sigotest.Web\Sigotest.Web.csproj" />
   </ItemGroup>
 
+  <!-- Archivos de prueba guardados con Excel real (no se pueden generar desde los tests). -->
+  <ItemGroup>
+    <None Update="Datos\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

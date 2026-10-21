@@ -4,8 +4,9 @@ using System.Text;
 namespace SIGO.Services.Importacion;
 
 /// <summary>
-/// Normalización de textos y helpers de encabezado compartidos por los dos importadores
-/// (estructuras y certificados), para que una regla o un arreglo vivan en un solo lugar.
+/// Normalización de textos y helpers de encabezado compartidos por los importadores de
+/// planillas (estructuras, certificados y la plantilla de índices), para que una regla o un
+/// arreglo vivan en un solo lugar.
 /// </summary>
 public static class TextoImport
 {
