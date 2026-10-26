@@ -48,9 +48,65 @@ public static class RedeterminacionValidator
             ? "La tabla de ponderación no pertenece a la obra del disparo."
             : null;
 
-    /// <summary>Los disparos presentados/aprobados son valores oficiales: ni recálculo ni eliminación.</summary>
+    /// <summary>
+    /// Los disparos presentados/aprobados son valores oficiales, y los rechazados/anulados
+    /// quedan como historia del trámite: ni recálculo ni eliminación.
+    /// </summary>
     public static bool EsRecalculable(EstadoRedeterminacion estado) =>
         estado is EstadoRedeterminacion.Borrador or EstadoRedeterminacion.Calculada;
+
+    /// <summary>
+    /// Un disparo rechazado o anulado no cuenta: ni para la numeración (el próximo que se
+    /// guarde usa su número) ni para la cadena de variación acumulada, ni como «último».
+    /// </summary>
+    public static bool EsVigente(EstadoRedeterminacion estado) =>
+        estado is not (EstadoRedeterminacion.Rechazada or EstadoRedeterminacion.Anulada);
+
+    /// <summary>
+    /// Estado del trámite según los datos administrativos: la baja (rechazo o anulación)
+    /// manda; si no, la aprobación por OS, la de CCyR o el expediente VR cargado
+    /// (presentada). Sin nada de eso el disparo está Calculado y admite recálculo: vaciar
+    /// esos datos es la forma de corregir una carga equivocada.
+    /// </summary>
+    public static EstadoRedeterminacion EstadoAdministrativo(
+        EstadoRedeterminacion? baja, string? nroExpedienteVR, DateTime? fechaAprobacionCCyR, DateTime? fechaAprobacionOS) =>
+        baja is EstadoRedeterminacion.Rechazada or EstadoRedeterminacion.Anulada ? baja.Value
+        : fechaAprobacionOS is not null ? EstadoRedeterminacion.AprobadaOS
+        : fechaAprobacionCCyR is not null ? EstadoRedeterminacion.AprobadaCCyR
+        : !string.IsNullOrWhiteSpace(nroExpedienteVR) ? EstadoRedeterminacion.Presentada
+        : EstadoRedeterminacion.Calculada;
+
+    /// <summary>
+    /// Dar de baja (rechazar o anular) un disparo vigente, o volver a ponerlo vigente.
+    /// Solo el último vigente se da de baja: los posteriores acumulan su coeficiente. Y
+    /// vuelve a estar vigente solo si su número no lo tomó otro disparo y no hay vigentes
+    /// posteriores: la numeración y la cadena quedarían inconsistentes.
+    /// </summary>
+    public static string? CambioDeVigencia(EstadoRedeterminacion antes, EstadoRedeterminacion despues, int nroDisparo,
+        bool hayVigentePosterior, bool hayOtroVigenteConElMismoNumero)
+    {
+        if (EsVigente(antes) && !EsVigente(despues) && hayVigentePosterior)
+            return $"Solo se puede {(despues == EstadoRedeterminacion.Anulada ? "anular" : "rechazar")} el último disparo vigente de la obra. " +
+                   $"El disparo {nroDisparo} tiene posteriores que acumulan su coeficiente.";
+
+        if (!EsVigente(antes) && EsVigente(despues) && (hayOtroVigenteConElMismoNumero || hayVigentePosterior))
+            return $"El disparo {nroDisparo} no puede volver a quedar vigente: la obra ya tiene " +
+                   (hayOtroVigenteConElMismoNumero ? $"otro disparo vigente con el número {nroDisparo}." : "disparos vigentes posteriores.");
+
+        return null;
+    }
+
+    /// <summary>Texto del estado para pantallas y mensajes.</summary>
+    public static string TextoEstado(EstadoRedeterminacion estado) => estado switch
+    {
+        EstadoRedeterminacion.AprobadaCCyR => "Aprobada CCyR",
+        EstadoRedeterminacion.AprobadaOS => "Aprobada OS",
+        _ => estado.ToString()
+    };
+
+    private static string NoAdmite(EstadoRedeterminacion estado, int nroDisparo, string accion) =>
+        $"El disparo {nroDisparo} está en estado «{TextoEstado(estado)}» y {accion}." +
+        (EsVigente(estado) ? " Si el expediente o las fechas se cargaron por error, se borran desde sus datos administrativos." : "");
 
     /// <summary>
     /// Un disparo presentado/aprobado es un valor oficial: recalcularlo pisaría su
@@ -63,7 +119,7 @@ public static class RedeterminacionValidator
     public static string? AdmiteRecalculo(EstadoRedeterminacion estado, int nroDisparo, bool hayPosterior)
     {
         if (!EsRecalculable(estado))
-            return $"El disparo {nroDisparo} está en estado {estado} y no admite recálculo.";
+            return NoAdmite(estado, nroDisparo, "no admite recálculo");
 
         if (hayPosterior)
             return $"Solo se puede recalcular el último disparo de la obra. El disparo {nroDisparo} tiene posteriores que acumulan su coeficiente.";
@@ -79,7 +135,7 @@ public static class RedeterminacionValidator
     public static string? EliminarDisparo(EstadoRedeterminacion estado, int nroDisparo, bool hayPosterior)
     {
         if (!EsRecalculable(estado))
-            return $"El disparo {nroDisparo} está en estado {estado} y no puede eliminarse.";
+            return NoAdmite(estado, nroDisparo, "no puede eliminarse");
 
         if (hayPosterior)
             return $"Solo se puede eliminar el último disparo de la obra. El disparo {nroDisparo} tiene posteriores que acumulan su coeficiente.";
