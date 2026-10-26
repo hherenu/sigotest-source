@@ -589,10 +589,25 @@ public class PlanificacionService(
     }
 
     /// <summary>
+    /// Ciclo al que pertenece una toma de conocimiento: el que abrió el último rollover. Si
+    /// el rollover del mes en curso ya corrió es este mes; si no (días previos a
+    /// Correo:DiaRollover, o todavía no corrió) el plan sigue en el ciclo del mes anterior.
+    /// Con el mes calendario, una toma del 1 al 8 quedaba con el mes nuevo y la toma del
+    /// ciclo siguiente la reemplazaba: se perdía la versión del ciclo anterior.
+    /// </summary>
+    public static (int Anio, int Mes) CicloDeLaToma(DateTime ahora, bool rolloverDelMesEjecutado)
+    {
+        var mes = new DateTime(ahora.Year, ahora.Month, 1);
+        if (!rolloverDelMesEjecutado) mes = mes.AddMonths(-1);
+        return (mes.Year, mes.Month);
+    }
+
+    /// <summary>
     /// Presupuesto toma conocimiento de un plan Aprobado y eso genera el snapshot del
-    /// mes (la "versión" mensual del circuito; sin toma no hay foto). Una segunda toma
-    /// en el mismo mes —tras un loop de revisión— reemplaza la foto: vale la última
-    /// versión conocida del mes. Flag y snapshot se confirman en un único SaveChanges.
+    /// ciclo (la "versión" mensual del circuito, ver <see cref="CicloDeLaToma"/>; sin toma
+    /// no hay foto). Una segunda toma en el mismo ciclo —tras un loop de revisión—
+    /// reemplaza la foto: vale la última versión conocida del ciclo. Flag y snapshot se
+    /// confirman en un único SaveChanges.
     /// </summary>
     public async Task TomarConocimientoAsync(int planificacionId)
     {
@@ -608,17 +623,20 @@ public class PlanificacionService(
         var obra = await ExigirReglasDelCircuitoAsync(db, plan);
 
         var ahora = DateTime.Now;
+        var rolloverDelMes = await db.RolloversPlanificacionEjecutados
+            .AnyAsync(r => r.Anio == ahora.Year && r.Mes == ahora.Month);
+        var (anio, mes) = CicloDeLaToma(ahora, rolloverDelMes);
 
         var previo = await db.PlanificacionSnapshots
-            .FirstOrDefaultAsync(s => s.ObraId == plan.ObraId && s.Anio == ahora.Year && s.Mes == ahora.Month);
+            .FirstOrDefaultAsync(s => s.ObraId == plan.ObraId && s.Anio == anio && s.Mes == mes);
         if (previo is not null)
             db.PlanificacionSnapshots.Remove(previo); // cascade borra sus montos
 
         var snapshot = new PlanificacionSnapshot
         {
             ObraId = plan.ObraId,
-            Anio = ahora.Year,
-            Mes = ahora.Month,
+            Anio = anio,
+            Mes = mes,
             FechaTomaConocimiento = DateTime.UtcNow,
             TomadaConocimientoPor = currentUser.UserId,
             // La foto lleva los montos efectivos: el autorizado de la básica es el
