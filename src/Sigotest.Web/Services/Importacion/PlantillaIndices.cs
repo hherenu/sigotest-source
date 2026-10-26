@@ -284,6 +284,15 @@ public static class PlantillaIndices
                     return Rechazo($"La fila {fila.Numero} tiene un número en una columna cuyo encabezado no es un mes. " +
                                    "Revisá que no se haya borrado la fecha del encabezado.");
 
+        // Los meses tienen que ser los de la publicación del ID: la planilla de otro mes con el
+        // ID cambiado reparte 13 valores igual, pero cada uno caería en el mes equivocado.
+        PublicacionIndec.TryPeriodo(idPublicacion, out var anioPub, out var mesPub);
+        var esperados = Meses(anioPub, mesPub);
+        if (!meses.Select(m => (m.Anio, m.Mes)).SequenceEqual(esperados.Select(m => (m.Year, m.Month))))
+            return Rechazo($"Los meses del encabezado ({meses[0].Mes:00}/{meses[0].Anio} a {meses[^1].Mes:00}/{meses[^1].Anio}) " +
+                           $"no son los de la publicación {idPublicacion.Trim()} ({esperados[0].Month:00}/{esperados[0].Year} a {esperados[^1].Month:00}/{esperados[^1].Year}). " +
+                           $"Si cambiaste el ID, descargá la plantilla de esa publicación desde esta página.");
+
         var filas = new List<FilaImport>();
         foreach (var fila in datos)
         {

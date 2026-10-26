@@ -192,6 +192,37 @@ public class TotalesPlan(
 }
 
 /// <summary>
+/// Qué se conserva de lo tipeado en la sesión cuando la página relee el plan de la base
+/// (agregar o quitar un bloque, una transición o un guardado fallido). Fusión de tres vías
+/// por clave: se conserva lo que la sesión cambió respecto de lo guardado ANTES y cuya
+/// clave nadie cambió en la base desde entonces; si otro usuario la cambió, manda la base
+/// y la clave cuenta como pisada para avisarlo. Conservar todo lo de la sesión llevaba
+/// valores viejos de celdas no tocadas al token nuevo, y un segundo Guardar tras un
+/// conflicto pisaba en silencio lo que el otro usuario había guardado.
+/// </summary>
+public static class FusionSesion
+{
+    public static (Dictionary<TClave, TValor> Conservar, int Pisadas) Fusionar<TClave, TValor>(
+        IEnumerable<KeyValuePair<TClave, TValor>> sesion,
+        Func<TClave, TValor> guardadoAntes,
+        Func<TClave, TValor> guardadoAhora) where TClave : notnull
+    {
+        var igual = EqualityComparer<TValor>.Default;
+        var conservar = new Dictionary<TClave, TValor>();
+        var pisadas = 0;
+        foreach (var (clave, valor) in sesion)
+        {
+            var antes = guardadoAntes(clave);
+            if (igual.Equals(valor, antes)) continue;          // la sesión no la cambió
+            var ahora = guardadoAhora(clave);
+            if (igual.Equals(ahora, antes)) conservar[clave] = valor;
+            else if (!igual.Equals(ahora, valor)) pisadas++;   // la cambió otro: manda la base
+        }
+        return (conservar, pisadas);
+    }
+}
+
+/// <summary>
 /// Monto "efectivo" de un bloque: lo persistido, salvo que para la Obra Básica el
 /// MontoAutorizado es el presupuesto de la obra (ver PlanificacionService.MontosEfectivos).
 /// Lo consumen balance, VM, snapshot y export para no repetir esa regla.

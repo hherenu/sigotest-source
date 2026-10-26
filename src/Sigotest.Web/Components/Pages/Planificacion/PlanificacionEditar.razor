@@ -644,16 +644,31 @@ else
         await BuildStateAsync();
     }
 
-    private async Task BuildStateAsync()
+    /// <param name="conservarSesion">
+    /// false tras un guardado exitoso: todo lo tipeado ya está en la base y se relee tal cual.
+    /// </param>
+    private async Task BuildStateAsync(bool conservarSesion = true)
     {
+        var anterior = vm;
         vm = await Service.BuildVmAsync(ObraId);
         versiones = await Service.VersionesDeObraAsync(ObraId);
 
-        // Lo tipeado y no guardado se preserva: agregar/quitar bloques, las transiciones
-        // de estado y un guardado fallido reconstruyen desde la DB y sin esto pisaban
-        // las celdas editadas. Las claves de bloques quitados se descartan solas.
-        var tipeado = new Dictionary<(int, ConceptoPlanMonto, int?, int?, Moneda), decimal?>(celdas);
-        var mesesElegidos = new Dictionary<int, DateTime?>(anticipoFecha);
+        // Lo tipeado y no guardado se preserva (agregar/quitar bloques, las transiciones de
+        // estado y un guardado fallido reconstruyen desde la DB), pero solo lo que la sesión
+        // cambió y nadie tocó en la base mientras tanto (FusionSesion): el resto se relee,
+        // con el token nuevo. Las claves de bloques quitados se descartan solas.
+        var nuevo = vm;
+        var bloquesVivos = conservarSesion ? nuevo.Bloques.Select(b => b.AutorizanteId).ToHashSet() : new HashSet<int>();
+        var (tipeado, celdasPisadas) = FusionSesion.Fusionar(
+            celdas.Where(kv => bloquesVivos.Contains(kv.Key.Item1))
+                .Select(kv => KeyValuePair.Create(kv.Key, kv.Value ?? 0m)),
+            k => ValorGuardado(anterior, k),
+            k => ValorGuardado(nuevo, k));
+        var (mesesElegidos, mesesPisados) = FusionSesion.Fusionar<int, PeriodoVM?>(
+            anticipoFecha.Where(kv => bloquesVivos.Contains(kv.Key))
+                .Select(kv => KeyValuePair.Create(kv.Key, kv.Value is { } d ? new PeriodoVM(d.Year, d.Month) : null)),
+            id => anterior?.Bloques.FirstOrDefault(b => b.AutorizanteId == id)?.MesAnticipo(),
+            id => nuevo.Bloques.FirstOrDefault(b => b.AutorizanteId == id)?.MesAnticipo());
 
         celdas.Clear();
         anticipoFecha.Clear();
@@ -671,9 +686,8 @@ else
                 // tenga o no mes asignado en la DB.
                 Set(bloque.AutorizanteId, ConceptoPlanMonto.AnticipoFinanciero, null, null, m, bloque.ValorAnticipo(m));
             }
-            anticipoFecha[bloque.AutorizanteId] = mesesElegidos.TryGetValue(bloque.AutorizanteId, out var elegido)
-                ? elegido
-                : bloque.MesAnticipo() is { } pm ? new DateTime(pm.Anio, pm.Mes!.Value, 1) : null;
+            var mesAnticipo = mesesElegidos.TryGetValue(bloque.AutorizanteId, out var elegido) ? elegido : bloque.MesAnticipo();
+            anticipoFecha[bloque.AutorizanteId] = mesAnticipo is { } pm ? new DateTime(pm.Anio, pm.Mes!.Value, 1) : null;
             foreach (var p in vm.Periodos)
             {
                 var concepto = p.EsAnual ? ConceptoPlanMonto.CalculoAnual : ConceptoPlanMonto.Mensual;
@@ -682,9 +696,15 @@ else
             }
         }
 
-        foreach (var kv in tipeado)
-            if (celdas.ContainsKey(kv.Key))
-                celdas[kv.Key] = kv.Value;
+        foreach (var (clave, valor) in tipeado)
+            if (celdas.ContainsKey(clave))
+                celdas[clave] = valor != 0 ? valor : null;
+
+        if (celdasPisadas + mesesPisados > 0)
+            Notifications.Notify(NotificationSeverity.Warning, "Cambios de otro usuario",
+                $"Otro usuario guardó valores distintos en {celdasPisadas + mesesPisados} " +
+                $"{(celdasPisadas + mesesPisados == 1 ? "dato que editaste" : "datos que editaste")}: se muestra lo guardado. " +
+                "Revisalos antes de volver a guardar.", 10000);
 
         // Al quitar un bloque la pestaña activa podría quedar más allá de la última
         // (bloques, luego Totales y, si hay, Versiones): se acota al último bloque. La cota
@@ -1114,10 +1134,12 @@ else
         TieneImporteAnticipo(autorizanteId) && anticipoFecha.TryGetValue(autorizanteId, out var d) && d.HasValue
             ? new PeriodoVM(d.Value.Year, d.Value.Month) : null;
 
+    private decimal ValorGuardado((int, ConceptoPlanMonto, int?, int?, Moneda) key) => ValorGuardado(vm, key);
+
     /// <summary>Valor guardado en la DB para una clave de celda (0 si el bloque ya no existe).</summary>
-    private decimal ValorGuardado((int, ConceptoPlanMonto, int?, int?, Moneda) key)
+    private static decimal ValorGuardado(PlanificacionVM? modelo, (int, ConceptoPlanMonto, int?, int?, Moneda) key)
     {
-        var b = vm?.Bloques.FirstOrDefault(x => x.AutorizanteId == key.Item1);
+        var b = modelo?.Bloques.FirstOrDefault(x => x.AutorizanteId == key.Item1);
         if (b is null) return 0m;
         // El anticipo se compara sin período: la celda de la UI siempre va con
         // (null, null) aunque en la DB tenga mes asignado.
@@ -1178,7 +1200,7 @@ else
         var ok = await Persistencia.EjecutarAsync(
             async () => advertencias = await Service.GuardarGrillaAsync(vm!.PlanificacionId, montos, vm.Periodos, vm.RowVersion),
             Notifications);
-        await BuildStateAsync();
+        await BuildStateAsync(conservarSesion: !ok);
         if (ok) AvisarReglasDelCircuito(advertencias);
         return ok;
     }

@@ -86,10 +86,13 @@ public class PlanificacionSnapshotTests(LocalDbFixture fx) : IClassFixture<Local
         Assert.NotNull(plan.FechaTomaConocimiento);
         Assert.Equal(@"TEST\tester", plan.TomadaConocimientoPor);
 
+        // El mes es el del ciclo: el actual si el rollover del mes ya corrió en esta base
+        // (otro test de la clase puede correrlo), si no el anterior.
         var hoy = DateTime.Now;
+        var rolloverDelMes = await db.RolloversPlanificacionEjecutados.AnyAsync(r => r.Anio == hoy.Year && r.Mes == hoy.Month);
         var snap = await db.PlanificacionSnapshots.Include(s => s.Montos)
             .SingleAsync(s => s.ObraId == obraId);
-        Assert.Equal((hoy.Year, hoy.Month), (snap.Anio, snap.Mes));
+        Assert.Equal(PlanificacionService.CicloDeLaToma(hoy, rolloverDelMes), (snap.Anio, snap.Mes));
         Assert.Equal(2, snap.Montos.Count); // autorizado (presupuesto de la obra) + mensual, denormalizados
         Assert.Contains(snap.Montos, m =>
             m.Tipo == TipoAutorizante.Basica && m.Concepto == ConceptoPlanMonto.Mensual && m.Monto == 100m);
@@ -160,6 +163,46 @@ public class PlanificacionSnapshotTests(LocalDbFixture fx) : IClassFixture<Local
             .SingleAsync(s => s.ObraId == obraId);
         Assert.Contains(snap.Montos, m => m.Concepto == ConceptoPlanMonto.Mensual && m.Monto == 250m);
         Assert.DoesNotContain(snap.Montos, m => m.Monto == 100m);
+    }
+
+    [Theory]
+    [InlineData("2026-11-03", false, 2026, 10)] // antes del día de rollover: ciclo de octubre
+    [InlineData("2026-11-20", false, 2026, 10)] // el rollover de noviembre todavía no corrió
+    [InlineData("2026-11-20", true, 2026, 11)]
+    [InlineData("2027-01-05", false, 2026, 12)] // cambio de año
+    public void CicloDeLaToma_EsElDelUltimoRollover(string ahora, bool rolloverDelMes, int anio, int mes) =>
+        Assert.Equal((anio, mes), PlanificacionService.CicloDeLaToma(DateTime.Parse(ahora, System.Globalization.CultureInfo.InvariantCulture), rolloverDelMes));
+
+    [Fact]
+    public async Task TomaAntesDelRolloverDelMes_NoLaReemplazaLaTomaDelCicloNuevo()
+    {
+        var (obraId, planId, _) = await CrearPlanAprobadoAsync();
+        var presupuesto = Crear(Roles.Presupuesto);
+        var admin = Crear(Roles.Admin);
+        var hoy = DateTime.Today;
+        var anterior = hoy.AddMonths(-1);
+
+        // Toma con el ciclo anterior abierto (p. ej. el día 3, antes del rollover del 9).
+        await using (var db = fx.CrearContexto())
+            Assert.False(await db.RolloversPlanificacionEjecutados.AnyAsync(r => r.Anio == hoy.Year && r.Mes == hoy.Month));
+        await presupuesto.TomarConocimientoAsync(planId);
+
+        // Rollover del mes y circuito del ciclo nuevo hasta su toma.
+        await using (var db = fx.CrearContexto())
+            Assert.NotNull(await PlanificacionRolloverService.EjecutarAsync(db, hoy));
+        await admin.MarcarCargadaAsync(planId);
+        await admin.AprobarAsync(planId);
+        await presupuesto.TomarConocimientoAsync(planId);
+
+        // Dos versiones: la del ciclo anterior sigue y la nueva es la del mes.
+        await using (var db = fx.CrearContexto())
+        {
+            var versiones = await db.PlanificacionSnapshots.Where(s => s.ObraId == obraId)
+                .OrderBy(s => s.Anio).ThenBy(s => s.Mes)
+                .Select(s => new { s.Anio, s.Mes })
+                .ToListAsync();
+            Assert.Equal(new[] { (anterior.Year, anterior.Month), (hoy.Year, hoy.Month) }, versiones.Select(v => (v.Anio, v.Mes)));
+        }
     }
 
     [Fact]

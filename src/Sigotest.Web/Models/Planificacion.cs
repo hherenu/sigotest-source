@@ -95,9 +95,9 @@ public class PlanMonto
 }
 
 /// <summary>
-/// Foto inmutable de la planificación de una obra en un mes: se genera cuando
+/// Foto inmutable de la planificación de una obra en un ciclo mensual: se genera cuando
 /// Presupuesto toma conocimiento del plan Aprobado (sin toma no hay foto). Una por
-/// obra y mes; una nueva toma en el mismo mes (tras un loop de revisión) la reemplaza.
+/// obra y ciclo; una nueva toma en el mismo ciclo (tras un loop de revisión) la reemplaza.
 /// Los montos se denormalizan en <see cref="PlanMontoSnapshot"/> para que la historia
 /// no dependa del plan vivo (que se sigue editando).
 /// </summary>
@@ -108,7 +108,10 @@ public class PlanificacionSnapshot
     public int ObraId { get; set; }
     public Obra Obra { get; set; } = null!;
 
-    /// <summary>Mes de la versión (el "Nro planificacion" del circuito Flokzu).</summary>
+    /// <summary>
+    /// Mes de la versión (el "Nro planificacion" del circuito Flokzu): el del ciclo, que
+    /// abre el rollover, no el de la fecha de la toma (ver PlanificacionService.CicloDeLaToma).
+    /// </summary>
     public int Anio { get; set; }
     public int Mes { get; set; }
 
