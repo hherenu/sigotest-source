@@ -60,12 +60,16 @@ public class RedeterminacionAdminVM
     public int MesSalto { get; set; }
     public int AnioSalto { get; set; }
     public decimal? PorcentajeAumento { get; set; }
+    /// <summary>Estado guardado (el nuevo sale de los campos editables al guardar).</summary>
+    public EstadoRedeterminacion Estado { get; set; }
 
     // Campos administrativos (editables)
     public string? NroExpedienteVR { get; set; }
     public DateTime? FechaAprobacionCCyR { get; set; }
     public DateTime? FechaAprobacionOS { get; set; }
     public DateTime? FechaLimitePresentacion { get; set; }
+    /// <summary>Baja del trámite: Rechazada o Anulada; null = vigente.</summary>
+    public EstadoRedeterminacion? Baja { get; set; }
 
     /// <summary>Token de concurrencia de la sesión de edición (viaja a GuardarDatosAdminAsync).</summary>
     public byte[] RowVersion { get; set; } = [];

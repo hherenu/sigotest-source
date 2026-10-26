@@ -12,6 +12,28 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
     /// <summary>Defensa en profundidad (ver <see cref="Roles.Exigir"/>): módulo Certificaciones.</summary>
     private void ExigirRol(string accion) => Roles.Exigir(currentUser.IsInRole, Roles.Certificaciones, accion);
 
+    /// <summary>
+    /// Disparos de la obra que cuentan para la numeración, la cadena de variación acumulada
+    /// y el «último» (los rechazados/anulados no: ver <see cref="RedeterminacionValidator.EsVigente"/>).
+    /// </summary>
+    private static IQueryable<RedeterminacionGuardada> Vigentes(AppDbContext db, int obraId) =>
+        db.RedeterminacionesGuardadas.Where(r => r.ObraId == obraId
+            && r.Estado != EstadoRedeterminacion.Rechazada && r.Estado != EstadoRedeterminacion.Anulada);
+
+    /// <summary>
+    /// VariacionAcumulada de cada disparo vigente, en orden: el producto de los coeficientes
+    /// hasta él. Los rechazados/anulados no entran a la cadena y conservan la que tenían.
+    /// </summary>
+    private static void Recadenar(IEnumerable<RedeterminacionGuardada> vigentesEnOrden)
+    {
+        decimal acum = 1m;
+        foreach (var d in vigentesEnOrden)
+        {
+            if (d.TotalKiK0.HasValue) acum *= d.TotalKiK0.Value;
+            d.VariacionAcumulada = d.TotalKiK0.HasValue ? acum : null;
+        }
+    }
+
     public async Task<RedeterminacionVM> CalcularAsync(
         int obraId, int tablaPonderacionId,
         int anioBase, int mesBase, string? idPublicacionBase,
@@ -129,15 +151,14 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
         // otro usuario elimina el último disparo encadena un coeficiente ya borrado.
         await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
 
-        // Max+1 (no Count+1): tras eliminar un disparo intermedio, Count reutilizaría
-        // un número existente y chocaría con el índice único (ObraId, NroDisparo).
-        var nroDisparo = await db.RedeterminacionesGuardadas
-            .Where(r => r.ObraId == obraId)
-            .MaxAsync(r => (int?)r.NroDisparo) ?? 0;
+        // Max+1 de los vigentes (no Count+1): tras eliminar un disparo intermedio, Count
+        // reutilizaría un número existente y chocaría con el índice único (ObraId, NroDisparo).
+        // Un rechazado o anulado no consume número: el próximo usa el suyo (el índice único
+        // es solo de los vigentes).
+        var nroDisparo = await Vigentes(db, obraId).MaxAsync(r => (int?)r.NroDisparo) ?? 0;
         nroDisparo++;
 
-        var coefsPrevios = await db.RedeterminacionesGuardadas
-            .Where(r => r.ObraId == obraId).OrderBy(r => r.NroDisparo).Select(r => r.TotalKiK0).ToListAsync();
+        var coefsPrevios = await Vigentes(db, obraId).OrderBy(r => r.NroDisparo).Select(r => r.TotalKiK0).ToListAsync();
         var varAcum = coefsPrevios.Where(k => k.HasValue).Aggregate(1m, (acc, k) => acc * k!.Value);
         varAcum *= vm.TotalKiK0!.Value; // no-null garantizado por el validator de arriba
 
@@ -168,7 +189,7 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
     /// Reemplaza el cálculo de un disparo existente (solo Borrador/Calculada y solo
     /// el ÚLTIMO de la obra: recalcular uno intermedio reescribiría la variación
     /// acumulada de los posteriores, incluidos los oficiales) y re-encadena la
-    /// VariacionAcumulada de TODOS los disparos de la obra.
+    /// VariacionAcumulada de todos los disparos vigentes de la obra.
     /// Devuelve el ObraId del disparo para la navegación posterior.
     /// </summary>
     public async Task<int> RecalcularDisparoAsync(int disparoId, int obraId, int tablaPonderacionId, RedeterminacionVM vm)
@@ -189,8 +210,7 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
         // El chequeo de posteriores va DENTRO de la transacción Serializable (como en
         // EliminarDisparoAsync): un guardado concurrente de un disparo nuevo volvería
         // intermedio a este mientras se recalcula.
-        var hayPosterior = await db.RedeterminacionesGuardadas
-            .AnyAsync(x => x.ObraId == existing.ObraId && x.NroDisparo > existing.NroDisparo);
+        var hayPosterior = await Vigentes(db, existing.ObraId).AnyAsync(x => x.NroDisparo > existing.NroDisparo);
         Validacion.Exigir(RedeterminacionValidator.AdmiteRecalculo(existing.Estado, existing.NroDisparo, hayPosterior));
         Validacion.Exigir(RedeterminacionValidator.MismaObra(existing.ObraId, obraId));
         Validacion.Exigir(RedeterminacionValidator.TablaDeLaObra(await ObraDeTablaAsync(db, tablaPonderacionId), obraId));
@@ -208,14 +228,7 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
         db.RemoveRange(existing.Items);
         existing.Items = vm.Items.Select(MapItem).ToList();
 
-        var todosDisparos = await db.RedeterminacionesGuardadas
-            .Where(r => r.ObraId == existing.ObraId).OrderBy(r => r.NroDisparo).ToListAsync();
-        decimal acum = 1m;
-        foreach (var d in todosDisparos)
-        {
-            if (d.TotalKiK0.HasValue) acum *= d.TotalKiK0.Value;
-            d.VariacionAcumulada = d.TotalKiK0.HasValue ? acum : null;
-        }
+        Recadenar(await Vigentes(db, existing.ObraId).OrderBy(r => r.NroDisparo).ToListAsync());
 
         await db.SaveChangesAsync();
         await tx.CommitAsync();
@@ -241,8 +254,7 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
         var disparo = await db.RedeterminacionesGuardadas.FirstOrDefaultAsync(x => x.Id == disparoId);
         if (disparo is null) return false;
 
-        var hayPosterior = await db.RedeterminacionesGuardadas
-            .AnyAsync(x => x.ObraId == disparo.ObraId && x.NroDisparo > disparo.NroDisparo);
+        var hayPosterior = await Vigentes(db, disparo.ObraId).AnyAsync(x => x.NroDisparo > disparo.NroDisparo);
         Validacion.Exigir(RedeterminacionValidator.EliminarDisparo(disparo.Estado, disparo.NroDisparo, hayPosterior));
 
         // El token del listado viaja al DELETE (detecta ediciones concurrentes desde
@@ -263,7 +275,7 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
     {
         await using var db = await dbFactory.CreateDbContextAsync();
 
-        return await db.RedeterminacionesGuardadas.AsNoTracking()
+        var vm = await db.RedeterminacionesGuardadas.AsNoTracking()
             .Where(r => r.Id == disparoId)
             .Select(r => new RedeterminacionAdminVM
             {
@@ -274,6 +286,7 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
                 MesSalto = r.MesSalto,
                 AnioSalto = r.AnioSalto,
                 PorcentajeAumento = r.PorcentajeAumento,
+                Estado = r.Estado,
                 NroExpedienteVR = r.NroExpedienteVR,
                 FechaAprobacionCCyR = r.FechaAprobacionCCyR,
                 FechaAprobacionOS = r.FechaAprobacionOS,
@@ -281,18 +294,27 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
                 RowVersion = r.RowVersion
             })
             .FirstOrDefaultAsync();
+        if (vm is not null && !RedeterminacionValidator.EsVigente(vm.Estado))
+            vm.Baja = vm.Estado;
+        return vm;
     }
 
     /// <summary>
-    /// Guarda SOLO los campos administrativos de un disparo (expediente y fechas de
-    /// aprobación): el cálculo, el estado y la cadena de variación no se tocan. El
-    /// RowVersion de la sesión viaja como token: una edición concurrente desde que la
-    /// página cargó termina en conflicto de concurrencia, no en un lost update.
+    /// Guarda los datos administrativos de un disparo (expediente, fechas y baja del
+    /// trámite) y con ellos su estado (<see cref="RedeterminacionValidator.EstadoAdministrativo"/>):
+    /// con el expediente cargado queda Presentado y ya no admite recálculo ni eliminación.
+    /// Rechazarlo o anularlo lo saca de la numeración y de la cadena de variación
+    /// acumulada, que se re-encadena; el cálculo no se toca. El RowVersion de la sesión
+    /// viaja como token: una edición concurrente desde que la página cargó termina en
+    /// conflicto de concurrencia, no en un lost update.
     /// </summary>
     public async Task GuardarDatosAdminAsync(int disparoId, RedeterminacionAdminVM vm, byte[]? rowVersionSesion = null)
     {
         ExigirRol("guardar los datos administrativos");
         await using var db = await dbFactory.CreateDbContextAsync();
+        // Serializable: dar de baja o reactivar mira los otros disparos de la obra (último
+        // vigente, número libre) y re-encadena la variación acumulada.
+        await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
 
         var r = await db.RedeterminacionesGuardadas.FirstOrThrowAsync(x => x.Id == disparoId,
             "El disparo ya no existe (otro usuario pudo haberlo eliminado).");
@@ -300,12 +322,33 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
         if (rowVersionSesion is not null)
             db.Entry(r).Property(x => x.RowVersion).OriginalValue = rowVersionSesion;
 
+        var estado = RedeterminacionValidator.EstadoAdministrativo(
+            vm.Baja, vm.NroExpedienteVR, vm.FechaAprobacionCCyR, vm.FechaAprobacionOS);
+        var cambiaVigencia = RedeterminacionValidator.EsVigente(r.Estado) != RedeterminacionValidator.EsVigente(estado);
+        if (cambiaVigencia)
+        {
+            var otros = Vigentes(db, r.ObraId).Where(x => x.Id != r.Id);
+            Validacion.Exigir(RedeterminacionValidator.CambioDeVigencia(r.Estado, estado, r.NroDisparo,
+                hayVigentePosterior: await otros.AnyAsync(x => x.NroDisparo > r.NroDisparo),
+                hayOtroVigenteConElMismoNumero: await otros.AnyAsync(x => x.NroDisparo == r.NroDisparo)));
+        }
+
         r.NroExpedienteVR = vm.NroExpedienteVR;
         r.FechaAprobacionCCyR = vm.FechaAprobacionCCyR;
         r.FechaAprobacionOS = vm.FechaAprobacionOS;
         r.FechaLimitePresentacion = vm.FechaLimitePresentacion;
+        r.Estado = estado;
+
+        if (cambiaVigencia)
+        {
+            // r ya está trackeado: la consulta devuelve la misma instancia, con el estado nuevo.
+            var disparos = await db.RedeterminacionesGuardadas
+                .Where(x => x.ObraId == r.ObraId).OrderBy(x => x.NroDisparo).ToListAsync();
+            Recadenar(disparos.Where(d => RedeterminacionValidator.EsVigente(d.Estado)));
+        }
 
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
     }
 
     /// <summary>ObraId de una tabla de ponderación (null si la tabla no existe) — para TablaDeLaObra.</summary>
@@ -423,7 +466,8 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
                 NroDisparo = r.NroDisparo,
                 Estado = r.Estado,
                 EsUltimo = !db.RedeterminacionesGuardadas
-                    .Any(x => x.ObraId == r.ObraId && x.NroDisparo > r.NroDisparo),
+                    .Any(x => x.ObraId == r.ObraId && x.NroDisparo > r.NroDisparo
+                        && x.Estado != EstadoRedeterminacion.Rechazada && x.Estado != EstadoRedeterminacion.Anulada),
                 AnioBase = r.AnioBase,
                 MesBase = r.MesBase,
                 IdPublicacionBase = r.IdPublicacionBase,
@@ -434,15 +478,14 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
     }
 
     /// <summary>
-    /// Mes salto del último disparo de la obra (null si no hay ninguno) — para el aviso
+    /// Mes salto del último disparo vigente de la obra (null si no hay ninguno) — para el aviso
     /// de continuidad de Calcular: el producto de coeficientes de la VariacionAcumulada
     /// solo representa la variación real si cada tramo arranca donde saltó el anterior.
     /// </summary>
     public async Task<(int Anio, int Mes)?> UltimoSaltoAsync(int obraId)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
-        var ultimo = await db.RedeterminacionesGuardadas.AsNoTracking()
-            .Where(r => r.ObraId == obraId)
+        var ultimo = await Vigentes(db, obraId).AsNoTracking()
             .OrderByDescending(r => r.NroDisparo)
             .Select(r => new { r.AnioSalto, r.MesSalto })
             .FirstOrDefaultAsync();

@@ -48,7 +48,9 @@ else
     @foreach (var grupo in lista.GroupBy(r => r.ObraId))
     {
         var obra = grupo.First();
-        var ultimoDisparo = grupo.Max(x => x.NroDisparo);
+        // Último VIGENTE: un rechazado/anulado no cuenta (su número lo vuelve a usar el siguiente).
+        var ultimoDisparo = grupo.Where(x => RedeterminacionValidator.EsVigente(x.Estado))
+            .Select(x => x.NroDisparo).DefaultIfEmpty(0).Max();
         // Cada columna administrativa se muestra solo si algún disparo del grupo tiene
         // ESE dato (visibilidad por columna, no por grupo: el historial importado trae
         // fechas de aprobación sin expediente, y en bloque la columna Expediente
@@ -65,6 +67,7 @@ else
                     <thead>
                         <tr>
                             <th scope="col">Disparo N°</th>
+                            <th scope="col" title="Desde Presentada (expediente VR cargado) el disparo no se recalcula ni se elimina">Estado</th>
                             <th scope="col">Mes de Disparo</th>
                             <th scope="col" title="Variación de referencia respecto del mes base (habilita redeterminación desde el @(Redet.SaltoMinimo.ToString("N0"))%)">Variación Ref. %</th>
                             <th scope="col" title="Coeficiente total Kᵢ/K₀ del salto">Coef. (K/K₀)</th>
@@ -90,10 +93,15 @@ else
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var r in grupo.OrderBy(x => x.NroDisparo))
+                        @* Con el mismo número, el dado de baja va antes del que lo reemplazó. *@
+                        @foreach (var r in grupo.OrderBy(x => x.NroDisparo).ThenBy(x => RedeterminacionValidator.EsVigente(x.Estado)))
                         {
-                            <tr @key="r.Id" style="text-align:center">
+                            <tr @key="r.Id" style="text-align:center" class="@(RedeterminacionValidator.EsVigente(r.Estado) ? null : "app-muted")">
                                 <td style="font-weight:700">@r.NroDisparo</td>
+                                <td>
+                                    <RadzenBadge Text="@RedeterminacionValidator.TextoEstado(r.Estado)" BadgeStyle="@EstadoUi.Badge(r.Estado)"
+                                                 IsPill="true" Shade="Shade.Lighter" />
+                                </td>
                                 <td>@Fmt.MesCorto(r.MesSalto)-@(r.AnioSalto % 100)</td>
                                 <td style="white-space:nowrap">
                                     @if (r.PorcentajeAumento.HasValue)

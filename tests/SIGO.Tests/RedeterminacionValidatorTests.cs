@@ -54,15 +54,64 @@ public class RedeterminacionValidatorTests
     [InlineData(EstadoRedeterminacion.Presentada, false)]
     [InlineData(EstadoRedeterminacion.AprobadaCCyR, false)]
     [InlineData(EstadoRedeterminacion.AprobadaOS, false)]
+    [InlineData(EstadoRedeterminacion.Rechazada, false)]
+    [InlineData(EstadoRedeterminacion.Anulada, false)]
     public void EsRecalculable_SoloBorradorYCalculada(EstadoRedeterminacion estado, bool esperado) =>
         Assert.Equal(esperado, RedeterminacionValidator.EsRecalculable(estado));
 
     [Fact]
-    public void AdmiteRecalculo_EnEstadoOficial_RechazaConElEstado()
+    public void AdmiteRecalculo_EnEstadoOficial_RechazaConElEstadoYComoCorregirlo()
     {
         var error = RedeterminacionValidator.AdmiteRecalculo(EstadoRedeterminacion.AprobadaCCyR, 3, hayPosterior: false);
         Assert.Contains("disparo 3", error);
-        Assert.Contains("AprobadaCCyR", error);
+        Assert.Contains("«Aprobada CCyR»", error);
+        Assert.Contains("datos administrativos", error);
+    }
+
+    // ── Estado del trámite según los datos administrativos ──────────────────────
+
+    [Theory]
+    [InlineData(null, null, false, false, EstadoRedeterminacion.Calculada)]
+    [InlineData(null, "  ", false, false, EstadoRedeterminacion.Calculada)]
+    [InlineData(null, "EX-2026-1-GCABA-SBASE", false, false, EstadoRedeterminacion.Presentada)]
+    [InlineData(null, "EX-2026-1-GCABA-SBASE", true, false, EstadoRedeterminacion.AprobadaCCyR)]
+    [InlineData(null, null, true, true, EstadoRedeterminacion.AprobadaOS)] // el historial importado trae fechas sin expediente
+    [InlineData(EstadoRedeterminacion.Anulada, "EX-2026-1-GCABA-SBASE", true, true, EstadoRedeterminacion.Anulada)]
+    [InlineData(EstadoRedeterminacion.Rechazada, "EX-2026-1-GCABA-SBASE", false, false, EstadoRedeterminacion.Rechazada)]
+    public void EstadoAdministrativo_LaBajaMandaYDespuesLoMasAvanzado(
+        EstadoRedeterminacion? baja, string? expediente, bool conCCyR, bool conOS, EstadoRedeterminacion esperado) =>
+        Assert.Equal(esperado, RedeterminacionValidator.EstadoAdministrativo(
+            baja, expediente, conCCyR ? new DateTime(2026, 5, 1) : null, conOS ? new DateTime(2026, 6, 1) : null));
+
+    [Theory]
+    [InlineData(EstadoRedeterminacion.Presentada, true)]
+    [InlineData(EstadoRedeterminacion.AprobadaOS, true)]
+    [InlineData(EstadoRedeterminacion.Rechazada, false)]
+    [InlineData(EstadoRedeterminacion.Anulada, false)]
+    public void EsVigente_SalvoRechazadaOAnulada(EstadoRedeterminacion estado, bool esperado) =>
+        Assert.Equal(esperado, RedeterminacionValidator.EsVigente(estado));
+
+    [Fact]
+    public void CambioDeVigencia_SoloSeDaDeBajaElUltimoVigente()
+    {
+        Assert.Null(RedeterminacionValidator.CambioDeVigencia(
+            EstadoRedeterminacion.Presentada, EstadoRedeterminacion.Anulada, 3, hayVigentePosterior: false, hayOtroVigenteConElMismoNumero: false));
+        Assert.Contains("Solo se puede rechazar el último disparo vigente", RedeterminacionValidator.CambioDeVigencia(
+            EstadoRedeterminacion.Calculada, EstadoRedeterminacion.Rechazada, 2, hayVigentePosterior: true, hayOtroVigenteConElMismoNumero: false));
+    }
+
+    [Fact]
+    public void CambioDeVigencia_VuelveAEstarVigenteSoloConSuNumeroLibreYSinPosteriores()
+    {
+        Assert.Null(RedeterminacionValidator.CambioDeVigencia(
+            EstadoRedeterminacion.Anulada, EstadoRedeterminacion.Calculada, 3, hayVigentePosterior: false, hayOtroVigenteConElMismoNumero: false));
+        Assert.Contains("otro disparo vigente con el número 3", RedeterminacionValidator.CambioDeVigencia(
+            EstadoRedeterminacion.Anulada, EstadoRedeterminacion.Calculada, 3, hayVigentePosterior: false, hayOtroVigenteConElMismoNumero: true));
+        Assert.Contains("disparos vigentes posteriores", RedeterminacionValidator.CambioDeVigencia(
+            EstadoRedeterminacion.Rechazada, EstadoRedeterminacion.Presentada, 3, hayVigentePosterior: true, hayOtroVigenteConElMismoNumero: false));
+        // Entre bajas, o entre estados vigentes, la numeración no cambia.
+        Assert.Null(RedeterminacionValidator.CambioDeVigencia(
+            EstadoRedeterminacion.Rechazada, EstadoRedeterminacion.Anulada, 3, hayVigentePosterior: true, hayOtroVigenteConElMismoNumero: true));
     }
 
     [Fact]

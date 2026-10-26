@@ -284,6 +284,14 @@ public static class EstadoUi
         EstadoPlanificacion.Aprobada => BadgeStyle.Success,
         _ => BadgeStyle.Secondary
     };
+
+    public static BadgeStyle Badge(EstadoRedeterminacion e) => e switch
+    {
+        EstadoRedeterminacion.Presentada => BadgeStyle.Info,
+        EstadoRedeterminacion.AprobadaCCyR or EstadoRedeterminacion.AprobadaOS => BadgeStyle.Success,
+        EstadoRedeterminacion.Rechazada or EstadoRedeterminacion.Anulada => BadgeStyle.Danger,
+        _ => BadgeStyle.Secondary
+    };
 }
 
 /// <summary>Aspecto de las filas de ítems de estructura en las RadzenDataGrid (ítems y vista previa de la importación).</summary>

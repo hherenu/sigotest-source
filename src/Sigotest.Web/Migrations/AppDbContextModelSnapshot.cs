@@ -1325,7 +1325,8 @@ namespace SIGO.Migrations
                     b.HasIndex("TablaPonderacionId");
 
                     b.HasIndex("ObraId", "NroDisparo")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[Estado] <> 'Rechazada' AND [Estado] <> 'Anulada'");
 
                     b.ToTable("RedeterminacionesGuardadas");
                 });

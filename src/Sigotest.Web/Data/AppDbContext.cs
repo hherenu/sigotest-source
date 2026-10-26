@@ -148,11 +148,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
         modelBuilder.Entity<RedeterminacionGuardada>()
             .Property(r => r.Estado).HasConversion<string>().HasMaxLength(20);
 
-        // Nro de disparo único por obra (la asignación Count+1 en UI duplicaba números
-        // tras una eliminación; el índice hace imposible persistir el duplicado).
+        // Nro de disparo único por obra entre los VIGENTES (la asignación Count+1 en UI
+        // duplicaba números tras una eliminación; el índice hace imposible persistir el
+        // duplicado). Un rechazado o anulado no consume número: el disparo que lo reemplaza
+        // usa el mismo, así que el filtro los deja afuera.
         modelBuilder.Entity<RedeterminacionGuardada>()
             .HasIndex(r => new { r.ObraId, r.NroDisparo })
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("[Estado] <> 'Rechazada' AND [Estado] <> 'Anulada'");
 
         // Trazabilidad: FK sin navegación, todas Restrict (catálogo no se borra en cascada)
         modelBuilder.Entity<RedeterminacionGuardadaItem>()

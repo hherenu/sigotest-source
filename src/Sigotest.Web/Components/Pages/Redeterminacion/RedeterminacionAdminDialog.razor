@@ -33,6 +33,28 @@
         <RadzenFormField Text="Fecha Límite Presentación Red. Def." Variant="Variant.Outlined" style="width:100%">
             <RadzenDatePicker @bind-Value="Vm.FechaLimitePresentacion" DateFormat="dd/MM/yyyy" ShowTime="false" style="width:100%" />
         </RadzenFormField>
+        <RadzenFormField Text="Baja del trámite" Variant="Variant.Outlined" style="width:100%">
+            <ChildContent>
+                <RadzenDropDown @bind-Value="Vm.Baja" Data="@Bajas" TextProperty="Texto" ValueProperty="Valor" TValue="EstadoRedeterminacion?"
+                                AllowClear="true" Placeholder="Vigente (en trámite)" style="width:100%" />
+            </ChildContent>
+            <Helper>
+                <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">
+                    Rechazado o anulado, el disparo no cuenta en la numeración: el próximo que se guarde usa su número.
+                </RadzenText>
+            </Helper>
+        </RadzenFormField>
+        @* El estado sale de los datos de arriba (RedeterminacionValidator.EstadoAdministrativo): se
+           muestra cómo queda antes de guardar, porque desde Presentada ya no se recalcula ni se elimina. *@
+        <RadzenText TextStyle="TextStyle.Caption" class="rz-mb-0">
+            Estado al guardar:
+            <RadzenBadge Text="@RedeterminacionValidator.TextoEstado(EstadoNuevo)" BadgeStyle="@EstadoUi.Badge(EstadoNuevo)"
+                         IsPill="true" Shade="Shade.Lighter" class="rz-ml-1" />
+            @if (!RedeterminacionValidator.EsRecalculable(EstadoNuevo))
+            {
+                <span class="app-muted"> · no admite recálculo ni eliminación</span>
+            }
+        </RadzenText>
         <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
             <RadzenButton Text="Cancelar" Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                           Click="@(() => DialogService.Close(false))" />
@@ -46,6 +68,13 @@
     [Parameter, EditorRequired] public RedeterminacionAdminVM Vm { get; set; } = new();
 
     private bool guardando;
+
+    private sealed record OpcionBaja(string Texto, EstadoRedeterminacion Valor);
+    private static readonly OpcionBaja[] Bajas =
+        [new("Rechazada", EstadoRedeterminacion.Rechazada), new("Anulada", EstadoRedeterminacion.Anulada)];
+
+    private EstadoRedeterminacion EstadoNuevo => RedeterminacionValidator.EstadoAdministrativo(
+        Vm.Baja, Vm.NroExpedienteVR, Vm.FechaAprobacionCCyR, Vm.FechaAprobacionOS);
 
     private async Task GuardarAsync()
     {

@@ -254,6 +254,134 @@ public class RedeterminacionServiceTests(LocalDbFixture fx) : IClassFixture<Loca
         Assert.Contains("no pertenece", ex.Message);
     }
 
+    // ── Estado del trámite: expediente, baja y numeración ─────────────────────────
+
+    /// <summary>
+    /// Obra con <paramref name="cantidad"/> disparos guardados, tramos encadenados de +10%
+    /// cada uno (mes k → k+1); hay valores hasta el mes cantidad+1.
+    /// </summary>
+    private async Task<(int ObraId, int TablaId, RedeterminacionService Servicio)> CrearDisparosAsync(int anio, string pub, int cantidad)
+    {
+        var (obraId, tablaId) = await CrearObraConTablaAsync();
+        var valores = new List<(int, int, int, decimal, string?)>();
+        var valor = 100m;
+        for (var mes = 1; mes <= cantidad + 1; mes++, valor *= 1.1m)
+            valores.AddRange([(1, anio, mes, valor, pub), (2, anio, mes, valor, pub)]);
+        await CargarValoresAsync([.. valores]);
+
+        var servicio = Servicio(Roles.Admin);
+        for (var k = 1; k <= cantidad; k++)
+            await servicio.GuardarDisparoAsync(obraId, tablaId, await servicio.CalcularAsync(obraId, tablaId, anio, k, pub, anio, k + 1, pub));
+        return (obraId, tablaId, servicio);
+    }
+
+    private async Task<List<RedeterminacionGuardada>> DisparosAsync(int obraId)
+    {
+        await using var db = fx.CrearContexto();
+        return await db.RedeterminacionesGuardadas.AsNoTracking()
+            .Where(r => r.ObraId == obraId).OrderBy(r => r.NroDisparo).ThenBy(r => r.Id).ToListAsync();
+    }
+
+    /// <summary>Abre los datos administrativos del disparo, los modifica y los guarda con su token.</summary>
+    private static async Task GuardarDatosAdminAsync(RedeterminacionService servicio, int disparoId, Action<SIGO.Models.ViewModels.RedeterminacionAdminVM> editar)
+    {
+        var admin = (await servicio.BuildAdminVmAsync(disparoId))!;
+        editar(admin);
+        await servicio.GuardarDatosAdminAsync(disparoId, admin, admin.RowVersion);
+    }
+
+    [Fact]
+    public async Task ConExpedienteVR_QuedaPresentadaYNoSeRecalculaNiElimina_HastaQueSeBorraEditando()
+    {
+        var (obraId, tablaId, servicio) = await CrearDisparosAsync(2050, "PUB_A3_1", 1);
+        var id = (await DisparosAsync(obraId)).Single().Id;
+
+        await GuardarDatosAdminAsync(servicio, id, a => a.NroExpedienteVR = "EX-2026-00000001-GCABA-SBASE");
+
+        var presentado = (await DisparosAsync(obraId)).Single();
+        Assert.Equal(EstadoRedeterminacion.Presentada, presentado.Estado);
+        var vm = await servicio.CalcularAsync(obraId, tablaId, 2050, 1, "PUB_A3_1", 2050, 2, "PUB_A3_1");
+        Assert.Contains("no admite recálculo", (await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            servicio.RecalcularDisparoAsync(id, obraId, tablaId, vm))).Message);
+        Assert.Contains("no puede eliminarse", (await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            servicio.EliminarDisparoAsync(id, presentado.RowVersion))).Message);
+
+        // Una carga equivocada se corrige editando: sin expediente vuelve a Calculada.
+        await GuardarDatosAdminAsync(servicio, id, a => a.NroExpedienteVR = null);
+        Assert.Equal(EstadoRedeterminacion.Calculada, (await DisparosAsync(obraId)).Single().Estado);
+        await servicio.RecalcularDisparoAsync(id, obraId, tablaId, vm);
+    }
+
+    [Fact]
+    public async Task AnularElUltimo_ElSiguienteUsaSuNumeroYNoEncadenaElAnulado()
+    {
+        var (obraId, tablaId, servicio) = await CrearDisparosAsync(2051, "PUB_A3_2", 3);
+        var tercero = (await DisparosAsync(obraId)).Single(d => d.NroDisparo == 3);
+
+        await GuardarDatosAdminAsync(servicio, tercero.Id, a =>
+        {
+            a.NroExpedienteVR = "EX-2026-00000002-GCABA-SBASE";
+            a.Baja = EstadoRedeterminacion.Anulada;
+        });
+
+        // El último vigente vuelve a ser el 2: su salto es la base del próximo.
+        Assert.Equal((2051, 3), await servicio.UltimoSaltoAsync(obraId));
+        await servicio.GuardarDisparoAsync(obraId, tablaId,
+            await servicio.CalcularAsync(obraId, tablaId, 2051, 3, "PUB_A3_2", 2051, 4, "PUB_A3_2"));
+
+        var disparos = await DisparosAsync(obraId);
+        Assert.Equal(
+            new[] { (1, EstadoRedeterminacion.Calculada), (2, EstadoRedeterminacion.Calculada),
+                    (3, EstadoRedeterminacion.Anulada), (3, EstadoRedeterminacion.Calculada) },
+            disparos.Select(d => (d.NroDisparo, d.Estado)));
+        // 1,1³ y no 1,1⁴: el anulado no entra a la cadena.
+        Assert.Equal(1.331000m, disparos.Last().VariacionAcumulada);
+    }
+
+    [Fact]
+    public async Task DarDeBajaUnoIntermedio_Rechaza()
+    {
+        var (obraId, _, servicio) = await CrearDisparosAsync(2052, "PUB_A3_3", 2);
+        var primero = (await DisparosAsync(obraId)).Single(d => d.NroDisparo == 1);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            GuardarDatosAdminAsync(servicio, primero.Id, a => a.Baja = EstadoRedeterminacion.Rechazada));
+
+        Assert.Contains("Solo se puede rechazar el último disparo vigente", ex.Message);
+        Assert.Equal(EstadoRedeterminacion.Calculada, (await DisparosAsync(obraId)).Single(d => d.NroDisparo == 1).Estado);
+    }
+
+    [Fact]
+    public async Task Reactivar_ConSuNumeroLibreLoReencadena_YConElNumeroOcupadoRechaza()
+    {
+        var (obraId, tablaId, servicio) = await CrearDisparosAsync(2053, "PUB_A3_4", 2);
+        var guardados = await DisparosAsync(obraId);
+        var (primero, segundo) = (guardados[0], guardados[1]);
+
+        // Con el 2 anulado, el 1 es el último vigente y se recalcula a +21% (mes 1 → 3).
+        await GuardarDatosAdminAsync(servicio, segundo.Id, a => a.Baja = EstadoRedeterminacion.Anulada);
+        await servicio.RecalcularDisparoAsync(primero.Id, obraId, tablaId,
+            await servicio.CalcularAsync(obraId, tablaId, 2053, 1, "PUB_A3_4", 2053, 3, "PUB_A3_4"));
+
+        // Reactivado, el 2 vuelve a la cadena sobre el coeficiente nuevo del 1.
+        await GuardarDatosAdminAsync(servicio, segundo.Id, a =>
+        {
+            Assert.Equal(EstadoRedeterminacion.Anulada, a.Baja);
+            a.Baja = null;
+        });
+        var reactivado = (await DisparosAsync(obraId)).Single(x => x.Id == segundo.Id);
+        Assert.Equal(EstadoRedeterminacion.Calculada, reactivado.Estado);
+        Assert.Equal(1.331000m, reactivado.VariacionAcumulada); // 1,21 × 1,1
+
+        // Anulado otra vez y guardado otro N° 2, el viejo ya no puede volver.
+        await GuardarDatosAdminAsync(servicio, segundo.Id, a => a.Baja = EstadoRedeterminacion.Anulada);
+        await servicio.GuardarDisparoAsync(obraId, tablaId,
+            await servicio.CalcularAsync(obraId, tablaId, 2053, 2, "PUB_A3_4", 2053, 3, "PUB_A3_4"));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            GuardarDatosAdminAsync(servicio, segundo.Id, a => a.Baja = null));
+        Assert.Contains("otro disparo vigente con el número 2", ex.Message);
+    }
+
     [Fact]
     public async Task GetRevistasDisponibles_OrdenaLasPublicacionesPorPeriodoNoPorTexto()
     {
