@@ -243,6 +243,9 @@ public class PlantillaIndicesTests
     [InlineData("fecha borrada", "encabezado no es un mes")]
     [InlineData("segundo encabezado", "segundo encabezado")]
     [InlineData("otra versión", "no es la plantilla")]
+    [InlineData("ID de otra publicación", "no son los de la publicación INDEC_INFORMA_08_26 (07/2025 a 07/2026)")]
+    [InlineData("mes cambiado", "no son los de la publicación")]
+    [InlineData("mes borrado", "no son los de la publicación")]
     public void Rechaza_ConElMotivo(string caso, string motivo)
     {
         var archivo = Completar(c =>
@@ -259,6 +262,14 @@ public class PlantillaIndicesTests
                     c.Hoja.Cell(encabezado, c.Col(Jun26)).Value = Blank.Value;
                     break;
                 case "segundo encabezado": c.Hoja.Cell(c.Fila("ALBANILERIA"), 1).Value = "CÓDIGO"; break;
+                // La planilla de 07/26 reutilizada para la 08/26: los 13 valores se repartirían
+                // igual, cada uno un mes antes del que dice la revista.
+                case "ID de otra publicación":
+                    c.Hoja.Cell(1, 2).Value = "INDEC_INFORMA_08_26";
+                    c.Pegar("ALBANILERIA", FilaAlbanileria);
+                    break;
+                case "mes cambiado": c.Hoja.Cell(encabezado, c.Col(Jun26)).Value = new DateTime(2026, 7, 1); break;
+                case "mes borrado": c.Hoja.Cell(encabezado, c.Col(Jun26)).Value = Blank.Value; break;
             }
         }, wb =>
         {

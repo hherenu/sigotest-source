@@ -51,7 +51,9 @@ Reglas de la lectura:
 - Rechaza el archivo entero, con el motivo, si falta el ID, la columna del pegado o los
   meses; si un mes está en dos columnas; si hay un segundo encabezado; o si una columna
   con números no tiene fecha en el encabezado (un mes cuyo rótulo se borró perdería sus
-  valores sin aviso).
+  valores sin aviso); o si los meses del encabezado no son los 13 de la publicación del ID,
+  en orden (la planilla de otro mes con el ID cambiado guardaría cada valor en el mes
+  equivocado).
 - «Fila inválida», con el motivo: un pegado con más o menos valores que meses (cada valor
   caería en el mes equivocado) o con algo que no es un valor; un texto o un error de Excel
   en un mes; un valor que no es mayor que cero; una fila con valores y sin código; una fila
