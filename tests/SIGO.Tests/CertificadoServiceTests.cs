@@ -654,6 +654,34 @@ public class CertificadoServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbF
     }
 
     [Fact]
+    public async Task Transiciones_ConElTokenDeUnaPaginaVieja_DanConflicto()
+    {
+        var e = await CrearEstructuraAsync();
+        var (certId, bloqueId) = await CrearCertificadoAsync(e, 1);
+        var servicio = Servicio(Roles.Admin);
+        await servicio.GuardarItemsAsync(certId, new() { [bloqueId] = new() { [e.ItemCantId] = 10m } });
+
+        // A abre el detalle y B guarda otros % después: A no puede congelar lo que no vio.
+        var detalleDeA = await RowVersionAsync(certId);
+        await servicio.GuardarItemsAsync(certId, new() { [bloqueId] = new() { [e.ItemCantId] = 20m } });
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => servicio.CerrarAsync(certId, detalleDeA));
+
+        // Con la página recargada sí. Lo mismo vale para aprobar, desaprobar y reabrir.
+        await servicio.CerrarAsync(certId, await RowVersionAsync(certId));
+        var cerrado = await RowVersionAsync(certId);
+        await servicio.AprobarAsync(certId, cerrado);
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => servicio.DesaprobarAsync(certId, cerrado));
+        await servicio.DesaprobarAsync(certId, await RowVersionAsync(certId));
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => servicio.AprobarAsync(certId, cerrado));
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => servicio.ReabrirAsync(certId, cerrado));
+
+        await using var db = fx.CrearContexto();
+        var cert = await db.Certificados.Include(c => c.Estructuras).ThenInclude(b => b.Items).SingleAsync(c => c.Id == certId);
+        Assert.Equal(EstadoCertificado.Cerrado, cert.Estado);
+        Assert.Equal(20m, cert.Estructuras.Single().Items.Single(i => i.ItemEstructuraId == e.ItemCantId).PorcentajeActual);
+    }
+
+    [Fact]
     public async Task Mutaciones_SinRolDelModulo_Rechazan()
     {
         var e = await CrearEstructuraAsync();

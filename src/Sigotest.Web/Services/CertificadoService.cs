@@ -541,9 +541,12 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
 
     /// <summary>
     /// Cierra el certificado: congela el snapshot (Anterior/Actual/Acumulado de cada
-    /// ítem y subtotales de cada bloque) y marca Estado=Cerrado + FechaCierre.
+    /// ítem y subtotales de cada bloque) y marca Estado=Cerrado + FechaCierre. El
+    /// RowVersion de la página viaja como token: si otro usuario guardó porcentajes
+    /// después de que se mostró el detalle, se congelarían valores que nadie vio y
+    /// termina en conflicto de concurrencia (lo mismo en las demás transiciones).
     /// </summary>
-    public async Task CerrarAsync(int certificadoId)
+    public async Task CerrarAsync(int certificadoId, byte[]? rowVersionSesion = null)
     {
         ExigirRol("cerrar el certificado");
         await using var db = await dbFactory.CreateDbContextAsync();
@@ -555,6 +558,7 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
         var cert = await db.Certificados
             .Include(c => c.Estructuras).ThenInclude(b => b.Items)
             .FirstOrThrowAsync(c => c.Id == certificadoId, "Certificado no encontrado.");
+        db.AplicarTokenSesion(cert, rowVersionSesion, c => c.Estado);
 
         var previos = await db.Certificados
             .Where(c => c.ObraId == cert.ObraId && c.Numero < cert.Numero)
@@ -647,7 +651,7 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
     /// Reabre un certificado cerrado a borrador: limpia el snapshot congelado y
     /// elimina las filas auto-generadas sin movimiento.
     /// </summary>
-    public async Task ReabrirAsync(int certificadoId)
+    public async Task ReabrirAsync(int certificadoId, byte[]? rowVersionSesion = null)
     {
         ExigirRol("reabrir el certificado");
         await using var db = await dbFactory.CreateDbContextAsync();
@@ -658,6 +662,7 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
         var cert = await db.Certificados
             .Include(c => c.Estructuras).ThenInclude(b => b.Items)
             .FirstOrThrowAsync(c => c.Id == certificadoId, "Certificado no encontrado.");
+        db.AplicarTokenSesion(cert, rowVersionSesion, c => c.Estado);
 
         var posterioresCerrados = await db.Certificados
             .Where(c => c.ObraId == cert.ObraId
@@ -703,26 +708,27 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
     }
 
     /// <summary>Aprueba un certificado cerrado (no toca el snapshot, solo el estado).</summary>
-    public Task AprobarAsync(int certificadoId) =>
-        TransicionSimpleAsync(certificadoId, "aprobar el certificado",
+    public Task AprobarAsync(int certificadoId, byte[]? rowVersionSesion = null) =>
+        TransicionSimpleAsync(certificadoId, rowVersionSesion, "aprobar el certificado",
             CertificadoValidator.Aprobar, EstadoCertificado.Aprobado);
 
     /// <summary>
     /// Vuelve un certificado aprobado a Cerrado (el snapshot queda intacto): es el
     /// camino de salida de una aprobación accidental, que antes solo se resolvía por DB.
     /// </summary>
-    public Task DesaprobarAsync(int certificadoId) =>
-        TransicionSimpleAsync(certificadoId, "desaprobar el certificado",
+    public Task DesaprobarAsync(int certificadoId, byte[]? rowVersionSesion = null) =>
+        TransicionSimpleAsync(certificadoId, rowVersionSesion, "desaprobar el certificado",
             CertificadoValidator.Desaprobar, EstadoCertificado.Cerrado);
 
     /// <summary>Transición de estado sin snapshot ni chequeos sobre otras filas (Aprobar/Desaprobar).</summary>
-    private async Task TransicionSimpleAsync(int certificadoId, string accion,
+    private async Task TransicionSimpleAsync(int certificadoId, byte[]? rowVersionSesion, string accion,
         Func<EstadoCertificado, string?> regla, EstadoCertificado destino)
     {
         ExigirRol(accion);
         await using var db = await dbFactory.CreateDbContextAsync();
 
         var cert = await db.Certificados.FirstOrThrowAsync(c => c.Id == certificadoId, "Certificado no encontrado.");
+        db.AplicarTokenSesion(cert, rowVersionSesion, c => c.Estado);
 
         Validacion.Exigir(regla(cert.Estado));
 
