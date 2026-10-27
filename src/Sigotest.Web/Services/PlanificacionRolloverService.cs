@@ -56,6 +56,29 @@ public class PlanificacionRolloverService(
         if (await db.RolloversPlanificacionEjecutados.AnyAsync(r => r.Anio == hoy.Year && r.Mes == hoy.Month, ct))
             return null;
 
+        // Una sola transacción, con el registro del mes PRIMERO: su índice único hace de
+        // lock entre instancias (la segunda espera y choca con la clave), y si el reinicio
+        // falla no queda ni el mes registrado ni los planes reiniciados. Antes el registro
+        // iba después, en otro SaveChanges: si fallaba (timeout, deadlock) el reinicio ya
+        // estaba confirmado y la pasada siguiente volvía a reiniciar planes que los
+        // usuarios ya habían avanzado.
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var registro = new RolloverPlanificacionEjecutado
+        {
+            Anio = hoy.Year,
+            Mes = hoy.Month,
+            FechaEjecucion = DateTime.UtcNow
+        };
+        db.RolloversPlanificacionEjecutados.Add(registro);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (SqlErrores.EsClaveDuplicada(ex))
+        {
+            return null; // otra instancia registró el mes primero: su corrida vale
+        }
+
         // Set-based: no hay lógica por fila y evita cargar todos los planes en memoria.
         // Un plan Pendiente sin toma ya está en el punto de partida: no cuenta. Las obras
         // fuera de Planificación (Proyectadas) no ciclan: su plan queda como estaba hasta
@@ -73,23 +96,9 @@ public class PlanificacionRolloverService(
                 .SetProperty(p => p.FechaTomaConocimiento, (DateTime?)null)
                 .SetProperty(p => p.TomadaConocimientoPor, (string?)null), ct);
 
-        db.RolloversPlanificacionEjecutados.Add(new RolloverPlanificacionEjecutado
-        {
-            Anio = hoy.Year,
-            Mes = hoy.Month,
-            FechaEjecucion = DateTime.UtcNow,
-            CantidadPlanesReiniciados = reiniciados
-        });
-        try
-        {
-            await db.SaveChangesAsync(ct);
-        }
-        catch (DbUpdateException)
-        {
-            // Otra instancia registró el mes primero (índice único): su corrida vale.
-            // Los resets son idempotentes (poner en null lo que ya está en null).
-        }
-
+        registro.CantidadPlanesReiniciados = reiniciados;
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return reiniciados;
     }
 }

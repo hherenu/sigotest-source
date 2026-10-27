@@ -1,6 +1,9 @@
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using SIGO.Data;
 using SIGO.Models;
 using SIGO.Models.Enums;
 using SIGO.Models.ViewModels;
@@ -375,5 +378,72 @@ public class PlanificacionSnapshotTests(LocalDbFixture fx) : IClassFixture<Local
         // Segunda corrida del mismo mes: idempotente.
         await using (var db = fx.CrearContexto())
             Assert.Null(await PlanificacionRolloverService.EjecutarAsync(db, diaRollover));
+    }
+
+    /// <summary>
+    /// Hace fallar cualquier escritura del registro del mes posterior al reinicio de los
+    /// planes: el caso en que antes el reinicio quedaba confirmado sin registro.
+    /// </summary>
+    private sealed class FallaAlRegistrarTrasElReinicio : DbCommandInterceptor
+    {
+        private bool reinicioEjecutado;
+
+        public override ValueTask<int> NonQueryExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+            int result, CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.TrimStart().StartsWith("UPDATE") && command.CommandText.Contains("[Planificaciones]"))
+                reinicioEjecutado = true;
+            return base.NonQueryExecutedAsync(command, eventData, result, cancellationToken);
+        }
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+            CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            FallarSiCorresponde(command);
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
+
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(DbCommand command,
+            CommandEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            FallarSiCorresponde(command);
+            return base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
+        }
+
+        private void FallarSiCorresponde(DbCommand command)
+        {
+            if (reinicioEjecutado && command.CommandText.Contains("[RolloversPlanificacionEjecutados]"))
+                throw new InvalidOperationException("Falla simulada al registrar el mes del rollover.");
+        }
+    }
+
+    [Fact]
+    public async Task Rollover_SiFallaElRegistroDelMes_NoQuedaNadaAMedias_YLaPasadaSiguienteLoHace()
+    {
+        var (_, planId, _) = await CrearPlanAprobadoAsync();
+        var dia = new DateTime(2093, 3, 9);
+        var conFalla = new DbContextOptionsBuilder<AppDbContext>(fx.Options)
+            .AddInterceptors(new FallaAlRegistrarTrasElReinicio()).Options;
+
+        await using (var db = new AppDbContext(conFalla))
+        {
+            var ex = await Assert.ThrowsAnyAsync<Exception>(() => PlanificacionRolloverService.EjecutarAsync(db, dia));
+            Assert.Contains("Falla simulada al registrar el mes", ex.ToString());
+        }
+
+        // Ni el mes registrado ni el plan reiniciado: antes el reinicio quedaba confirmado y
+        // la pasada siguiente volvía a reiniciar planes que los usuarios ya habían avanzado.
+        await using (var db = fx.CrearContexto())
+        {
+            Assert.False(await db.RolloversPlanificacionEjecutados.AnyAsync(r => r.Anio == 2093 && r.Mes == 3));
+            Assert.Equal(EstadoPlanificacion.Aprobada, (await db.Planificaciones.SingleAsync(p => p.Id == planId)).Estado);
+            Assert.NotNull(await PlanificacionRolloverService.EjecutarAsync(db, dia));
+        }
+
+        await using (var db = fx.CrearContexto())
+        {
+            Assert.Equal(EstadoPlanificacion.Pendiente, (await db.Planificaciones.SingleAsync(p => p.Id == planId)).Estado);
+            Assert.True(await db.RolloversPlanificacionEjecutados.AnyAsync(r => r.Anio == 2093 && r.Mes == 3));
+        }
     }
 }
