@@ -122,7 +122,7 @@ public class PonderacionService(IDbContextFactory<AppDbContext> dbFactory, ICurr
     /// usuario lo modificó desde que la página lo mostró, salta el conflicto de
     /// concurrencia en vez de un lost update.
     /// </summary>
-    public async Task EditarItemAsync(int itemPonderacionId, ItemPonderacionFormVM form, byte[]? rowVersionSesion = null)
+    public async Task EditarItemAsync(int itemPonderacionId, ItemPonderacionFormVM form, byte[] rowVersionSesion)
     {
         ExigirRol("modificar el insumo");
         Validacion.Exigir(PonderacionValidator.GuardarItem(form.Insumo, form.Peso, form.IndiceId));
@@ -132,8 +132,7 @@ public class PonderacionService(IDbContextFactory<AppDbContext> dbFactory, ICurr
         var item = await db.ItemsPonderacion.FirstOrThrowAsync(i => i.Id == itemPonderacionId,
             "El insumo a editar ya no existe (otro usuario pudo haberlo eliminado).");
 
-        if (rowVersionSesion is not null)
-            db.Entry(item).Property(i => i.RowVersion).OriginalValue = rowVersionSesion;
+        db.Entry(item).Property(i => i.RowVersion).OriginalValue = rowVersionSesion;
 
         item.Insumo = form.Insumo!.Trim();
         item.PesoPorcentaje = form.Peso!.Value;

@@ -189,10 +189,13 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
     /// Reemplaza el cálculo de un disparo existente (solo Borrador/Calculada y solo
     /// el ÚLTIMO de la obra: recalcular uno intermedio reescribiría la variación
     /// acumulada de los posteriores, incluidos los oficiales) y re-encadena la
-    /// VariacionAcumulada de todos los disparos vigentes de la obra.
+    /// VariacionAcumulada de todos los disparos vigentes de la obra. El RowVersion con el
+    /// que la página cargó el disparo viaja como token: dos recálculos simultáneos, o uno
+    /// contra datos administrativos editados en otra pestaña, terminan en conflicto.
     /// Devuelve el ObraId del disparo para la navegación posterior.
     /// </summary>
-    public async Task<int> RecalcularDisparoAsync(int disparoId, int obraId, int tablaPonderacionId, RedeterminacionVM vm)
+    public async Task<int> RecalcularDisparoAsync(int disparoId, int obraId, int tablaPonderacionId, RedeterminacionVM vm,
+        byte[]? rowVersionSesion = null)
     {
         ExigirRol("recalcular el disparo");
 
@@ -206,6 +209,7 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
         var existing = await db.RedeterminacionesGuardadas.Include(r => r.Items)
             .FirstOrThrowAsync(r => r.Id == disparoId,
                 "El disparo a recalcular ya no existe (otro usuario pudo haberlo eliminado).");
+        db.AplicarTokenSesion(existing, rowVersionSesion, x => x.Estado);
 
         // El chequeo de posteriores va DENTRO de la transacción Serializable (como en
         // EliminarDisparoAsync): un guardado concurrente de un disparo nuevo volvería
@@ -308,7 +312,7 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
     /// viaja como token: una edición concurrente desde que la página cargó termina en
     /// conflicto de concurrencia, no en un lost update.
     /// </summary>
-    public async Task GuardarDatosAdminAsync(int disparoId, RedeterminacionAdminVM vm, byte[]? rowVersionSesion = null)
+    public async Task GuardarDatosAdminAsync(int disparoId, RedeterminacionAdminVM vm, byte[] rowVersionSesion)
     {
         ExigirRol("guardar los datos administrativos");
         await using var db = await dbFactory.CreateDbContextAsync();
@@ -319,8 +323,7 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
         var r = await db.RedeterminacionesGuardadas.FirstOrThrowAsync(x => x.Id == disparoId,
             "El disparo ya no existe (otro usuario pudo haberlo eliminado).");
 
-        if (rowVersionSesion is not null)
-            db.Entry(r).Property(x => x.RowVersion).OriginalValue = rowVersionSesion;
+        db.Entry(r).Property(x => x.RowVersion).OriginalValue = rowVersionSesion;
 
         var estado = RedeterminacionValidator.EstadoAdministrativo(
             vm.Baja, vm.NroExpedienteVR, vm.FechaAprobacionCCyR, vm.FechaAprobacionOS);
@@ -465,6 +468,7 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
                 ObraId = r.ObraId,
                 NroDisparo = r.NroDisparo,
                 Estado = r.Estado,
+                RowVersion = r.RowVersion,
                 EsUltimo = !db.RedeterminacionesGuardadas
                     .Any(x => x.ObraId == r.ObraId && x.NroDisparo > r.NroDisparo
                         && x.Estado != EstadoRedeterminacion.Rechazada && x.Estado != EstadoRedeterminacion.Anulada),

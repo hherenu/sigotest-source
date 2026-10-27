@@ -156,6 +156,8 @@ public class RedeterminacionParaRecalcularVM
     public string? IdPublicacionBase { get; set; }
     public int AnioSalto { get; set; }
     public int MesSalto { get; set; }
+    /// <summary>Token del disparo tal como se cargó para recalcular (viaja a RecalcularDisparoAsync).</summary>
+    public byte[] RowVersion { get; set; } = [];
 }
 
 /// <summary>

@@ -383,6 +383,26 @@ public class RedeterminacionServiceTests(LocalDbFixture fx) : IClassFixture<Loca
     }
 
     [Fact]
+    public async Task Recalcular_ConElTokenDeUnaPaginaVieja_DaConflicto()
+    {
+        var (obraId, tablaId, servicio) = await CrearDisparosAsync(2054, "PUB_A3_5", 1);
+        var id = (await DisparosAsync(obraId)).Single().Id;
+        var paginaDeCalcular = (await servicio.GetDisparoParaRecalcularAsync(id))!;
+        Assert.NotEmpty(paginaDeCalcular.RowVersion);
+
+        // Con Calcular abierto, otra pestaña edita los datos administrativos (sin cambiar el
+        // estado). El recálculo da los mismos valores y aun así tiene que detectarlo.
+        await GuardarDatosAdminAsync(servicio, id, a => a.FechaLimitePresentacion = new DateTime(2026, 12, 31));
+        var vm = await servicio.CalcularAsync(obraId, tablaId, 2054, 1, "PUB_A3_5", 2054, 2, "PUB_A3_5");
+
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() =>
+            servicio.RecalcularDisparoAsync(id, obraId, tablaId, vm, paginaDeCalcular.RowVersion));
+
+        var recargada = (await servicio.GetDisparoParaRecalcularAsync(id))!;
+        await servicio.RecalcularDisparoAsync(id, obraId, tablaId, vm, recargada.RowVersion);
+    }
+
+    [Fact]
     public async Task GetRevistasDisponibles_OrdenaLasPublicacionesPorPeriodoNoPorTexto()
     {
         // El sufijo del id es "MM_AA": ordenarlo como texto (o en SQL) pone
