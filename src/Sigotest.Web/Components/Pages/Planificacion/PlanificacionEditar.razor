@@ -1287,7 +1287,7 @@ else
             if (puedeEditar && HayCambiosSinGuardar() && !await GuardarGrillaCoreAsync())
                 return;
 
-            if (await Persistencia.EjecutarAsync(() => Service.MarcarCargadaAsync(vm!.PlanificacionId), Notifications))
+            if (await Persistencia.EjecutarAsync(() => Service.MarcarCargadaAsync(vm!.PlanificacionId, vm.RowVersion), Notifications))
                 Notifications.Notify(NotificationSeverity.Success, "Cargado", "Plan guardado y marcado como Cargado.", 4000);
             await BuildStateAsync();
         }
@@ -1302,7 +1302,7 @@ else
         {
             await UiAcciones.ConfirmarYEjecutarAsync(DialogService, Notifications,
                 "Aprobar da por definitivo el plan. ¿Continuar?", "Aprobar planificación", "Aprobar",
-                () => Service.AprobarAsync(vm!.PlanificacionId),
+                () => Service.AprobarAsync(vm!.PlanificacionId, vm.RowVersion),
                 "Aprobado", "Plan aprobado.");
             await BuildStateAsync();
         }
@@ -1318,7 +1318,7 @@ else
             await UiAcciones.ConfirmarYEjecutarAsync(DialogService, Notifications,
                 "La toma de conocimiento registra la versión de este mes de la planificación. ¿Continuar?",
                 "Tomar conocimiento", "Tomar conocimiento",
-                () => Service.TomarConocimientoAsync(vm!.PlanificacionId),
+                () => Service.TomarConocimientoAsync(vm!.PlanificacionId, vm.RowVersion),
                 "Registrado", "Toma de conocimiento registrada.");
             await BuildStateAsync();
         }
@@ -1349,7 +1349,7 @@ else
         try
         {
             hecho = await Persistencia.EjecutarAsync(
-                () => Service.EnviarARevisionAsync(vm!.PlanificacionId, motivoRevision ?? string.Empty, correcciones),
+                () => Service.EnviarARevisionAsync(vm!.PlanificacionId, motivoRevision ?? string.Empty, correcciones, vm.RowVersion),
                 Notifications);
             if (hecho)
                 Notifications.Notify(NotificationSeverity.Success, "En revisión", "Plan enviado a revisión.", 4000);

@@ -317,6 +317,9 @@ public class PlanificacionService(
             Denominacion = denominacion
         };
         db.Autorizantes.Add(aut);
+        // RowVersion del plan también al agregar (como al quitar): un bloque agregado
+        // mientras otro usuario marca Cargada quedaba en un plan Cargada sin validar.
+        db.Entry(plan).Property(p => p.Estado).IsModified = true;
         await db.SaveChangesAsync();
         return aut;
     }
@@ -509,14 +512,18 @@ public class PlanificacionService(
     }
 
     // ── Máquina de estados (con los mails del circuito) ─────────────────────────────
+    // Cada transición recibe el RowVersion de la página como token (ver AplicarTokenSesion):
+    // sin él, desde una pestaña vieja se aprobaba o se tomaba conocimiento de un contenido
+    // que el usuario no había visto (otro lo cambió y lo volvió a marcar Cargada).
 
     /// <summary>Director deja el plan como Cargada. Mail 2: al/los Gerente(s).</summary>
-    public async Task MarcarCargadaAsync(int planificacionId)
+    public async Task MarcarCargadaAsync(int planificacionId, byte[]? rowVersionSesion = null)
     {
         ExigirRol(Roles.PlanificacionCarga, "marcar el plan como Cargada");
         await using var db = await dbFactory.CreateDbContextAsync();
 
         var plan = await GetConMontosAsync(db, planificacionId);
+        db.AplicarTokenSesion(plan, rowVersionSesion, p => p.Estado);
         await ExigirObraAsignadaAsync(db, plan.ObraId);
 
         Validacion.Exigir(PlanificacionValidator.MarcarCargada(plan.Estado, plan.Autorizantes.Count));
@@ -536,12 +543,13 @@ public class PlanificacionService(
     }
 
     /// <summary>Gerente devuelve el plan a revisión con un motivo. Mail al Director de la obra.</summary>
-    public async Task EnviarARevisionAsync(int planificacionId, string motivo, string? correcciones)
+    public async Task EnviarARevisionAsync(int planificacionId, string motivo, string? correcciones, byte[]? rowVersionSesion = null)
     {
         ExigirRol(Roles.PlanificacionAprobacion, "enviar el plan a revisión");
         await using var db = await dbFactory.CreateDbContextAsync();
 
         var plan = await GetByIdAsync(db, planificacionId);
+        db.AplicarTokenSesion(plan, rowVersionSesion, p => p.Estado);
         Validacion.Exigir(PlanificacionValidator.EnviarARevision(plan.Estado, motivo));
 
         var obra = await NombreObraAsync(db, plan.ObraId);
@@ -568,12 +576,13 @@ public class PlanificacionService(
     }
 
     /// <summary>Gerente aprueba el plan. Mail 3: a Presupuesto (toma de conocimiento).</summary>
-    public async Task AprobarAsync(int planificacionId)
+    public async Task AprobarAsync(int planificacionId, byte[]? rowVersionSesion = null)
     {
         ExigirRol(Roles.PlanificacionAprobacion, "aprobar el plan");
         await using var db = await dbFactory.CreateDbContextAsync();
 
         var plan = await GetConMontosAsync(db, planificacionId);
+        db.AplicarTokenSesion(plan, rowVersionSesion, p => p.Estado);
         Validacion.Exigir(PlanificacionValidator.Aprobar(plan.Estado));
         var obra = (await ExigirReglasDelCircuitoAsync(db, plan)).NombreCompleto;
 
@@ -609,12 +618,13 @@ public class PlanificacionService(
     /// reemplaza la foto: vale la última versión conocida del ciclo. Flag y snapshot se
     /// confirman en un único SaveChanges.
     /// </summary>
-    public async Task TomarConocimientoAsync(int planificacionId)
+    public async Task TomarConocimientoAsync(int planificacionId, byte[]? rowVersionSesion = null)
     {
         ExigirRol(Roles.PlanificacionConocimiento, "tomar conocimiento del plan");
         await using var db = await dbFactory.CreateDbContextAsync();
 
         var plan = await GetConMontosAsync(db, planificacionId);
+        db.AplicarTokenSesion(plan, rowVersionSesion, p => p.Estado);
 
         Validacion.Exigir(PlanificacionValidator.TomarConocimiento(plan.Estado, plan.FechaTomaConocimiento));
 

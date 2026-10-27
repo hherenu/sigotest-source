@@ -205,6 +205,86 @@ public class PlanificacionSnapshotTests(LocalDbFixture fx) : IClassFixture<Local
         }
     }
 
+    // ── Token de la página en las transiciones ───────────────────────────────
+
+    private async Task<byte[]> TokenAsync(int planId)
+    {
+        await using var db = fx.CrearContexto();
+        return (await db.Planificaciones.AsNoTracking().SingleAsync(p => p.Id == planId)).RowVersion;
+    }
+
+    [Fact]
+    public async Task TomarConocimiento_ConLaPaginaVieja_DaConflicto()
+    {
+        var (obraId, planId, _) = await CrearPlanAprobadoAsync();
+        var admin = Crear(Roles.Admin);
+        var presupuesto = Crear(Roles.Presupuesto);
+        var paginaDePresupuesto = await TokenAsync(planId);
+
+        // Mientras tanto vuelve a revisión, se carga otra vez y se re-aprueba: la versión
+        // que Presupuesto tiene en pantalla ya no es la que se aprobó.
+        await admin.EnviarARevisionAsync(planId, "corregir", null);
+        await admin.MarcarCargadaAsync(planId);
+        await admin.AprobarAsync(planId);
+
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => presupuesto.TomarConocimientoAsync(planId, paginaDePresupuesto));
+        await using (var db = fx.CrearContexto())
+            Assert.Equal(0, await db.PlanificacionSnapshots.CountAsync(s => s.ObraId == obraId));
+
+        await presupuesto.TomarConocimientoAsync(planId, await TokenAsync(planId)); // con la página recargada
+    }
+
+    [Fact]
+    public async Task AprobarOEnviarARevision_ConLaPaginaVieja_DaConflicto()
+    {
+        var (_, planId, _) = await CrearPlanAprobadoAsync();
+        var admin = Crear(Roles.Admin);
+        var gerente = Crear(Roles.Gerente);
+        await admin.EnviarARevisionAsync(planId, "corregir", null);
+        await admin.MarcarCargadaAsync(planId);
+        var paginaDelGerente = await TokenAsync(planId);
+
+        // Otra vuelta del circuito en el medio: el plan vuelve a estar Cargada, pero no es el que vio.
+        await admin.EnviarARevisionAsync(planId, "otra vuelta", null);
+        await admin.MarcarCargadaAsync(planId);
+
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => gerente.AprobarAsync(planId, paginaDelGerente));
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() =>
+            gerente.EnviarARevisionAsync(planId, "revisar", null, paginaDelGerente));
+        await gerente.AprobarAsync(planId, await TokenAsync(planId));
+    }
+
+    [Fact]
+    public async Task MarcarCargada_ConLaPaginaVieja_DaConflicto()
+    {
+        var (_, planId, autId) = await CrearPlanAprobadoAsync();
+        var admin = Crear(Roles.Admin);
+        await admin.EnviarARevisionAsync(planId, "corregir", null);
+        var paginaDelDirector = await TokenAsync(planId);
+
+        // Otro usuario guarda la grilla mientras tanto.
+        await admin.GuardarGrillaAsync(planId,
+            [new PlanMontoInput(autId, ConceptoPlanMonto.Mensual, 2030, 1, Moneda.Pesos, 100m)], PeriodosTest);
+
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => admin.MarcarCargadaAsync(planId, paginaDelDirector));
+        await admin.MarcarCargadaAsync(planId, await TokenAsync(planId));
+    }
+
+    [Fact]
+    public async Task AgregarBloque_RenuevaElTokenDelPlan()
+    {
+        var (_, planId, autId) = await CrearPlanAprobadoAsync();
+        var admin = Crear(Roles.Admin);
+        await admin.EnviarARevisionAsync(planId, "falta el adicional", null);
+        var antes = await TokenAsync(planId);
+
+        await admin.AgregarAutorizanteAsync(planId, TipoAutorizante.Adicional, null, "Adicional 1");
+
+        // Como al quitar: guardar con la página de antes del bloque da conflicto.
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => admin.GuardarGrillaAsync(planId,
+            [new PlanMontoInput(autId, ConceptoPlanMonto.Mensual, 2030, 1, Moneda.Pesos, 100m)], PeriodosTest, antes));
+    }
+
     [Fact]
     public async Task RolSinConocimiento_Rechaza()
     {
