@@ -259,17 +259,23 @@ else
             return;
         }
 
-        var resultado = await DialogService.OpenAsync<ProrrogaAgregarDialog>(
-            $"Prórroga N°{obra.Prorrogas.Count + 1} — {obra.Nombre}",
-            new Dictionary<string, object?>
-            {
-                [nameof(ProrrogaAgregarDialog.ObraId)] = obra.Id,
-                [nameof(ProrrogaAgregarDialog.FechaFinVigente)] = obra.FechaFinalContrato!.Value
-            },
-            new DialogOptions { Width = "min(520px, 92vw)" });
+        // El flag antes del diálogo: un doble clic no debe apilar dos diálogos.
+        procesando = true;
+        try
+        {
+            var resultado = await DialogService.OpenAsync<ProrrogaAgregarDialog>(
+                $"Prórroga N°{obra.Prorrogas.Count + 1} — {obra.Nombre}",
+                new Dictionary<string, object?>
+                {
+                    [nameof(ProrrogaAgregarDialog.ObraId)] = obra.Id,
+                    [nameof(ProrrogaAgregarDialog.FechaFinVigente)] = obra.FechaFinalContrato!.Value
+                },
+                new DialogOptions { Width = "min(520px, 92vw)" });
 
-        if (resultado is true)
-            await RecargarAsync();
+            if (resultado is true)
+                await RecargarAsync();
+        }
+        finally { procesando = false; }
     }
 
     private async Task EliminarProrrogaAsync(ProrrogaObraVM p)

@@ -108,13 +108,20 @@ else
 
     private async Task AbrirAgregarAsync()
     {
-        var resultado = await DialogService.OpenAsync<ValorAgregarDialog>(
-            "Agregar valor mensual",
-            new Dictionary<string, object?> { [nameof(ValorAgregarDialog.IndiceId)] = Id },
-            new DialogOptions { Width = "min(420px, 92vw)" });
+        if (procesando) return;
+        // El flag antes del diálogo: un doble clic no debe apilar dos diálogos.
+        procesando = true;
+        try
+        {
+            var resultado = await DialogService.OpenAsync<ValorAgregarDialog>(
+                "Agregar valor mensual",
+                new Dictionary<string, object?> { [nameof(ValorAgregarDialog.IndiceId)] = Id },
+                new DialogOptions { Width = "min(420px, 92vw)" });
 
-        if (resultado is true)
-            await CargarValoresAsync();
+            if (resultado is true)
+                await CargarValoresAsync();
+        }
+        finally { procesando = false; }
     }
 
     private async Task EliminarAsync(ValorIndiceVM v)

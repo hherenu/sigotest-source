@@ -151,7 +151,7 @@ else
                                                   Click="@(() => RecalcularClick(r, ultimoDisparo))" />
                                     @* Primary como todos los "editar" de fila (era Warning, único en la app). *@
                                     <RadzenButton Icon="edit_note" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
-                                                  title="Datos administrativos" Click="@(() => AbrirAdminAsync(r))" />
+                                                  title="Datos administrativos" Disabled="@procesando" Click="@(() => AbrirAdminAsync(r))" />
                                     <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
                                                   title="@(MotivoNoEliminable(r, ultimoDisparo) ?? "Eliminar")"
                                                   Disabled="@procesando"
@@ -216,21 +216,28 @@ else
     // usuario) se avisa y se recarga la grilla sin abrir nada.
     private async Task AbrirAdminAsync(RedeterminacionHistorialVM r)
     {
-        var vm = await Service.BuildAdminVmAsync(r.Id);
-        if (vm is null)
+        if (procesando) return;
+        // El flag antes de la lectura y del diálogo: un doble clic no debe apilar dos diálogos.
+        procesando = true;
+        try
         {
-            Notifications.Notify(NotificationSeverity.Warning, "No encontrado", "El cálculo ya no existe.", 4000);
-            await CargarAsync();
-            return;
+            var vm = await Service.BuildAdminVmAsync(r.Id);
+            if (vm is null)
+            {
+                Notifications.Notify(NotificationSeverity.Warning, "No encontrado", "El cálculo ya no existe.", 4000);
+                await CargarAsync();
+                return;
+            }
+
+            var resultado = await DialogService.OpenAsync<RedeterminacionAdminDialog>(
+                $"Disparo N° {vm.NroDisparo} — Datos Administrativos",
+                new Dictionary<string, object?> { [nameof(RedeterminacionAdminDialog.Vm)] = vm },
+                new DialogOptions { Width = "min(480px, 92vw)" });
+
+            if (resultado is true)
+                await CargarAsync();
         }
-
-        var resultado = await DialogService.OpenAsync<RedeterminacionAdminDialog>(
-            $"Disparo N° {vm.NroDisparo} — Datos Administrativos",
-            new Dictionary<string, object?> { [nameof(RedeterminacionAdminDialog.Vm)] = vm },
-            new DialogOptions { Width = "min(480px, 92vw)" });
-
-        if (resultado is true)
-            await CargarAsync();
+        finally { procesando = false; }
     }
 
     // Los motivos de negocio se explican al clic (los botones no van disabled: ver markup).

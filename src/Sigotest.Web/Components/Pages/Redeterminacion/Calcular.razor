@@ -147,6 +147,8 @@
 
     private RedeterminacionVM? vm;
     private int? editarId;
+    // Token del disparo a recalcular, tal como se cargó (ver RecalcularDisparoAsync).
+    private byte[]? tokenRecalculo;
     private bool guardando;
     private bool calculando;
 
@@ -184,6 +186,7 @@
         editarIdCargado = EditarId;
 
         editarId = EditarId;
+        tokenRecalculo = null;
 
         if (EditarId.HasValue)
         {
@@ -199,11 +202,13 @@
                 {
                     Notifications.Notify(NotificationSeverity.Warning, "No se puede recalcular", rechazo, 8000);
                     editarId = null;
+                    tokenRecalculo = null;
                     selectedObraId = r.ObraId;
                     await LoadObraAsync(r.ObraId);
                 }
                 else
                 {
+                    tokenRecalculo = r.RowVersion;
                     selectedObraId = r.ObraId;
                     await LoadObraAsync(r.ObraId);
                     selectedPublicacion = r.IdPublicacionBase ?? publicacionDefault;
@@ -268,6 +273,7 @@
     {
         vm = null;
         editarId = null;
+        tokenRecalculo = null;
         if (selectedObraId.HasValue) await LoadObraAsync(selectedObraId.Value);
         else { obra = null; tabla = null; }
     }
@@ -376,7 +382,7 @@
         int obraIdDestino = 0;
         var hecho = await Persistencia.EjecutarAsync(async () =>
         {
-            obraIdDestino = await Service.RecalcularDisparoAsync(id, obra!.Id, tabla!.Id, vm!);
+            obraIdDestino = await Service.RecalcularDisparoAsync(id, obra!.Id, tabla!.Id, vm!, tokenRecalculo);
         }, Notifications);
 
         if (!hecho) return;

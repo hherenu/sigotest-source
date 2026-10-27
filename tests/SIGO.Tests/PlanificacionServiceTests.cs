@@ -384,7 +384,8 @@ public class PlanificacionServiceTests(LocalDbFixture fx) : IClassFixture<LocalD
         var (servicio, _) = Crear(Roles.Admin);
         var plan = await servicio.GetOrCreateAsync(obraId);
         var basica = await servicio.AgregarAutorizanteAsync(plan.Id, TipoAutorizante.Basica, null, null);
-        var tokenViejo = plan.RowVersion;
+        // El token de la página ya con el bloque: agregarlo también renueva el rowversion.
+        var tokenViejo = (await servicio.BuildVmAsync(obraId)).RowVersion;
 
         // Otro guardado en el medio bumpea el rowversion del plan.
         await servicio.GuardarGrillaAsync(plan.Id,

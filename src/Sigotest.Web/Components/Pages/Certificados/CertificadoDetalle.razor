@@ -199,19 +199,19 @@ else
 
     private Task CerrarAsync() => TransicionAsync(
         "Cerrar el certificado congela los valores. ¿Continuar?", "Cerrar certificado", "Cerrar",
-        () => Service.CerrarAsync(Id), "Cerrado", "Certificado cerrado.");
+        () => Service.CerrarAsync(Id, vm!.RowVersion), "Cerrado", "Certificado cerrado.");
 
     private Task ReabrirAsync() => TransicionAsync(
         "Reabrir vuelve a borrador y descongela el snapshot. ¿Continuar?", "Reabrir certificado", "Reabrir",
-        () => Service.ReabrirAsync(Id), "Reabierto", "Certificado reabierto a borrador.");
+        () => Service.ReabrirAsync(Id, vm!.RowVersion), "Reabierto", "Certificado reabierto a borrador.");
 
     private Task AprobarAsync() => TransicionAsync(
         "Aprobar da por definitivo el certificado. ¿Continuar?", "Aprobar certificado", "Aprobar",
-        () => Service.AprobarAsync(Id), "Aprobado", $"Certificado N° {vm?.Numero}");
+        () => Service.AprobarAsync(Id, vm!.RowVersion), "Aprobado", $"Certificado N° {vm?.Numero}");
 
     private Task DesaprobarAsync() => TransicionAsync(
         "El certificado vuelve a Cerrado (el snapshot se conserva). ¿Continuar?", "Volver a Cerrado", "Volver a Cerrado",
-        () => Service.DesaprobarAsync(Id), "Cerrado", $"Certificado N° {vm?.Numero} volvió a Cerrado.");
+        () => Service.DesaprobarAsync(Id, vm!.RowVersion), "Cerrado", $"Certificado N° {vm?.Numero} volvió a Cerrado.");
 
     /// <summary>
     /// Las 4 transiciones de estado con el patrón estándar de la app (UiAcciones).

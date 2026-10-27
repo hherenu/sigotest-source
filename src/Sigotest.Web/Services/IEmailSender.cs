@@ -24,7 +24,11 @@ public class CorreoOptions
 
     public int TimeoutSegundos { get; set; } = 10;
 
-    /// <summary>Día del mes en que sale el digest de planificación a los directores.</summary>
+    /// <summary>
+    /// Día del mes en que sale el digest de planificación a los directores. Espera al
+    /// rollover del mes: con DiaRollover posterior se demora hasta ese día, y con un
+    /// DiaRollover que el mes no tiene (31 en un mes de 30) ese mes no sale.
+    /// </summary>
     public int DiaDigest { get; set; } = 10;
 
     /// <summary>
