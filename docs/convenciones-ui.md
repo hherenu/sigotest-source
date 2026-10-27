@@ -74,7 +74,8 @@ regla, dejá el porqué en un comentario al lado (como hace el resto del código
 
 - Toda mutación pasa por `Persistencia.EjecutarAsync` (traduce concurrencia/DB/reglas
   a notificaciones) y las confirmaciones por `UiAcciones` (flag `procesando` ANTES del
-  Confirm: un doble clic no apila diálogos).
+  Confirm: un doble clic no apila diálogos). Lo mismo al abrir un diálogo con
+  `DialogService.OpenAsync`: `procesando = true` antes de abrirlo y `false` en un `finally`.
 - Notificación de éxito corta (3-4s); advertencias con instrucción de recuperación.
 
 ## Varios

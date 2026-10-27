@@ -1232,17 +1232,18 @@ else
     {
         if (procesando) return;
 
-        // Con la obra básica ya cargada, lo próximo que se agrega es un adicional o un BED.
-        var preseleccion = vm!.Bloques.Any(b => b.Tipo == TipoAutorizante.Basica)
-            ? TipoAutorizante.Adicional : TipoAutorizante.Basica;
-        var elegido = await DialogService.OpenAsync<AgregarBloqueDialog>("Agregar bloque",
-            new Dictionary<string, object?> { [nameof(AgregarBloqueDialog.Tipo)] = preseleccion },
-            new DialogOptions { Width = "min(420px, 92vw)" });
-        if (elegido is not AgregarBloqueDialog.Resultado r) return;
-
+        // El flag antes del diálogo: un doble clic apilaba dos diálogos y creaba dos bloques.
         procesando = true;
         try
         {
+            // Con la obra básica ya cargada, lo próximo que se agrega es un adicional o un BED.
+            var preseleccion = vm!.Bloques.Any(b => b.Tipo == TipoAutorizante.Basica)
+                ? TipoAutorizante.Adicional : TipoAutorizante.Basica;
+            var elegido = await DialogService.OpenAsync<AgregarBloqueDialog>("Agregar bloque",
+                new Dictionary<string, object?> { [nameof(AgregarBloqueDialog.Tipo)] = preseleccion },
+                new DialogOptions { Width = "min(420px, 92vw)" });
+            if (elegido is not AgregarBloqueDialog.Resultado r) return;
+
             if (await Persistencia.EjecutarAsync(
                     () => Service.AgregarAutorizanteAsync(vm!.PlanificacionId, r.Tipo, null, r.Denominacion),
                     Notifications))

@@ -81,6 +81,8 @@ else
 
     private async Task EditarAsync(UsuarioVM u)
     {
+        if (procesando) return;
+
         // Copia editable: el diálogo no bindea la fila de la grilla; el RowVersion de
         // la fila listada acompaña como token del UPDATE.
         var copia = new UsuarioVM
@@ -94,13 +96,19 @@ else
             RowVersion = u.RowVersion
         };
 
-        var resultado = await DialogService.OpenAsync<UsuarioEditarDialog>(
-            $"Editar — {u.WindowsUser}",
-            new Dictionary<string, object?> { [nameof(UsuarioEditarDialog.Usuario)] = copia },
-            new DialogOptions { Width = "min(480px, 92vw)" });
+        // El flag antes del diálogo: un doble clic no debe apilar dos diálogos.
+        procesando = true;
+        try
+        {
+            var resultado = await DialogService.OpenAsync<UsuarioEditarDialog>(
+                $"Editar — {u.WindowsUser}",
+                new Dictionary<string, object?> { [nameof(UsuarioEditarDialog.Usuario)] = copia },
+                new DialogOptions { Width = "min(480px, 92vw)" });
 
-        if (resultado is true)
-            await CargarAsync();
+            if (resultado is true)
+                await CargarAsync();
+        }
+        finally { procesando = false; }
     }
 
     private async Task EliminarAsync(UsuarioVM u)
