@@ -14,7 +14,9 @@ namespace SIGO.Services;
 /// 10) de cada mes envía UN digest a cada director con la lista de sus obras y el
 /// estado del plan de cada una. Si la app estuvo apagada ese día, lo envía al arrancar
 /// (catch-up dentro del mismo mes); el registro en DigestsPlanificacionEnviados evita
-/// re-envíos por reinicios.
+/// re-envíos por reinicios. Sale recién con el rollover del mes registrado, porque
+/// informa el ciclo nuevo: si Correo:DiaRollover es posterior a DiaDigest, se demora
+/// hasta ese día.
 /// </summary>
 public class PlanificacionDigestService(
     IServiceProvider services,
@@ -36,9 +38,104 @@ public class PlanificacionDigestService(
         var emailSender = scope.ServiceProvider.GetRequiredService<IEmailSender>();
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        if (await db.DigestsPlanificacionEnviados.AnyAsync(d => d.Anio == hoy.Year && d.Mes == hoy.Month, ct))
-            return; // el digest de este mes ya salió
+        await EjecutarAsync(db, emailSender, opciones.CurrentValue.BaseUrl, hoy, logger, ct);
+    }
 
+    /// <summary>
+    /// Envía el digest del mes de <paramref name="hoy"/> si corresponde y devuelve los
+    /// mails enviados; null si no salió: ya se envió, el rollover del mes todavía no
+    /// corrió, otra instancia lo está enviando, o fallaron todos los envíos (la pasada
+    /// siguiente reintenta). Separado del hosted service para poder testearlo contra la
+    /// DB real.
+    /// </summary>
+    public static async Task<int?> EjecutarAsync(AppDbContext db, IEmailSender emailSender, string? baseUrl,
+        DateTime hoy, ILogger logger, CancellationToken ct = default)
+    {
+        if (await db.DigestsPlanificacionEnviados.AnyAsync(d => d.Anio == hoy.Year && d.Mes == hoy.Month, ct))
+            return null; // el digest de este mes ya salió
+
+        // El digest informa el estado del ciclo nuevo: sale recién con el rollover del mes
+        // registrado. Con la app apagada los días del rollover y del digest, al arrancar
+        // corrían los dos a la vez y el mail mostraba los estados de antes del reinicio.
+        if (!await db.RolloversPlanificacionEjecutados.AnyAsync(r => r.Anio == hoy.Year && r.Mes == hoy.Month, ct))
+            return null;
+
+        // Todo lo que lee la base va ANTES de reservar: después de la reserva solo quedan
+        // los envíos, que atrapan su propio error. Un corte de la base entre la reserva y
+        // la consulta dejaba el mes reservado sin ningún mail y sin reintento.
+        var (porDirector, sinDirector) = await DestinatariosAsync(db, hoy, ct);
+
+        // El mes se reserva ANTES de enviar: con dos procesos (reciclado superpuesto de
+        // IIS) el índice único deja pasar a uno solo. Antes se registraba al final y los
+        // dos enviaban el digest completo. Mientras se envía queda en -1 (ver la entidad).
+        var registro = new DigestPlanificacionEnviado
+        {
+            Anio = hoy.Year, Mes = hoy.Month, FechaEnvio = DateTime.UtcNow, CantidadMails = DigestPlanificacionEnviado.EnCurso
+        };
+        db.DigestsPlanificacionEnviados.Add(registro);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (SqlErrores.EsClaveDuplicada(ex))
+        {
+            return null; // otra instancia lo reservó primero: su corrida vale
+        }
+
+        int enviados;
+        try
+        {
+            enviados = await EnviarAsync(emailSender, porDirector, baseUrl, hoy, logger);
+        }
+        catch
+        {
+            await LiberarAsync(db, registro, logger);
+            throw;
+        }
+
+        // Con el SMTP caído o todas las direcciones inválidas (0 de N mails reales),
+        // registrar igual perdía el digest del mes definitivamente: se libera la reserva
+        // y la pasada siguiente reintenta (y toma una dirección recién corregida). Con
+        // éxito parcial queda registrado: reintentar duplicaría los mails que ya salieron
+        // (los fallos individuales quedan logueados).
+        if (porDirector.Count > 0 && enviados == 0)
+        {
+            if (await LiberarAsync(db, registro, logger))
+                logger.LogWarning("Digest de planificación {Mes:00}/{Anio}: fallaron los {Total} envíos; " +
+                    "no se registra el mes y se reintenta en la próxima pasada.", hoy.Month, hoy.Year, porDirector.Count);
+            return null;
+        }
+
+        registro.CantidadMails = enviados;
+        registro.FechaEnvio = DateTime.UtcNow;
+        await db.SaveChangesAsync(CancellationToken.None); // los mails ya salieron: el registro no se cancela
+
+        logger.LogInformation("Digest de planificación {Mes:00}/{Anio}: {Mails} mail(s) a {Directores} director(es); " +
+            "{SinDirector} obra(s) sin correo de director.", hoy.Month, hoy.Year, enviados, porDirector.Count, sinDirector);
+        return enviados;
+    }
+
+    /// <summary>Quita la reserva del mes para que la pasada siguiente reintente; false si no se pudo.</summary>
+    private static async Task<bool> LiberarAsync(AppDbContext db, DigestPlanificacionEnviado registro, ILogger logger)
+    {
+        try
+        {
+            db.DigestsPlanificacionEnviados.Remove(registro);
+            await db.SaveChangesAsync(CancellationToken.None);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "No se pudo liberar la reserva del digest de planificación {Mes:00}/{Anio}: " +
+                "este mes no se reintenta.", registro.Mes, registro.Anio);
+            return false;
+        }
+    }
+
+    /// <summary>Las obras del recordatorio agrupadas por correo de director, y cuántas no tienen director.</summary>
+    private static async Task<(Dictionary<string, List<ObraDigest>> PorDirector, int SinDirector)> DestinatariosAsync(
+        AppDbContext db, DateTime hoy, CancellationToken ct)
+    {
         var obras = await db.Obras.AsNoTracking()
             // Una obra "Proyectada" todavía no se planifica: no entra en el recordatorio.
             .Where(ObraValidator.EnPlanificacion(hoy))
@@ -71,6 +168,15 @@ public class PlanificacionDigestService(
             }
         }
 
+        var sinDirector = obras.Count(o => string.IsNullOrWhiteSpace(o.EmailDirector)
+                                           && string.IsNullOrWhiteSpace(o.CorreoDirectorObra));
+        return (porDirector, sinDirector);
+    }
+
+    /// <summary>Envía un digest por director (sin tocar la base) y devuelve cuántos salieron.</summary>
+    private static async Task<int> EnviarAsync(IEmailSender emailSender, Dictionary<string, List<ObraDigest>> porDirector,
+        string? baseUrl, DateTime hoy, ILogger logger)
+    {
         var asunto = $"Planificación de obras — actualización mensual ({EsAr.DateTimeFormat.GetMonthName(hoy.Month)} {hoy.Year})";
         var enviados = 0;
         foreach (var (correo, lista) in porDirector)
@@ -81,7 +187,7 @@ public class PlanificacionDigestService(
                 // Solo cuenta si el mail salió de verdad: EnviarAsync devuelve 0 cuando
                 // la dirección era inválida y se descartó (dato legado sin @). Contarlo
                 // como enviado registraba el mes con cero mails y sin reintento.
-                if (await emailSender.EnviarAsync([correo], asunto, Cuerpo(lista)) > 0)
+                if (await emailSender.EnviarAsync([correo], asunto, Cuerpo(lista, baseUrl)) > 0)
                     enviados++;
             }
             catch (Exception ex)
@@ -89,45 +195,11 @@ public class PlanificacionDigestService(
                 logger.LogError(ex, "Falló el digest de planificación a {Correo}.", correo);
             }
         }
-
-        // El mes se registra solo si no quedó TODO sin enviar: con el SMTP caído
-        // o todas las direcciones inválidas durante la corrida completa (0 de N
-        // mails reales), registrar igual perdía el digest del mes definitivamente;
-        // ahora la pasada horaria siguiente reintenta (y toma una dirección recién
-        // corregida). Con éxito parcial sí se registra (reintentar duplicaría los
-        // mails que ya salieron; los fallos individuales quedan logueados arriba).
-        if (porDirector.Count > 0 && enviados == 0)
-        {
-            logger.LogWarning("Digest de planificación {Mes:00}/{Anio}: fallaron los {Total} envíos; " +
-                "no se registra el mes y se reintenta en la próxima pasada.", hoy.Month, hoy.Year, porDirector.Count);
-            return;
-        }
-
-        db.DigestsPlanificacionEnviados.Add(new DigestPlanificacionEnviado
-        {
-            Anio = hoy.Year,
-            Mes = hoy.Month,
-            FechaEnvio = DateTime.UtcNow,
-            CantidadMails = enviados
-        });
-        try
-        {
-            await db.SaveChangesAsync(ct);
-        }
-        catch (DbUpdateException)
-        {
-            // Otra instancia registró el mes primero (índice único): su corrida vale.
-        }
-
-        var sinDirector = obras.Count(o => string.IsNullOrWhiteSpace(o.EmailDirector)
-                                           && string.IsNullOrWhiteSpace(o.CorreoDirectorObra));
-        logger.LogInformation("Digest de planificación {Mes:00}/{Anio}: {Mails} mail(s) a {Directores} director(es); " +
-            "{SinDirector} obra(s) sin correo de director.", hoy.Month, hoy.Year, enviados, porDirector.Count, sinDirector);
+        return enviados;
     }
 
-    private string Cuerpo(List<ObraDigest> obras)
+    private static string Cuerpo(List<ObraDigest> obras, string? baseUrl)
     {
-        var baseUrl = opciones.CurrentValue.BaseUrl;
         var filas = string.Join("", obras.OrderBy(o => o.Nombre).Select(o =>
         {
             var nombre = $"{HtmlEncode(o.Nombre)} ({HtmlEncode(o.Licitacion)})";

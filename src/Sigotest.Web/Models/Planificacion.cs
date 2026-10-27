@@ -170,6 +170,14 @@ public class DigestPlanificacionEnviado
     public int Anio { get; set; }
     public int Mes { get; set; }
     public DateTime FechaEnvio { get; set; }
-    /// <summary>Cantidad de mails (uno por director) que salieron en esa corrida.</summary>
+    /// <summary>
+    /// Cantidad de mails (uno por director) que salieron en esa corrida. Vale
+    /// <see cref="EnCurso"/> mientras se envía: el mes se reserva antes del primer mail
+    /// para que dos procesos no lo dupliquen, y si el proceso muere a mitad del envío
+    /// queda así (los directores que faltaban ese mes no lo reciben).
+    /// </summary>
     public int CantidadMails { get; set; }
+
+    /// <summary>Marca de la reserva mientras el digest se está enviando.</summary>
+    public const int EnCurso = -1;
 }
