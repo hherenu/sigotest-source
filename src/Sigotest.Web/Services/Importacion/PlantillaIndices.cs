@@ -33,7 +33,10 @@ public static class PlantillaIndices
     // de cualquier otro libro con una columna «Código».
     private const string HojaMarca = "SIGO";
     private const string Marca = "SIGO_PLANTILLA_INDICES";
-    private const int Version = 1;
+    // 2: fórmulas de los meses con la regla de números de la importación. La lectura toma lo
+    // que calculó Excel, y con las de la versión 1 «8834.3» entraba como 88343: una plantilla
+    // de esa versión se rechaza para que se descargue de nuevo.
+    private const int Version = 2;
 
     private const string RotuloPublicacion = "ID publicación";
     private const string RotuloCodigo = "CÓDIGO";
@@ -86,6 +89,8 @@ public static class PlantillaIndices
         for (var i = 0; i < meses; i++)
         {
             if (tokens[i].Equals("s", StringComparison.OrdinalIgnoreCase)) continue;
+            if (ImportadorIndec.ValorAmbiguo(tokens[i]) is string ambiguo)
+                return ([], ambiguo);
             if (!ImportadorIndec.TryValor(tokens[i], out var valor))
                 return ([], $"«{tokens[i]}» del pegado no es un valor: copiá solo la fila de valores del PDF.");
             valores[i] = valor;
@@ -153,9 +158,13 @@ public static class PlantillaIndices
             ws.Cell(fila, 5).Value = indice.IncisoCode ?? "";
 
             // Mismas reglas que RepartirPegado: espacios de cualquier tipo → uno, sin lo anterior
-            // a la base y un valor por mes. NUMBERVALUE con la coma como decimal no depende del
-            // idioma de Excel (VALOR("8.943,3") solo anda en castellano); una «s» o un faltante
-            // dejan el mes vacío.
+            // a la base y un valor por mes. NUMBERVALUE con separadores explícitos no depende
+            // del idioma de Excel (VALOR("8.943,3") solo anda en castellano). Los números, como
+            // ImportadorIndec.TryValor: con coma, la coma es el decimal; sin coma, el punto
+            // («8834.3» daba 88343). Lo que calcula Excel es lo que se importa, así que un
+            // valor ambiguo («11.130», un solo punto con 3 dígitos detrás y 1 a 3 delante; con
+            // más puntos NUMBERVALUE ya falla) deja el mes vacío, igual que una «s» o un
+            // faltante: la lectura cae al pegado y lo rechaza con el motivo.
             ws.Cell(fila, ColNormalizado).FormulaA1 =
                 $"TRIM(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE({letraPegado}{fila},CHAR(9),\" \"),CHAR(160),\" \"),CHAR(10),\" \"),CHAR(13),\" \"))";
             var texto = $"\" \"&{letraNormalizado}{fila}&\" \"";
@@ -164,8 +173,12 @@ public static class PlantillaIndices
             for (var k = 0; k < CantidadMeses; k++)
             {
                 var token = $"TRIM(MID(SUBSTITUTE(${letraSinBase}{fila},\" \",REPT(\" \",300)),{k * 300 + 1},300))";
+                // FIND sobre token&"." para que un token sin punto no dé error dentro del AND.
+                var ambiguo = $"AND(LEN({token})-LEN(SUBSTITUTE({token},\".\",\"\"))=1," +
+                              $"LEN({token})-FIND(\".\",{token}&\".\")=3,FIND(\".\",{token}&\".\")<=4,ISNUMBER(-LEFT({token},1)))";
                 ws.Cell(fila, ColPrimerMes + k).FormulaA1 =
-                    $"IFERROR(IF({token}=\"\",\"\",_xlfn.NUMBERVALUE({token},\",\",\".\")),\"\")";
+                    $"IFERROR(IF({token}=\"\",\"\",IF(ISNUMBER(FIND(\",\",{token})),_xlfn.NUMBERVALUE({token},\",\",\".\")," +
+                    $"IF({ambiguo},\"\",_xlfn.NUMBERVALUE({token},\".\",\",\")))),\"\")";
             }
         }
 
@@ -220,8 +233,10 @@ public static class PlantillaIndices
     public static LecturaPlantillaIndices Leer(LibroExcel libro)
     {
         const string Descargar = "Descargá la plantilla de nuevo desde esta página.";
-        if (!TieneMarca(libro))
+        if (VersionDeLaMarca(libro) is not decimal version)
             return Rechazo($"El archivo no es la plantilla de índices de SIGO. {Descargar}");
+        if (version != Version)
+            return Rechazo($"La plantilla es de una versión anterior de SIGO. {Descargar}");
 
         var hoja = libro.Hojas.FirstOrDefault(h => Igual(h.Nombre, HojaCarga));
         if (hoja is null)
@@ -341,9 +356,12 @@ public static class PlantillaIndices
     private static FilaImport DeCelda(int linea, string codigo, int anio, int mes, CeldaExcel celda) =>
         celda.Error is string excel
             ? Invalida(linea, codigo, $"La celda tiene un error de Excel ({excel}).", anio, mes)
-            : celda.Numero is decimal valor
-                ? ConValor(linea, codigo, anio, mes, valor)
-                : Invalida(linea, codigo, $"«{celda.Texto}» no es un número.", anio, mes);
+            // Solo un texto puede ser ambiguo: un número de Excel ya tiene su valor.
+            : celda.Valor is string && ImportadorIndec.ValorAmbiguo(celda.Texto) is string ambiguo
+                ? Invalida(linea, codigo, ambiguo, anio, mes)
+                : celda.Numero is decimal valor
+                    ? ConValor(linea, codigo, anio, mes, valor)
+                    : Invalida(linea, codigo, $"«{celda.Texto}» no es un número.", anio, mes);
 
     private static FilaImport ConValor(int linea, string codigo, int anio, int mes, decimal valor)
     {
@@ -369,10 +387,12 @@ public static class PlantillaIndices
         return -1;
     }
 
-    private static bool TieneMarca(LibroExcel libro) =>
+    /// <summary>Versión de la plantilla según su marca (0 si no la dice), o null si el libro no tiene la marca.</summary>
+    private static decimal? VersionDeLaMarca(LibroExcel libro) =>
         libro.Hojas.FirstOrDefault(h => Igual(h.Nombre, HojaMarca)) is { Filas.Count: > 0 } hoja
         && hoja.Filas[0][0].Texto == Marca
-        && hoja.Filas[0][1].Numero == Version;
+            ? hoja.Filas[0][1].Numero ?? 0
+            : null;
 
     private static bool Igual(string? a, string b) => TextoImport.Normalizar(a) == TextoImport.Normalizar(b);
 

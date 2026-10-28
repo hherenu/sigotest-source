@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using SIGO.Services.Validaciones;
 
 namespace SIGO.Services;
@@ -46,6 +47,14 @@ public static class ImportadorIndec
                               .Where(c => c.Length > 0).ToArray();
             f.Codigo = campos.Length > 0 ? campos[0] : "";
 
+            var textoValor = campos.Length switch { 2 => campos[1], 4 => campos[3], _ => null };
+            if (textoValor is not null && ValorAmbiguo(textoValor) is string ambiguo)
+            {
+                f.Estado = EstadoFilaImport.FilaInvalida;
+                f.Detalle = ambiguo;
+                continue;
+            }
+
             switch (campos.Length)
             {
                 case 2 when TryValor(campos[1], out var v2):
@@ -89,10 +98,26 @@ public static class ImportadorIndec
 
     /// <summary>
     /// Con coma se interpreta es-AR ("10.819,3"); sin coma, invariante ("10819.3").
-    /// Parsear "8834.3" como es-AR daría 88343 (punto = separador de miles).
+    /// Parsear "8834.3" como es-AR daría 88343 (punto = separador de miles). Los valores
+    /// de índices revisan antes <see cref="ValorAmbiguo"/>.
     /// </summary>
     public static bool TryValor(string s, out decimal v) =>
         s.Contains(',')
             ? decimal.TryParse(s, NumberStyles.Number, CultureInfo.GetCultureInfo("es-AR"), out v)
             : decimal.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out v);
+
+    private static readonly Regex PuntosDeMilesSinComa = new(@"^\d{1,3}(\.\d{3})+$");
+
+    /// <summary>
+    /// «11.130» sin coma puede ser 11130 (punto de miles, como en el PDF) o 11,13 (punto
+    /// decimal): se leía como 11,13 y la plantilla de Excel mostraba 11130. En los valores
+    /// de índices (pegado y plantilla) se rechaza con el motivo; «11130», «11.130,0» y
+    /// «8834.3» no son ambiguos. La plantilla aplica la misma regla en sus fórmulas
+    /// (<see cref="Importacion.PlantillaIndices"/>). La importación de estructuras no la usa:
+    /// avisa cualquier número tipeado como texto.
+    /// </summary>
+    public static string? ValorAmbiguo(string s) =>
+        PuntosDeMilesSinComa.IsMatch(s)
+            ? $"\"{s}\" es ambiguo: escribilo {s.Replace(".", "")} o {s},0"
+            : null;
 }

@@ -40,6 +40,19 @@ public class PlantillaIndicesTests
         private int ColPegado => Encabezado.CellsUsed().First(c => c.GetString().StartsWith("Pegado")).Address.ColumnNumber;
         public void Pegar(string codigo, string texto) => ws.Cell(Fila(codigo), ColPegado).Value = texto;
         public void Tipear(string codigo, DateTime mes, XLCellValue valor) => ws.Cell(Fila(codigo), Col(mes)).Value = valor;
+
+        /// <summary>
+        /// Lo que calcula la fórmula del mes, evaluada por ClosedXML como lo haría Excel, con dos
+        /// diferencias de su motor: desborda la pila con el contador COUNT de la cabecera (se
+        /// quita antes de evaluar) y su TRIM no junta los espacios internos (el pegado de estos
+        /// tests va con un solo espacio entre valores).
+        /// </summary>
+        public XLCellValue Calculado(string codigo, DateTime mes)
+        {
+            foreach (var contador in ws.CellsUsed(c => c.HasFormula && c.FormulaA1.StartsWith("COUNT(")).ToList())
+                contador.Clear();
+            return ws.Cell(Fila(codigo), Col(mes)).Value;
+        }
     }
 
     private static byte[] Completar(Action<Carga> completar, Action<XLWorkbook>? libro = null)
@@ -242,7 +255,7 @@ public class PlantillaIndicesTests
     [InlineData("mes repetido", "está en dos columnas")]
     [InlineData("fecha borrada", "encabezado no es un mes")]
     [InlineData("segundo encabezado", "segundo encabezado")]
-    [InlineData("otra versión", "no es la plantilla")]
+    [InlineData("otra versión", "versión anterior")]
     [InlineData("ID de otra publicación", "no son los de la publicación INDEC_INFORMA_08_26 (07/2025 a 07/2026)")]
     [InlineData("mes cambiado", "no son los de la publicación")]
     [InlineData("mes borrado", "no son los de la publicación")]
@@ -273,7 +286,7 @@ public class PlantillaIndicesTests
             }
         }, wb =>
         {
-            if (caso == "otra versión") wb.Worksheet("SIGO").Cell(1, 2).Value = 2;
+            if (caso == "otra versión") wb.Worksheet("SIGO").Cell(1, 2).Value = 1;
         });
 
         var lectura = Leer(archivo);
@@ -321,5 +334,66 @@ public class PlantillaIndicesTests
         Assert.Contains("3 valores", Assert.Single(lectura.Filas, f => f.Codigo == "PVC").Detalle);
         Assert.Contains("1 valor ", Assert.Single(lectura.Filas, f => f.Codigo == "CEMENTO_CAL").Detalle);
         Assert.Equal(40, lectura.Filas.Count);
+    }
+
+    [Fact]
+    public void GuardadaPorExcelEnLaVersionAnterior_Rechaza()
+    {
+        // La misma planilla con las fórmulas de la versión 1, que calculaban «8834.3» como
+        // 88343: la lectura toma lo que calculó Excel, así que se pide descargarla de nuevo.
+        var lectura = Leer(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Datos", "plantilla-indices-v1-guardada-en-excel.xlsx")));
+
+        Assert.Equal("La plantilla es de una versión anterior de SIGO. Descargá la plantilla de nuevo desde esta página.", lectura.Error);
+        Assert.Empty(lectura.Filas);
+    }
+
+    // ── Lo que calcula Excel es lo que se importa ────────────────────────────────────
+
+    [Fact]
+    public void FormulasDeLosMeses_LeenLosNumerosComoLaLectura()
+    {
+        // La lectura toma el valor que calculó Excel en cada mes: tiene que coincidir con el
+        // reparto en C#. Antes «8834.3» daba 88343 en Excel y 8834,3 en la lectura.
+        const string pegado = "9.586,3 8834.3 10819 s 1,5 11.130,0 1234.567 100 200 300 400 500 600";
+        using var wb = new XLWorkbook(new MemoryStream(PlantillaIndices.Crear(Publicacion, Catalogo)));
+        var carga = new Carga(wb.Worksheet(PlantillaIndices.HojaCarga));
+        carga.Pegar("ALBANILERIA", pegado);
+
+        var (valores, error) = PlantillaIndices.RepartirPegado(pegado, PlantillaIndices.CantidadMeses);
+        var calculados = PlantillaIndices.Meses(2026, 7)
+            .Select(m => carga.Calculado("ALBANILERIA", m))
+            .Select(v => v.IsNumber ? (decimal?)v.GetNumber() : null)
+            .ToList();
+
+        Assert.Null(error);
+        Assert.Equal(valores, calculados);
+    }
+
+    [Fact]
+    public void ValorAmbiguo_ExcelDejaElMesVacio_YLaLecturaLoRechaza()
+    {
+        // El cuarto mes ambiguo; con un solo espacio entre valores (ver Carga.Calculado).
+        var pegado = string.Join(" ", FilaAlbanileria.Replace("10.287,4", "11.130").Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        using (var wb = new XLWorkbook(new MemoryStream(PlantillaIndices.Crear(Publicacion, Catalogo))))
+        {
+            var carga = new Carga(wb.Worksheet(PlantillaIndices.HojaCarga));
+            carga.Pegar("ALBANILERIA", pegado);
+            var meses = PlantillaIndices.Meses(2026, 7);
+            Assert.False(carga.Calculado("ALBANILERIA", meses[3]).IsNumber);
+            Assert.Equal(10420.6, carga.Calculado("ALBANILERIA", meses[4]).GetNumber(), 6);
+        }
+
+        var fila = Assert.Single(Leer(Completar(c => c.Pegar("ALBANILERIA", pegado))).Filas);
+        Assert.Equal(EstadoFilaImport.FilaInvalida, fila.Estado);
+        Assert.Equal("\"11.130\" es ambiguo: escribilo 11130 o 11.130,0", fila.Detalle);
+    }
+
+    [Fact]
+    public void MesTipeadoComoTextoAmbiguo_EsFilaInvalidaConElMotivo()
+    {
+        var fila = Assert.Single(Leer(Completar(c => c.Tipear("MANO_OBRA", Jun26, "11.130"))).Filas);
+
+        Assert.Equal(EstadoFilaImport.FilaInvalida, fila.Estado);
+        Assert.StartsWith("\"11.130\" es ambiguo", fila.Detalle);
     }
 }

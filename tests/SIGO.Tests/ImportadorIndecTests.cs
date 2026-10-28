@@ -88,4 +88,29 @@ public class ImportadorIndecTests
         Assert.Empty(ImportadorIndec.ParsearLineas(null, 2026, 1));
         Assert.Empty(ImportadorIndec.ParsearLineas("   \n  ", 2026, 1));
     }
+
+    [Theory]
+    [InlineData("PVC\t11.130", "\"11.130\" es ambiguo: escribilo 11130 o 11.130,0")]
+    [InlineData("PVC;2025;6;1.234.567", "\"1.234.567\" es ambiguo: escribilo 1234567 o 1.234.567,0")]
+    public void ValorConPuntoDeMilesSinComa_EsAmbiguo(string linea, string motivo)
+    {
+        // «11.130» se leía 11,13 y la plantilla de Excel mostraba 11130.
+        var f = Assert.Single(ImportadorIndec.ParsearLineas(linea, 2026, 1));
+
+        Assert.Equal(EstadoFilaImport.FilaInvalida, f.Estado);
+        Assert.Equal(motivo, f.Detalle);
+    }
+
+    [Theory]
+    [InlineData("11130", 11130)]
+    [InlineData("11.130,0", 11130)]
+    [InlineData("8834.3", 8834.3)]
+    [InlineData("1234.567", 1234.567)]
+    public void SinAmbiguedad_SeLeeComoAntes(string texto, decimal esperado)
+    {
+        var f = Assert.Single(ImportadorIndec.ParsearLineas($"PVC\t{texto}", 2026, 1));
+
+        Assert.Equal(EstadoFilaImport.Ok, f.Estado);
+        Assert.Equal(esperado, f.Valor);
+    }
 }
