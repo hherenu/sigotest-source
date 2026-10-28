@@ -115,7 +115,11 @@ else
         {
             var resultado = await DialogService.OpenAsync<ValorAgregarDialog>(
                 "Agregar valor mensual",
-                new Dictionary<string, object?> { [nameof(ValorAgregarDialog.IndiceId)] = Id },
+                new Dictionary<string, object?>
+                {
+                    [nameof(ValorAgregarDialog.IndiceId)] = Id,
+                    [nameof(ValorAgregarDialog.CodigoIndice)] = indice?.CodigoIndice
+                },
                 new DialogOptions { Width = "min(420px, 92vw)" });
 
             if (resultado is true)

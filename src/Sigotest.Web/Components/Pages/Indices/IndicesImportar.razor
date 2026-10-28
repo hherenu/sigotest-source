@@ -35,7 +35,7 @@
                    sus meses sean los de esa publicación, y con otro ID se importarían bajo una ajena. *@
                 <RadzenFormField Text="ID Publicación (INDEC_INFORMA_MM_AA) *" Variant="Variant.Outlined" style="width:100%">
                     <ChildContent>
-                        <RadzenTextBox @bind-Value="idPublicacion" @bind-Value:after="DescartarAnalisis" ReadOnly="@(planilla is not null)" style="width:100%" />
+                        <RadzenTextBox @bind-Value="idPublicacion" @bind-Value:after="DescartarAnalisis" MaxLength="LargoTexto.PorDefecto" ReadOnly="@(planilla is not null)" style="width:100%" />
                     </ChildContent>
                     <Helper>
                         <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">
@@ -103,8 +103,10 @@
                     <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
                         Período de las filas de 2 columnas (las de 4 columnas traen el suyo):
                     </RadzenText>
+                    @* Sin Min/Max: Radzen llevaba el año tipeado al límite sin avisar. El análisis aplica
+                       la regla del alta manual (IndiceValidator.Periodo) y la fila queda inválida con el motivo. *@
                     <RadzenFormField Text="Año" Variant="Variant.Outlined" style="width:100%">
-                        <RadzenNumeric @bind-Value="anio" @bind-Value:after="DescartarAnalisis" Min="2000" Max="2100" ShowUpDown="false" style="width:100%" />
+                        <RadzenNumeric @bind-Value="anio" @bind-Value:after="DescartarAnalisis" ShowUpDown="false" style="width:100%" />
                     </RadzenFormField>
                     <RadzenFormField Text="Mes" Variant="Variant.Outlined" style="width:100%">
                         <RadzenDropDown @bind-Value="mes" @bind-Value:after="DescartarAnalisis" Data="@(Enumerable.Range(1, 12))" TValue="int" style="width:100%">

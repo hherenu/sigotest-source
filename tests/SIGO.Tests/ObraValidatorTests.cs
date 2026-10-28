@@ -137,6 +137,17 @@ public class ObraValidatorTests
         Assert.Equal(error, ObraValidator.Guardar("Estación Sáenz", "LP 123/25", Presupuestos(oficialUsd: -5m)));
     }
 
+    [Fact]
+    public void Presupuesto_PorCampo_VacioOMayorACero()
+    {
+        // El form de la obra evalúa cada importe con esta regla, la misma que Guardar
+        // aplica a los seis.
+        Assert.Null(ObraValidator.Presupuesto(null));
+        Assert.Null(ObraValidator.Presupuesto(0.01m));
+        Assert.Equal(ObraValidator.PresupuestoNoPositivo, ObraValidator.Presupuesto(0m));
+        Assert.Equal(ObraValidator.PresupuestoNoPositivo, ObraValidator.Presupuesto(-500m));
+    }
+
     // ── Presupuesto de referencia (adjudicado, si no oficial) ────────────────────
 
     [Fact]

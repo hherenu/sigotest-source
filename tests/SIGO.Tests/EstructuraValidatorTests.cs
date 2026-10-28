@@ -163,6 +163,18 @@ public class EstructuraValidatorTests
     }
 
     [Fact]
+    public void CantidadYPU_PorCampo_SonLasReglasDeNoNegativos()
+    {
+        // Los forms de ítems evalúan cada campo con estas reglas: vacío pasa (agrupadores).
+        Assert.Null(EstructuraValidator.Cantidad(null));
+        Assert.Null(EstructuraValidator.Cantidad(0m));
+        Assert.Equal(EstructuraValidator.CantidadNegativa, EstructuraValidator.Cantidad(-1m));
+        Assert.Null(EstructuraValidator.PUBasico(null));
+        Assert.Equal(EstructuraValidator.PUNegativo, EstructuraValidator.PUBasico(-500m));
+        Assert.Equal(EstructuraValidator.PUNegativo, EstructuraValidator.NoNegativos(1m, -500m));
+    }
+
+    [Fact]
     public void Valores_PrimeroElSignoDespuesElRango()
     {
         Assert.Null(EstructuraValidator.Valores(2m, 10m));
@@ -201,4 +213,17 @@ public class EstructuraValidatorTests
     public void Padre_QueCuelgaDelItem_FormariaUnCiclo() =>
         // El rubro 1 no puede pasar a colgar del sub-rubro 2, que cuelga de él.
         Assert.Contains("ciclo", EstructuraValidator.Padre(2, 1, ItemsDeEstructura));
+
+    [Fact]
+    public void Normalizar_RedondeaCantidadYPUAntesDelMonto()
+    {
+        // Como la importación: el monto sale de lo que se guarda (4 decimales). Antes se guardaba
+        // la cantidad redondeada y el monto de la sin redondear ($3,17 de diferencia al 100 %).
+        var n = EstructuraValidator.Normalizar(false, null, "1.1", "Ítem", "m3", 6.88905m, 63421.20004m);
+
+        Assert.Equal(Math.Round(6.88905m, 4), n.Cantidad);
+        Assert.Equal(63421.2m, n.PUBasico);
+        Assert.Equal(Math.Round(n.Cantidad!.Value * n.PUBasico!.Value, 4), n.Monto);
+        Assert.NotEqual(Math.Round(6.88905m * 63421.20004m, 4), n.Monto);
+    }
 }

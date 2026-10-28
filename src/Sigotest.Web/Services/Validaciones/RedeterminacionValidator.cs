@@ -15,6 +15,16 @@ public static class RedeterminacionValidator
             : null;
 
     /// <summary>
+    /// El mes de salto tiene que ser posterior al mes base: con el salto antes (base dic-26,
+    /// salto jun-26) el coeficiente sale invertido y contamina la cadena de variación
+    /// acumulada de los disparos siguientes; con el mismo mes da 1 y no es un salto.
+    /// </summary>
+    public static string? Periodos(int anioBase, int mesBase, int anioSalto, int mesSalto) =>
+        (anioSalto, mesSalto).CompareTo((anioBase, mesBase)) > 0
+            ? null
+            : $"El mes de salto ({mesSalto:00}/{anioSalto}) tiene que ser posterior al mes base ({mesBase:00}/{anioBase}).";
+
+    /// <summary>
     /// Un cálculo con índices faltantes no tiene coeficiente total: guardarlo consumiría
     /// un NroDisparo y entraría a la cadena de variación acumulada con un valor nulo que
     /// los guardados posteriores saltean en silencio.

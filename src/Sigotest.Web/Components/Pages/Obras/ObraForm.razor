@@ -28,25 +28,25 @@ else
                 <RadzenRow Gap="1rem" RowGap="1rem">
                     <RadzenColumn Size="12" SizeMD="8">
                         <RadzenFormField Text="Nombre *" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenTextBox @bind-Value="obra.Nombre" Name="Nombre" style="width:100%" />
+                            <RadzenTextBox @bind-Value="obra.Nombre" MaxLength="LargoTexto.PorDefecto" Name="Nombre" style="width:100%" />
                         </RadzenFormField>
                         <RadzenRequiredValidator Component="Nombre" Text="El nombre es obligatorio" Popup="true" />
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="4">
                         <RadzenFormField Text="N° Licitación *" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenTextBox @bind-Value="obra.NumeroLicitacion" Name="NumeroLicitacion" style="width:100%" />
+                            <RadzenTextBox @bind-Value="obra.NumeroLicitacion" MaxLength="LargoTexto.PorDefecto" Name="NumeroLicitacion" style="width:100%" />
                         </RadzenFormField>
                         <RadzenRequiredValidator Component="NumeroLicitacion" Text="La licitación es obligatoria" Popup="true" />
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="6">
                         <RadzenFormField Text="Contratista" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenTextBox @bind-Value="obra.Contratista" style="width:100%" />
+                            <RadzenTextBox @bind-Value="obra.Contratista" MaxLength="LargoTexto.PorDefecto" style="width:100%" />
                         </RadzenFormField>
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="6">
                         <RadzenFormField Text="Antecedentes (EX)" Variant="Variant.Outlined" style="width:100%"
                                          title="N° de expediente electrónico (EX-…)">
-                            <RadzenTextBox @bind-Value="obra.Antecedentes" style="width:100%" />
+                            <RadzenTextBox @bind-Value="obra.Antecedentes" MaxLength="LargoTexto.PorDefecto" style="width:100%" />
                         </RadzenFormField>
                         <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mt-1 rz-mb-0">
                             Con antecedentes y acta de inicio futura, la obra figura en Proceso Licitatorio y entra en Planificación.
@@ -54,7 +54,7 @@ else
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="6">
                         <RadzenFormField Text="PUByC" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenTextBox @bind-Value="obra.PUByC" style="width:100%" />
+                            <RadzenTextBox @bind-Value="obra.PUByC" MaxLength="LargoTexto.PorDefecto" style="width:100%" />
                         </RadzenFormField>
                     </RadzenColumn>
                 </RadzenRow>
@@ -65,35 +65,50 @@ else
                     <RadzenColumn Size="12" SizeMD="4">
                         @* El oficial es obligatorio en al menos una moneda (hay obras solo en dólares),
                            no en una en particular: no hay RequiredValidator por campo; lo exige el
-                           servicio (ObraValidator.Guardar) y la leyenda de abajo lo dice. *@
+                           servicio (ObraValidator.Guardar) y la leyenda de abajo lo dice. Cada importe
+                           pasa por la regla del servicio (ObraValidator.Presupuesto: vacío o mayor a
+                           cero), con su mensaje. Sin Min en los numéricos: Radzen llevaba un importe
+                           negativo a 0 sin avisar, y en pesos 0 es «vacío». *@
                         <RadzenFormField Text="Presupuesto oficial ($)" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoOficial" Min="0" Step="0.01" ShowUpDown="false" style="width:100%" />
+                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoOficial" Name="PresupuestoOficial" Step="0.01" ShowUpDown="false" style="width:100%" />
                         </RadzenFormField>
+                        <RadzenCustomValidator Component="PresupuestoOficial" Validator="@(() => ObraValidator.Presupuesto(obra.PresupuestoOficial) is null)"
+                                               Text="@ObraValidator.PresupuestoNoPositivo" Popup="true" />
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="4">
                         <RadzenFormField Text="Presupuesto oficial (US$)" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoOficialUSD" Min="0" Step="0.01" ShowUpDown="false" style="width:100%" />
+                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoOficialUSD" Name="PresupuestoOficialUSD" Step="0.01" ShowUpDown="false" style="width:100%" />
                         </RadzenFormField>
+                        <RadzenCustomValidator Component="PresupuestoOficialUSD" Validator="@(() => ObraValidator.Presupuesto(obra.PresupuestoOficialUSD) is null)"
+                                               Text="@ObraValidator.PresupuestoNoPositivo" Popup="true" />
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="4">
                         <RadzenFormField Text="Presupuesto oficial (€)" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoOficialEUR" Min="0" Step="0.01" ShowUpDown="false" style="width:100%" />
+                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoOficialEUR" Name="PresupuestoOficialEUR" Step="0.01" ShowUpDown="false" style="width:100%" />
                         </RadzenFormField>
+                        <RadzenCustomValidator Component="PresupuestoOficialEUR" Validator="@(() => ObraValidator.Presupuesto(obra.PresupuestoOficialEUR) is null)"
+                                               Text="@ObraValidator.PresupuestoNoPositivo" Popup="true" />
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="4">
                         <RadzenFormField Text="Presupuesto adjudicado ($)" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoAdjudicado" Min="0" Step="0.01" ShowUpDown="false" style="width:100%" />
+                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoAdjudicado" Name="PresupuestoAdjudicado" Step="0.01" ShowUpDown="false" style="width:100%" />
                         </RadzenFormField>
+                        <RadzenCustomValidator Component="PresupuestoAdjudicado" Validator="@(() => ObraValidator.Presupuesto(obra.PresupuestoAdjudicado) is null)"
+                                               Text="@ObraValidator.PresupuestoNoPositivo" Popup="true" />
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="4">
                         <RadzenFormField Text="Presupuesto adjudicado (US$)" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoAdjudicadoUSD" Min="0" Step="0.01" ShowUpDown="false" style="width:100%" />
+                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoAdjudicadoUSD" Name="PresupuestoAdjudicadoUSD" Step="0.01" ShowUpDown="false" style="width:100%" />
                         </RadzenFormField>
+                        <RadzenCustomValidator Component="PresupuestoAdjudicadoUSD" Validator="@(() => ObraValidator.Presupuesto(obra.PresupuestoAdjudicadoUSD) is null)"
+                                               Text="@ObraValidator.PresupuestoNoPositivo" Popup="true" />
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="4">
                         <RadzenFormField Text="Presupuesto adjudicado (€)" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoAdjudicadoEUR" Min="0" Step="0.01" ShowUpDown="false" style="width:100%" />
+                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoAdjudicadoEUR" Name="PresupuestoAdjudicadoEUR" Step="0.01" ShowUpDown="false" style="width:100%" />
                         </RadzenFormField>
+                        <RadzenCustomValidator Component="PresupuestoAdjudicadoEUR" Validator="@(() => ObraValidator.Presupuesto(obra.PresupuestoAdjudicadoEUR) is null)"
+                                               Text="@ObraValidator.PresupuestoNoPositivo" Popup="true" />
                     </RadzenColumn>
                     <RadzenColumn Size="12">
                         <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">
@@ -115,7 +130,7 @@ else
                     <RadzenColumn Size="12" SizeMD="8">
                         <RadzenFormField Text="Oferta Final (IF)" Variant="Variant.Outlined" style="width:100%"
                                          title="N° de documento GDE (IF-…)">
-                            <RadzenTextBox @bind-Value="obra.OfertaFinal" style="width:100%" />
+                            <RadzenTextBox @bind-Value="obra.OfertaFinal" MaxLength="LargoTexto.PorDefecto" style="width:100%" />
                         </RadzenFormField>
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="4">
@@ -126,7 +141,7 @@ else
                     <RadzenColumn Size="12" SizeMD="8">
                         <RadzenFormField Text="IF Adjudicación" Variant="Variant.Outlined" style="width:100%"
                                          title="N° de documento GDE (IF-…)">
-                            <RadzenTextBox @bind-Value="obra.IFAdjudicacion" style="width:100%" />
+                            <RadzenTextBox @bind-Value="obra.IFAdjudicacion" MaxLength="LargoTexto.PorDefecto" style="width:100%" />
                         </RadzenFormField>
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="4">
@@ -137,7 +152,7 @@ else
                     <RadzenColumn Size="12" SizeMD="8">
                         <RadzenFormField Text="IF Contrato" Variant="Variant.Outlined" style="width:100%"
                                          title="N° de documento GDE (IF-…)">
-                            <RadzenTextBox @bind-Value="obra.IFContrato" style="width:100%" />
+                            <RadzenTextBox @bind-Value="obra.IFContrato" MaxLength="LargoTexto.PorDefecto" style="width:100%" />
                         </RadzenFormField>
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="4">
@@ -148,7 +163,7 @@ else
                     <RadzenColumn Size="12" SizeMD="8">
                         <RadzenFormField Text="IF Acta Inicio" Variant="Variant.Outlined" style="width:100%"
                                          title="N° de documento GDE (IF-…)">
-                            <RadzenTextBox @bind-Value="obra.IFActaInicio" style="width:100%" />
+                            <RadzenTextBox @bind-Value="obra.IFActaInicio" MaxLength="LargoTexto.PorDefecto" style="width:100%" />
                         </RadzenFormField>
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="4">
@@ -173,7 +188,7 @@ else
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="8">
                         <RadzenFormField Text="Plazo de Obra" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenTextBox @bind-Value="obra.PlazoObra" style="width:100%" />
+                            <RadzenTextBox @bind-Value="obra.PlazoObra" MaxLength="LargoTexto.PorDefecto" style="width:100%" />
                         </RadzenFormField>
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="6">
@@ -193,14 +208,14 @@ else
                            (ver Obra.DirectorUsuarioId); con usuario asignado, ese nombre manda. *@
                         <RadzenColumn Size="12" SizeMD="6">
                             <RadzenFormField Text="Director (texto libre, sin usuario)" Variant="Variant.Outlined" style="width:100%">
-                                <RadzenTextBox @bind-Value="obra.DirectorObra" style="width:100%" />
+                                <RadzenTextBox @bind-Value="obra.DirectorObra" MaxLength="LargoTexto.PorDefecto" style="width:100%" />
                             </RadzenFormField>
                         </RadzenColumn>
                     }
                     <RadzenColumn Size="12" SizeMD="6">
                         <RadzenFormField Text="IF Designación" Variant="Variant.Outlined" style="width:100%"
                                          title="N° de documento GDE (IF-…)">
-                            <RadzenTextBox @bind-Value="obra.IFDesignacion" style="width:100%" />
+                            <RadzenTextBox @bind-Value="obra.IFDesignacion" MaxLength="LargoTexto.PorDefecto" style="width:100%" />
                         </RadzenFormField>
                     </RadzenColumn>
                 </RadzenRow>

@@ -176,4 +176,12 @@ public class HelpersTests
         Assert.Equal("—", Fmt.PubMayus(null));
         Assert.Equal("TASAS BNA", Fmt.PubMayus("TASAS_BNA"));
     }
+
+    [Theory]
+    [InlineData(4, true)]
+    [InlineData(12.5, true)]
+    [InlineData(3.9999, false)]
+    [InlineData(-6, false)]   // una baja no habilita: Calcular comparaba el valor absoluto
+    public void Redet_SoloUnaSubaDeAlMenosElSaltoMinimoHabilita(double porcentaje, bool habilita) =>
+        Assert.Equal(habilita, Redet.EsSuba((decimal)porcentaje));
 }

@@ -11,10 +11,29 @@ public static class IndiceValidator
     /// Un valor mensual debe ser mayor que cero: 0 como divisor rompe el Ki/K0 del mes
     /// base, y como dividendo produce un coeficiente 0 que entra a la cadena de
     /// VariaciónAcumulada. ÚNICA implementación de la regla — la usan el alta manual
-    /// (AgregarValorAsync) y la importación de publicaciones (ImportadorIndec).
+    /// (AgregarValorAsync) y la importación de publicaciones (ImportadorIndec); el diálogo
+    /// de alta la evalúa tal cual con un RadzenCustomValidator (docs/convenciones-ui.md).
     /// </summary>
-    public static string? ValorMensual(decimal? valor) =>
-        valor is > 0 ? null : "El valor debe ser mayor que cero.";
+    public static string? ValorMensual(decimal? valor) => valor is > 0 ? null : ValorNoPositivo;
+
+    public const string ValorNoPositivo = "El valor debe ser mayor que cero.";
+
+    /// <summary>Rango de años de los valores mensuales (alta manual e importación).</summary>
+    public const int AnioMinimo = 2000;
+    public const int AnioMaximo = 2100;
+
+    public static readonly string AnioFueraDeRango = $"El año debe estar entre {AnioMinimo} y {AnioMaximo}.";
+
+    public static string? Anio(int anio) => anio is >= AnioMinimo and <= AnioMaximo ? null : AnioFueraDeRango;
+
+    /// <summary>
+    /// Período de un valor mensual: año en rango y mes 1-12. El alta manual no lo revisaba
+    /// en el servicio (solo el Min/Max del numérico de la página, que lleva el valor al
+    /// límite sin avisar) y un mes 13 guardado rompería las pantallas que muestran el
+    /// período (Fmt.MesCorto no lo admite).
+    /// </summary>
+    public static string? Periodo(int anio, int mes) =>
+        Anio(anio) ?? (mes is >= 1 and <= 12 ? null : "El mes debe estar entre 1 y 12.");
 
     /// <summary>
     /// Alta de índice: obligatorios whitespace-safe (los RequiredValidator de Radzen
@@ -45,6 +64,20 @@ public static class IndiceValidator
             : PublicacionIndec.EsIdValido(idPublicacion.Trim())
                 ? null
                 : "El ID de publicación debe tener el formato INDEC_INFORMA_MM_AA (ej.: INDEC_INFORMA_08_26).";
+
+    /// <summary>
+    /// ID de publicación del alta manual de un valor: vacío es legítimo, pero si viene tiene
+    /// que tener el formato de la importación: «indec_informa_8_26» creaba otra publicación
+    /// del mismo período que nunca se elegía como la más reciente. Las tasas del Banco Nación
+    /// van siempre sin publicación (<see cref="IndiceService.CodigoTasasBancoNacion"/>).
+    /// </summary>
+    public static string? PublicacionAltaManual(string? idPublicacion, bool esTasasBancoNacion) =>
+        string.IsNullOrWhiteSpace(idPublicacion) ? null
+        : esTasasBancoNacion ? TasasSinPublicacion
+        : PublicacionImportacion(idPublicacion);
+
+    public const string TasasSinPublicacion =
+        "Las tasas del Banco Nación se cargan sin publicación: con una le ganarían a la tasa en el cálculo de esa publicación.";
 
     /// <summary>Código único en el catálogo: mensaje de negocio antes del error crudo del índice único.</summary>
     public static string? CodigoDuplicado(string codigo, bool existe) =>

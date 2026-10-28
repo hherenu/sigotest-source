@@ -14,7 +14,7 @@
         @if (tipo != TipoAutorizante.Basica)
         {
             <RadzenFormField Text="Denominación (opcional)" Variant="Variant.Outlined" style="width:100%">
-                <RadzenTextBox @bind-Value="denominacion" style="width:100%" />
+                <RadzenTextBox @bind-Value="denominacion" MaxLength="LargoTexto.PorDefecto" style="width:100%" />
             </RadzenFormField>
         }
         <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">

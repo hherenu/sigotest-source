@@ -45,12 +45,18 @@ public static class EstructuraValidator
     /// del total sin verse) y las reducciones se certifican como % negativo del mes. El alta
     /// manual ya lo impedía en la página; la importación y el servicio no.
     /// </summary>
-    public static string? NoNegativos(decimal? cantidad, decimal? puBasico)
-    {
-        if (cantidad < 0) return "La cantidad no puede ser negativa.";
-        if (puBasico < 0) return "El PU no puede ser negativo.";
-        return null;
-    }
+    public static string? NoNegativos(decimal? cantidad, decimal? puBasico) =>
+        Cantidad(cantidad) ?? PUBasico(puBasico);
+
+    // Reglas de un campo con su mensaje: NoNegativos las exige y los forms de ítems las
+    // evalúan tal cual con un RadzenCustomValidator (docs/convenciones-ui.md). Vacío pasa:
+    // en los agrupadores no se cargan.
+    public const string CantidadNegativa = "La cantidad no puede ser negativa.";
+    public const string PUNegativo = "El PU no puede ser negativo.";
+
+    public static string? Cantidad(decimal? cantidad) => cantidad < 0 ? CantidadNegativa : null;
+
+    public static string? PUBasico(decimal? puBasico) => puBasico < 0 ? PUNegativo : null;
 
     /// <summary>
     /// Cantidad y PU de un ítem hoja, para el alta, la edición y la importación: no
@@ -105,6 +111,9 @@ public static class EstructuraValidator
     /// Normaliza los campos de un ítem antes de persistir: los agrupadores no llevan
     /// código/unidad/cantidad/PU/monto (son cabeceras de rubro que solo suman hijos),
     /// los textos van recortados y el monto se deriva con <see cref="CalcularMonto"/>.
+    /// Cantidad y PU se redondean a los 4 decimales de la columna antes de calcular el monto,
+    /// como en la importación: con 6,88905 × 63.421,2 la base guardaba la cantidad redondeada
+    /// y el monto de la sin redondear, y al 100 % se certificaba otro monto que el del contrato.
     ///
     /// <paramref name="conservarPadreDeAgrupador"/>: en el ALTA un agrupador nace en la
     /// raíz (false → padre null); en la EDICIÓN el padre se conserva tal como vino
@@ -116,6 +125,8 @@ public static class EstructuraValidator
         bool esAgrupador, int? agrupadorPadreId, string? codigo, string? descripcion,
         string? unidad, decimal? cantidad, decimal? puBasico, bool conservarPadreDeAgrupador = false)
     {
+        cantidad = cantidad is decimal c ? Math.Round(c, 4) : null;
+        puBasico = puBasico is decimal p ? Math.Round(p, 4) : null;
         return new ItemNormalizado(
             AgrupadorPadreId: esAgrupador
                 ? (conservarPadreDeAgrupador ? agrupadorPadreId : null)

@@ -73,9 +73,18 @@ public static class CertificadoValidator
         return null;
     }
 
-    /// <summary>Rango de años del alta (el form de la página usa los mismos límites).</summary>
+    /// <summary>Rango de años del alta.</summary>
     public const int AnioMinimo = 2010;
     public const int AnioMaximo = 2099;
+
+    // Reglas de un campo con su mensaje: Alta las exige y el form de la página las evalúa
+    // tal cual con un RadzenCustomValidator (docs/convenciones-ui.md).
+    public const string NumeroInvalido = "El número de certificado debe ser 1 o mayor.";
+    public static readonly string AnioFueraDeRango = $"El año debe estar entre {AnioMinimo} y {AnioMaximo}.";
+
+    public static string? Numero(int numero) => numero >= 1 ? null : NumeroInvalido;
+
+    public static string? Anio(int anio) => anio is >= AnioMinimo and <= AnioMaximo ? null : AnioFueraDeRango;
 
     /// <summary>
     /// Datos del alta que la página ya acota (número ≥ 1, mes 1-12, año en rango) y que el
@@ -85,12 +94,12 @@ public static class CertificadoValidator
     /// </summary>
     public static string? Alta(int numero, int mes, int anio, DateTime fechaEmision)
     {
-        if (numero < 1)
-            return "El número de certificado debe ser 1 o mayor.";
+        if (Numero(numero) is string numeroInvalido)
+            return numeroInvalido;
         if (mes is < 1 or > 12)
             return "El mes debe estar entre 1 y 12.";
-        if (anio is < AnioMinimo or > AnioMaximo)
-            return $"El año debe estar entre {AnioMinimo} y {AnioMaximo}.";
+        if (Anio(anio) is string anioInvalido)
+            return anioInvalido;
         if (fechaEmision.Year is < AnioMinimo or > AnioMaximo)
             return $"La fecha de emisión debe estar entre {AnioMinimo} y {AnioMaximo}.";
         return null;
@@ -114,6 +123,19 @@ public static class CertificadoValidator
 
         return null;
     }
+
+    /// <summary>Tope del % del mes de un ítem, en más o en menos.</summary>
+    public const decimal PorcentajeMesMaximo = 1000m;
+
+    /// <summary>
+    /// % del mes de un ítem: entre -1000 y 1000. Negativo es legítimo (BED, economías), pero
+    /// un valor tipeado de más (100.000) desbordaba la columna y terminaba en un error de SQL
+    /// en inglés. <paramref name="item"/> identifica la fila en el mensaje.
+    /// </summary>
+    public static string? PorcentajeMes(decimal porcentaje, string item) =>
+        Math.Abs(porcentaje) <= PorcentajeMesMaximo
+            ? null
+            : $"El % del mes del ítem {item} tiene que estar entre -{PorcentajeMesMaximo:0} y {PorcentajeMesMaximo:0}.";
 
     public static string? Aprobar(EstadoCertificado estado) =>
         estado != EstadoCertificado.Cerrado

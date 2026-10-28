@@ -27,7 +27,7 @@ else
         <RadzenStack Gap="1rem" style="max-width: 520px;">
             <div>
                 <RadzenFormField Text="Nombre de la estructura *" Variant="Variant.Outlined" style="width:100%">
-                    <RadzenTextBox @bind-Value="estructura.Nombre" Name="Nombre" Placeholder="Ej: Estructura Original, Adicional N°1" style="width:100%" />
+                    <RadzenTextBox @bind-Value="estructura.Nombre" MaxLength="LargoTexto.PorDefecto" Name="Nombre" Placeholder="Ej: Estructura Original, Adicional N°1" style="width:100%" />
                 </RadzenFormField>
                 <RadzenRequiredValidator Component="Nombre" Text="El nombre es obligatorio" Popup="true" />
             </div>

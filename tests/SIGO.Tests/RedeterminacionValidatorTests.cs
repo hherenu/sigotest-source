@@ -137,4 +137,19 @@ public class RedeterminacionValidatorTests
         Assert.Contains("no puede eliminarse",
             RedeterminacionValidator.EliminarDisparo(EstadoRedeterminacion.Presentada, 3, hayPosterior: false));
     }
+
+    [Theory]
+    [InlineData(2026, 12, 2026, 6)]   // salto antes de la base: coeficiente invertido
+    [InlineData(2026, 6, 2026, 6)]    // el mismo mes: coeficiente 1
+    [InlineData(2026, 1, 2025, 12)]
+    public void Periodos_SaltoQueNoEsPosteriorALaBase_Rechaza(int anioBase, int mesBase, int anioSalto, int mesSalto) =>
+        Assert.Equal($"El mes de salto ({mesSalto:00}/{anioSalto}) tiene que ser posterior al mes base ({mesBase:00}/{anioBase}).",
+            RedeterminacionValidator.Periodos(anioBase, mesBase, anioSalto, mesSalto));
+
+    [Fact]
+    public void Periodos_SaltoPosterior_Pasa()
+    {
+        Assert.Null(RedeterminacionValidator.Periodos(2026, 6, 2026, 7));
+        Assert.Null(RedeterminacionValidator.Periodos(2025, 12, 2026, 1));
+    }
 }

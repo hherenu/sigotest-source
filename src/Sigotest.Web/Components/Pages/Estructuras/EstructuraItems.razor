@@ -130,14 +130,14 @@ else
                     {
                         <RadzenColumn Size="12" SizeMD="2">
                             <RadzenFormField Text="Código" Variant="Variant.Outlined" style="width:100%">
-                                <RadzenTextBox @bind-Value="nuevo.Codigo" Placeholder="P.GEN.1.1" style="width:100%" />
+                                <RadzenTextBox @bind-Value="nuevo.Codigo" MaxLength="LargoTexto.PorDefecto" Placeholder="P.GEN.1.1" style="width:100%" />
                             </RadzenFormField>
                         </RadzenColumn>
                     }
                     <RadzenColumn Size="12" SizeMD="@(nuevo.EsAgrupador ? 8 : 3)">
                         <div>
                             <RadzenFormField Text="Descripción *" Variant="Variant.Outlined" style="width:100%">
-                                <RadzenTextBox @bind-Value="nuevo.Descripcion" Name="Descripcion" style="width:100%" />
+                                <RadzenTextBox @bind-Value="nuevo.Descripcion" MaxLength="LargoTexto.Descripcion" Name="Descripcion" style="width:100%" />
                             </RadzenFormField>
                             <RadzenRequiredValidator Component="Descripcion" Text="La descripción es obligatoria" Popup="true" />
                         </div>
@@ -152,23 +152,25 @@ else
                         </RadzenColumn>
                         <RadzenColumn Size="6" SizeMD="1">
                             <RadzenFormField Text="Unidad" Variant="Variant.Outlined" style="width:100%">
-                                <RadzenTextBox @bind-Value="nuevo.Unidad" Placeholder="m2" style="width:100%" />
+                                <RadzenTextBox @bind-Value="nuevo.Unidad" MaxLength="LargoTexto.PorDefecto" Placeholder="m2" style="width:100%" />
                             </RadzenFormField>
                         </RadzenColumn>
                         @* Sin Min en los numéricos: Radzen lleva el valor tipeado al mínimo sin avisar
-                           (un PU de -500 se guardaba como 0). El validador muestra el motivo con el
-                           mismo mensaje que exige el servicio (EstructuraValidator.NoNegativos). *@
+                           (un PU de -500 se guardaba como 0). El validador evalúa la misma regla que
+                           exige el servicio (EstructuraValidator.NoNegativos), con su mensaje. *@
                         <RadzenColumn Size="6" SizeMD="1">
                             <RadzenFormField Text="Cantidad" Variant="Variant.Outlined" style="width:100%">
                                 <RadzenNumeric @bind-Value="nuevo.Cantidad" Name="Cantidad" Step="0.0001" ShowUpDown="false" style="width:100%" />
                             </RadzenFormField>
-                            <RadzenNumericRangeValidator Component="Cantidad" Min="0m" AllowNull="true" Text="La cantidad no puede ser negativa." Popup="true" />
+                            <RadzenCustomValidator Component="Cantidad" Validator="@(() => EstructuraValidator.Cantidad(nuevo.Cantidad) is null)"
+                                                   Text="@EstructuraValidator.CantidadNegativa" Popup="true" />
                         </RadzenColumn>
                         <RadzenColumn Size="12" SizeMD="2">
                             <RadzenFormField Text="PU Básico ($)" Variant="Variant.Outlined" style="width:100%">
                                 <RadzenNumeric @bind-Value="nuevo.PUBasico" Name="PUBasico" Step="0.0001" ShowUpDown="false" style="width:100%" />
                             </RadzenFormField>
-                            <RadzenNumericRangeValidator Component="PUBasico" Min="0m" AllowNull="true" Text="El PU no puede ser negativo." Popup="true" />
+                            <RadzenCustomValidator Component="PUBasico" Validator="@(() => EstructuraValidator.PUBasico(nuevo.PUBasico) is null)"
+                                                   Text="@EstructuraValidator.PUNegativo" Popup="true" />
                         </RadzenColumn>
                     }
                     <RadzenColumn Size="12" SizeMD="1">

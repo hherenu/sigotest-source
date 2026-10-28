@@ -131,9 +131,13 @@ public class IndiceService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUs
     public async Task<bool> AgregarValorAsync(int indiceId, NuevoValorVM nuevo)
     {
         ExigirRol("agregar el valor");
-        Validacion.Exigir(IndiceValidator.ValorMensual(nuevo.Valor));
+        Validacion.Exigir(IndiceValidator.Periodo(nuevo.Anio, nuevo.Mes) ?? IndiceValidator.ValorMensual(nuevo.Valor));
         var pub = NormalizarPublicacion(nuevo.IdPublicacion);
         await using var db = await dbFactory.CreateDbContextAsync();
+
+        var indice = await db.IndicesINDEC.Select(i => new { i.Id, i.CodigoIndice })
+            .FirstOrThrowAsync(i => i.Id == indiceId, "El índice ya no existe.");
+        Validacion.Exigir(IndiceValidator.PublicacionAltaManual(pub, EsTasasBancoNacion(indice.CodigoIndice)));
 
         if (await db.ValoresIndice.AnyAsync(v =>
                 v.IndiceId == indiceId && v.Anio == nuevo.Anio && v.Mes == nuevo.Mes && v.IdPublicacion == pub))
@@ -204,6 +208,15 @@ public class IndiceService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUs
 
         foreach (var f in filas.Where(f => f.Estado == EstadoFilaImport.Ok))
         {
+            // La importación siempre lleva publicación: la plantilla ya no trae las tasas,
+            // pero el pegado las aceptaba.
+            if (EsTasasBancoNacion(f.Codigo))
+            {
+                f.Estado = EstadoFilaImport.FilaInvalida;
+                f.Detalle = $"No se importa con la publicación. {IndiceValidator.TasasSinPublicacion} Cargalas desde «Valores mensuales» del índice.";
+                continue;
+            }
+
             if (!codigos.TryGetValue(f.Codigo, out var indiceId))
             {
                 f.Estado = EstadoFilaImport.CodigoDesconocido;

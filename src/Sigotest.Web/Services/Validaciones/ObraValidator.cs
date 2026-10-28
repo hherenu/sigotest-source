@@ -65,12 +65,21 @@ public static class ObraValidator
             presupuestos.OficialUSD, presupuestos.OficialEUR,
             presupuestos.AdjudicadoPesos, presupuestos.AdjudicadoUSD, presupuestos.AdjudicadoEUR
         ];
-        if (cargados.Any(p => p is <= 0))
-            return "Los presupuestos deben ser mayores a cero (o quedar vacíos)";
+        if (cargados.Any(p => Presupuesto(p) is not null))
+            return PresupuestoNoPositivo;
         if (!presupuestos.TieneOficial)
             return "El presupuesto oficial es obligatorio en al menos una moneda";
         return null;
     }
+
+    public const string PresupuestoNoPositivo = "Los presupuestos deben ser mayores a cero (o quedar vacíos)";
+
+    /// <summary>
+    /// Cada importe del presupuesto, en cualquier moneda: vacío o mayor a cero. Guardar la
+    /// exige en los seis y el form de la obra la evalúa tal cual con un RadzenCustomValidator
+    /// por campo (docs/convenciones-ui.md).
+    /// </summary>
+    public static string? Presupuesto(decimal? importe) => importe is <= 0 ? PresupuestoNoPositivo : null;
 
     /// <summary>
     /// Alta de una prórroga: la obra tiene que tener fin de contrato vigente (es lo que

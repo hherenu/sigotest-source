@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SIGO.Models.ViewModels;
 using SIGO.Services;
+using SIGO.Services.Validaciones;
 
 namespace SIGO.Tests;
 
@@ -28,6 +29,23 @@ public class IndiceServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbFixtur
 
         await using var db = fx.CrearContexto();
         Assert.False(await db.ValoresIndice.AnyAsync(v => v.IndiceId == 1 && v.Anio == 2040));
+    }
+
+    [Theory]
+    [InlineData(1999, 5, "año")]
+    [InlineData(2101, 5, "año")]
+    [InlineData(2041, 13, "mes")]
+    public async Task AgregarValor_ConPeriodoFueraDeRango_Rechaza(int anio, int mes, string campo)
+    {
+        // Antes solo lo acotaba la página (Min/Max del numérico) y el servicio guardaba lo que llegara.
+        var nuevo = new NuevoValorVM { Anio = anio, Mes = mes, Valor = 100m };
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Servicio(Roles.Admin).AgregarValorAsync(1, nuevo));
+        Assert.Contains(campo, ex.Message);
+
+        await using var db = fx.CrearContexto();
+        Assert.False(await db.ValoresIndice.AnyAsync(v => v.IndiceId == 1 && v.Anio == anio && v.Mes == mes));
     }
 
     [Theory]
@@ -144,12 +162,47 @@ public class IndiceServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbFixtur
     [Fact]
     public async Task AgregarValor_Positivo_Guarda()
     {
-        var nuevo = new NuevoValorVM { Anio = 2041, Mes = 2, Valor = 123.45m, IdPublicacion = "PUB_IDX" };
+        var nuevo = new NuevoValorVM { Anio = 2041, Mes = 2, Valor = 123.45m, IdPublicacion = "INDEC_INFORMA_02_41" };
 
         Assert.True(await Servicio(Roles.Admin).AgregarValorAsync(1, nuevo));
 
         await using var db = fx.CrearContexto();
         var fila = await db.ValoresIndice.SingleAsync(v => v.IndiceId == 1 && v.Anio == 2041 && v.Mes == 2);
         Assert.Equal(123.45m, fila.Valor);
+    }
+
+    [Fact]
+    public async Task AgregarValor_ConPublicacionMalEscrita_Rechaza()
+    {
+        // Antes «indec_informa_8_26» creaba otra publicación del mismo período, que nunca se
+        // elegía como la más reciente.
+        var nuevo = new NuevoValorVM { Anio = 2048, Mes = 8, Valor = 100m, IdPublicacion = "indec_informa_8_26" };
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => Servicio(Roles.Admin).AgregarValorAsync(1, nuevo));
+        Assert.Contains("INDEC_INFORMA_MM_AA", ex.Message);
+
+        await using var db = fx.CrearContexto();
+        Assert.False(await db.ValoresIndice.AnyAsync(v => v.IndiceId == 1 && v.Anio == 2048));
+    }
+
+    [Fact]
+    public async Task TasasDelBancoNacion_SoloSinPublicacion()
+    {
+        // Con publicación le ganarían a la tasa en el cálculo de esa publicación: el alta manual
+        // la rechaza y el pegado (que siempre lleva publicación) deja la fila inválida.
+        int tasas;
+        await using (var db = fx.CrearContexto())
+            tasas = await db.IndicesINDEC.Where(i => i.CodigoIndice == IndiceService.CodigoTasasBancoNacion).Select(i => i.Id).SingleAsync();
+        var conPublicacion = new NuevoValorVM { Anio = 2049, Mes = 1, Valor = 5m, IdPublicacion = "INDEC_INFORMA_02_49" };
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => Servicio(Roles.Admin).AgregarValorAsync(tasas, conPublicacion));
+        Assert.Equal(IndiceValidator.TasasSinPublicacion, ex.Message);
+        Assert.True(await Servicio(Roles.Admin).AgregarValorAsync(tasas, new NuevoValorVM { Anio = 2049, Mes = 1, Valor = 5m }));
+
+        var filas = ImportadorIndec.ParsearLineas($"{IndiceService.CodigoTasasBancoNacion}\t5,2", 2049, 2);
+        await Servicio(Roles.Admin).AnalizarImportacionAsync(filas, "INDEC_INFORMA_03_49");
+        var fila = Assert.Single(filas);
+        Assert.Equal(EstadoFilaImport.FilaInvalida, fila.Estado);
+        Assert.Contains(IndiceValidator.TasasSinPublicacion, fila.Detalle);
     }
 }

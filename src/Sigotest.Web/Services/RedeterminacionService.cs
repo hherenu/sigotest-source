@@ -39,6 +39,7 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
         int anioBase, int mesBase, string? idPublicacionBase,
         int anioSalto, int mesSalto, string? idPublicacionSalto)
     {
+        Validacion.Exigir(RedeterminacionValidator.Periodos(anioBase, mesBase, anioSalto, mesSalto));
         await using var db = await dbFactory.CreateDbContextAsync();
 
         // EntidadNoEncontradaException (no ArgumentException, que Persistencia NO captura
@@ -141,6 +142,8 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
     {
         ExigirRol("guardar el disparo");
 
+        // El VM viene de la página: los períodos se vuelven a exigir como en el cálculo.
+        Validacion.Exigir(RedeterminacionValidator.Periodos(vm.AnioBase, vm.MesBase, vm.AnioSalto, vm.MesSalto));
         Validacion.Exigir(RedeterminacionValidator.GuardarDisparo(vm.TotalKiK0));
 
         await using var db = await dbFactory.CreateDbContextAsync();
@@ -199,6 +202,7 @@ public class RedeterminacionService(IDbContextFactory<AppDbContext> dbFactory, I
     {
         ExigirRol("recalcular el disparo");
 
+        Validacion.Exigir(RedeterminacionValidator.Periodos(vm.AnioBase, vm.MesBase, vm.AnioSalto, vm.MesSalto));
         Validacion.Exigir(RedeterminacionValidator.RecalcularDisparo(vm.TotalKiK0));
 
         await using var db = await dbFactory.CreateDbContextAsync();

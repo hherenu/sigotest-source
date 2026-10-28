@@ -44,7 +44,7 @@ else
             </RadzenText>
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.End" Gap="0.5rem">
                 <RadzenFormField Text="Nombre de la tabla" Variant="Variant.Outlined" style="flex:1">
-                    <RadzenTextBox @bind-Value="nombreNuevaTabla" style="width:100%" />
+                    <RadzenTextBox @bind-Value="nombreNuevaTabla" MaxLength="LargoTexto.PorDefecto" style="width:100%" />
                 </RadzenFormField>
                 <RadzenButton Text="Crear tabla" Icon="add" ButtonStyle="ButtonStyle.Primary"
                               IsBusy="@procesando" BusyText="Creando..." Click="@CrearTablaAsync" />
@@ -124,7 +124,7 @@ else
                     <RadzenColumn Size="12" SizeMD="3">
                         <div>
                             <RadzenFormField Text="Insumo *" Variant="Variant.Outlined" style="width:100%">
-                                <RadzenTextBox @bind-Value="form.Insumo" Name="Insumo" Placeholder="Mano de Obra" style="width:100%" />
+                                <RadzenTextBox @bind-Value="form.Insumo" MaxLength="LargoTexto.PorDefecto" Name="Insumo" Placeholder="Mano de Obra" style="width:100%" />
                             </RadzenFormField>
                             <RadzenRequiredValidator Component="Insumo" Text="El insumo es obligatorio" Popup="true" />
                         </div>
@@ -132,10 +132,12 @@ else
                     <RadzenColumn Size="6" SizeMD="2">
                         <div>
                             <RadzenFormField Text="Peso % *" Variant="Variant.Outlined" style="width:100%">
-                                <RadzenNumeric @bind-Value="form.Peso" Name="Peso" Min="0.0001m" Max="100" Step="0.01"
-                                               ShowUpDown="false" style="width:100%" />
+                                <RadzenNumeric @bind-Value="form.Peso" Name="Peso" Step="0.01" ShowUpDown="false" style="width:100%" />
                             </RadzenFormField>
-                            <RadzenRequiredValidator Component="Peso" Text="El peso es obligatorio" Popup="true" />
+                            @* La regla que exige el servicio (PonderacionValidator.Peso), con su mensaje; vacío
+                               tampoco pasa. Sin Min/Max: Radzen llevaba un peso de 150 a 100 sin avisar. *@
+                            <RadzenCustomValidator Component="Peso" Validator="@(() => PonderacionValidator.Peso(form.Peso) is null)"
+                                                   Text="@PonderacionValidator.PesoFueraDeRango" Popup="true" />
                         </div>
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="3">
@@ -154,7 +156,7 @@ else
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="2">
                         <RadzenFormField Text="Descripción INDEC" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenTextBox @bind-Value="form.DescripcionINDEC" Placeholder="Cuadro 5 - inciso..." style="width:100%" />
+                            <RadzenTextBox @bind-Value="form.DescripcionINDEC" MaxLength="LargoTexto.Descripcion" Placeholder="Cuadro 5 - inciso..." style="width:100%" />
                         </RadzenFormField>
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="2">

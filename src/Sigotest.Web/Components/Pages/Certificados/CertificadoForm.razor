@@ -26,16 +26,16 @@ else
     <RadzenTemplateForm TItem="CertificadoNuevoVM" Data="@alta.Form" Submit="@GuardarAsync">
         <RadzenStack Gap="1rem" style="max-width: 640px;">
             <RadzenRow Gap="1rem" RowGap="1rem">
-                @* Los límites de número y año son los mismos que exige el servicio
-                   (CertificadoValidator.Alta, con los mismos mensajes), que valida aunque la página
-                   no lo haga. Sin Min/Max en los numéricos: Radzen lleva el valor tipeado al límite
-                   sin avisar (un año anterior al mínimo se guardaba como el mínimo); el validador de rango, en cambio,
-                   muestra el motivo, y también rechaza el 0 de un campo vaciado. *@
+                @* Número y año: las reglas de CertificadoValidator que exige el servicio (Alta),
+                   evaluadas tal cual y con el mismo mensaje. Sin Min/Max en los numéricos: Radzen
+                   lleva el valor tipeado al límite sin avisar (un año anterior al mínimo se guardaba
+                   como el mínimo); el validador muestra el motivo y rechaza el 0 de un campo vaciado. *@
                 <RadzenColumn Size="12" SizeMD="4">
                     <RadzenFormField Text="N° Certificado *" Variant="Variant.Outlined" style="width:100%">
                         <RadzenNumeric @bind-Value="alta.Form.Numero" Name="Numero" ShowUpDown="false" style="width:100%" />
                     </RadzenFormField>
-                    <RadzenNumericRangeValidator Component="Numero" Min="1" Text="El número de certificado debe ser 1 o mayor." Popup="true" />
+                    <RadzenCustomValidator Component="Numero" Validator="@(() => CertificadoValidator.Numero(alta.Form.Numero) is null)"
+                                           Text="@CertificadoValidator.NumeroInvalido" Popup="true" />
                 </RadzenColumn>
                 <RadzenColumn Size="12" SizeMD="4">
                     <RadzenFormField Text="Mes *" Variant="Variant.Outlined" style="width:100%">
@@ -48,8 +48,8 @@ else
                     <RadzenFormField Text="Año *" Variant="Variant.Outlined" style="width:100%">
                         <RadzenNumeric @bind-Value="alta.Form.Anio" Name="Anio" ShowUpDown="false" style="width:100%" />
                     </RadzenFormField>
-                    <RadzenNumericRangeValidator Component="Anio" Min="CertificadoValidator.AnioMinimo" Max="CertificadoValidator.AnioMaximo"
-                                                 Text="@($"El año debe estar entre {CertificadoValidator.AnioMinimo} y {CertificadoValidator.AnioMaximo}.")" Popup="true" />
+                    <RadzenCustomValidator Component="Anio" Validator="@(() => CertificadoValidator.Anio(alta.Form.Anio) is null)"
+                                           Text="@CertificadoValidator.AnioFueraDeRango" Popup="true" />
                 </RadzenColumn>
             </RadzenRow>
 
@@ -66,7 +66,7 @@ else
             </RadzenFormField>
 
             <RadzenFormField Text="Observaciones" Variant="Variant.Outlined" style="width:100%">
-                <RadzenTextArea @bind-Value="alta.Form.Observaciones" Rows="2" style="width:100%" />
+                <RadzenTextArea @bind-Value="alta.Form.Observaciones" MaxLength="LargoTexto.Observaciones" Rows="2" style="width:100%" />
             </RadzenFormField>
 
             <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
