@@ -348,11 +348,13 @@
             }
 
             // Bajo el salto mínimo no dispara redeterminación: se puede guardar,
-            // pero nunca por accidente.
-            if (Math.Abs(vm.PorcentajeAumento ?? 0) < Redet.SaltoMinimo)
+            // pero nunca por accidente. Misma regla que el «Habilita» del historial
+            // (Redet.EsSuba, con signo): una baja no habilita. Antes se comparaba el
+            // valor absoluto y un -6 % se guardaba sin aviso.
+            if (!Redet.EsSuba(vm.PorcentajeAumento))
             {
                 var ok = await DialogService.Confirm(
-                    $"La variación de referencia ({vm.PorcentajeAumento?.ToString("N4")}%) no alcanza el salto mínimo del {Redet.SaltoMinimo:N0}% y no habilita redeterminación. ¿Guardar igual?",
+                    $"La variación de referencia ({vm.PorcentajeAumento?.ToString("N4")}%) no es una suba de al menos el {Redet.SaltoMinimo:N0}% y no habilita redeterminación. ¿Guardar igual?",
                     "Variación bajo el salto mínimo",
                     new ConfirmOptions { OkButtonText = "Guardar igual", CancelButtonText = "Cancelar" });
                 if (ok != true) return;

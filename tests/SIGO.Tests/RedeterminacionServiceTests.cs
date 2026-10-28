@@ -419,4 +419,27 @@ public class RedeterminacionServiceTests(LocalDbFixture fx) : IClassFixture<Loca
         Assert.Equal("INDEC_INFORMA_01_27", publicaciones.Last());
         Assert.True(publicaciones.IndexOf("INDEC_INFORMA_04_26") < publicaciones.IndexOf("INDEC_INFORMA_12_26"));
     }
+
+    [Fact]
+    public async Task SaltoAnteriorALaBase_NoSeCalculaNiSeGuarda()
+    {
+        // Base dic / salto jun calculaba el coeficiente invertido y lo encadenaba.
+        var (obraId, tablaId) = await CrearObraConTablaAsync();
+        await CargarValoresAsync(
+            (1, 2058, 6, 100m, null), (2, 2058, 6, 100m, null), (1, 2058, 12, 120m, null), (2, 2058, 12, 120m, null));
+        var servicio = Servicio(Roles.Admin);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            servicio.CalcularAsync(obraId, tablaId, 2058, 12, null, 2058, 6, null));
+        Assert.Contains("posterior al mes base", ex.Message);
+
+        // El VM viene de la página: el guardado vuelve a exigirlo.
+        var vm = await servicio.CalcularAsync(obraId, tablaId, 2058, 6, null, 2058, 12, null);
+        (vm.AnioBase, vm.MesBase, vm.AnioSalto, vm.MesSalto) = (2058, 12, 2058, 6);
+        ex = await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.GuardarDisparoAsync(obraId, tablaId, vm));
+        Assert.Contains("posterior al mes base", ex.Message);
+
+        await using var db = fx.CrearContexto();
+        Assert.False(await db.RedeterminacionesGuardadas.AnyAsync(r => r.ObraId == obraId));
+    }
 }
