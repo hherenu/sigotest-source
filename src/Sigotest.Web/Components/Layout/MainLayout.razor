@@ -3,7 +3,6 @@
 @inject ICurrentUser CurrentUser
 @inject NavigationManager Nav
 @inject ThemeService Tema
-@inject IJSRuntime JS
 @* Registrarlo en Program.cs NO alcanza: es scoped y RadzenTheme no lo resuelve —
    este inject es lo que lo construye en cada circuito. Al construirse lee la cookie
    SIGOTheme (restaura la elección tras F5) y se suscribe para escribirla en cada
@@ -42,8 +41,11 @@
     </RadzenHeader>
 
     @* Como en SAF: colapsar no oculta el menú, lo deja en modo solo-íconos
-       (DisplayStyle) con la sidebar angosta al ancho del contenido. *@
-    <RadzenSidebar Responsive="false" Style="width: max-content">
+       (DisplayStyle) con la sidebar angosta al ancho del contenido. Los anchos
+       viven en app-blazor.css (.rz-layout > .rz-sidebar); la clase
+       app-sidebar-iconos ajusta los paddings del menú en modo solo-íconos para
+       que la columna mida lo mismo que el toggle de la cabecera. *@
+    <RadzenSidebar Responsive="false" class="@(sidebarExpanded ? null : "app-sidebar-iconos")">
         <RadzenPanelMenu DisplayStyle="@(sidebarExpanded ? MenuItemDisplayStyle.IconAndText : MenuItemDisplayStyle.Icon)" ShowArrow="false">
             @* El menú solo muestra los módulos a los que el rol del usuario accede.
                En modo solo-íconos Radzen suprime el texto y no pone title: sin el
@@ -100,7 +102,8 @@
 </div>
 
 @code {
-    private bool sidebarExpanded = true;
+    // Arranca en modo solo-íconos en cualquier pantalla; el toggle manda después.
+    private bool sidebarExpanded = false;
     private ErrorBoundary? errorBoundary;
 
     private bool EsTemaClaro => Tema.Theme is { Length: > 0 } t && !t.Contains("dark");
@@ -140,19 +143,4 @@
     // Al navegar a otra página, el boundary vuelve a renderizar el contenido normal
     // (sin esto quedaría clavado en el error hasta un F5).
     protected override void OnParametersSet() => errorBoundary?.Recover();
-
-    // Sidebar colapsada de entrada en pantallas angostas (Responsive=false la
-    // dejaba expandida tapando media pantalla en móvil). Solo el estado INICIAL:
-    // el toggle manual manda después. Server-side no conoce el viewport, por eso
-    // se consulta por JS tras el primer render.
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender) return;
-        var ancho = await JS.InvokeAsync<int>("sigoAnchoVentana");
-        if (ancho < 900 && sidebarExpanded)
-        {
-            sidebarExpanded = false;
-            StateHasChanged();
-        }
-    }
 }

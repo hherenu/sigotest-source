@@ -209,6 +209,35 @@ html, body {
     padding: 0;
 }
 
+/* ===========================================================================
+   Sidebar (MainLayout): expandida mide lo que ocupa el menú (como SAF), no los
+   300px fijos de Radzen. Colapsada (clase app-sidebar-iconos, DisplayStyle Icon)
+   se reescriben los tokens del panel-menu para que cada ítem sea
+   padding + ícono + padding = 0.8125rem + 1.5rem + 0.8125rem = 3.125rem, el
+   mismo ancho que el RadzenSidebarToggle de la cabecera: la columna de íconos
+   queda alineada con el botón de menú. Sin esto Radzen dejaba el margen
+   derecho del ícono (1rem) y el sangrado de 3rem del submenú (Redeterminación),
+   y la columna salía más ancha de lo que parece con los íconos corridos.
+   =========================================================================== */
+.rz-layout > .rz-sidebar {
+    width: max-content;
+}
+
+.rz-layout > .rz-sidebar.app-sidebar-iconos {
+    --rz-panel-menu-item-padding-inline: 0.8125rem;
+    --rz-panel-menu-icon-margin-inline: 0;
+    --rz-panel-menu-item-2nd-level-margin-inline: 0;
+    --rz-panel-menu-item-2nd-level-padding-inline: 0.8125rem;
+    --rz-panel-menu-item-2nd-level-offset: 0.8125rem;
+    --rz-panel-menu-icon-2nd-level-margin-inline: 0;
+}
+
+/* El submenú usa un ícono más chico (0.8 del tamaño base): centrado en la
+   columna en vez de pegado al borde izquierdo. */
+.app-sidebar-iconos .rz-panel-menu .rz-navigation-item-link {
+    justify-content: center;
+}
+
 /* El padding de contenido vive acá (SIGO envuelve @Body en .app-content). */
 .rz-body > .app-content {
     display: flex;
@@ -353,10 +382,14 @@ html, body {
 }
 
 /* ===========================================================================
-   (SAF) Notificaciones: respetar saltos de línea (\n) en el detalle
+   (SAF) Notificaciones: respetar saltos de línea (\n) en el detalle.
+   SOLO en .rz-notification-content: la versión anterior ponía pre-line en todo
+   .rz-notification y, heredado por .rz-notification-item-wrapper (fondo blanco
+   en material), los saltos de línea del markup de Radzen se convertían en una
+   línea vacía bajo el toast coloreado: una franja blanca "fuera de cuadro".
    =========================================================================== */
-.rz-notification, .rz-notification .rz-notification, .rz-notification .rz-notification-content, .rz-notification .rz-notification-message, .rz-notification .rz-notification-detail {
-    white-space: pre-line !important;
+.rz-notification .rz-notification-content {
+    white-space: pre-line;
 }
 
 /* ===========================================================================
