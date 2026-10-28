@@ -37,12 +37,12 @@ else
        acá no se crean usuarios). *@
     <GrillaListado Vista="@vista">
         <RadzenDataGridColumn TItem="UsuarioVM" Property="WindowsUser" Title="Usuario Windows" Width="180px" />
-        <RadzenDataGridColumn TItem="UsuarioVM" Property="Nombre" Title="Nombre" />
-        <RadzenDataGridColumn TItem="UsuarioVM" Property="Email" Title="Email" />
+        <RadzenDataGridColumn TItem="UsuarioVM" Property="Nombre" Title="Nombre" Width="200px" />
+        <RadzenDataGridColumn TItem="UsuarioVM" Property="Email" Title="Email" Width="220px" />
         @* El filtro ofrece las combinaciones de roles tal como se ven («Admin, Gerente»):
            tildar «Admin» no incluye «Admin, Gerente»; su buscador encuentra todas las que
            tienen un rol. *@
-        <RadzenDataGridColumn TItem="UsuarioVM" Property="RolesTexto" Title="Roles" Sortable="false">
+        <RadzenDataGridColumn TItem="UsuarioVM" Property="RolesTexto" Title="Roles" Width="200px" Sortable="false">
             <Template Context="u">
                 @if (!u.Roles.Any())
                 {
@@ -66,7 +66,7 @@ else
                             title="@(u.Activo ? "Activo" : "Inactivo")" />
             </Template>
         </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="UsuarioVM" Title="" Width="90px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+        <RadzenDataGridColumn TItem="UsuarioVM" Title="" Width="100px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
             <Template Context="u">
                 @* editar=Primary y eliminar=delete, como todas las filas de la app
                    (eran Warning y close, únicos acá). *@

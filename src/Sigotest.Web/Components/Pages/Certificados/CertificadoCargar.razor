@@ -80,27 +80,29 @@ else
                     <caption class="sr-only">Carga del % de avance del mes — @bloque.Titulo</caption>
                     <thead>
                         <tr>
-                            <th scope="col" style="text-align:left">Cód.</th>
-                            <th scope="col" class="cert-col-desc" style="text-align:left">Descripción<AsaAnchoDescripcion /></th>
-                            <th scope="col">Unid.</th>
-                            <th scope="col">Cant. Contrato</th>
-                            <th scope="col">PU Básico</th>
-                            <th scope="col">Monto Contrato</th>
-                            <th scope="col" class="col-warning">% Anterior</th>
-                            <th scope="col" class="col-warning">Monto Anterior</th>
-                            <th scope="col" class="col-primary">% Mes</th>
-                            <th scope="col" class="col-primary">Monto Mes</th>
+                            <th scope="col">Cód.</th>
+                            <th scope="col" class="cert-col-desc">Descripción<AsaAnchoDescripcion /></th>
+                            <th scope="col" class="centro">Unid.</th>
+                            <th scope="col" class="num">Cant. Contrato</th>
+                            <th scope="col" class="num">PU Básico</th>
+                            <th scope="col" class="num">Monto Contrato</th>
+                            <th scope="col" class="num col-warning">% Anterior</th>
+                            <th scope="col" class="num col-warning">Monto Anterior</th>
+                            <th scope="col" class="num col-primary">% Mes</th>
+                            <th scope="col" class="num col-primary">Monto Mes</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var (item, nivel) in filasPorBloque[bloque.CertificadoEstructuraId])
                         {
-                            var pad = nivel * 16 + 8;
+                            @* Sangría en la Descripción, para rubros e ítems por igual: antes el ítem
+                               sangraba el Código y su Descripción quedaba a la izquierda de su rubro. *@
+                            var sangria = $"padding-left:{FilaEstructuraUi.Sangria(nivel)}px";
                             if (item.EsAgrupador)
                             {
                                 <tr @key="item.ItemEstructuraId" class="@(nivel == 0 ? "agrup-0" : "agrup-1")">
                                     <td></td>
-                                    <td class="cert-col-desc" style="padding-left:@(pad)px" title="@item.Descripcion">@item.Descripcion</td>
+                                    <td class="cert-col-desc" style="@sangria" title="@item.Descripcion">@item.Descripcion</td>
                                     <td></td><td></td><td></td>
                                     <td class="num">@Fmt.Money(item.MontoContrato ?? 0)</td>
                                     <td class="col-warning"></td>
@@ -112,9 +114,9 @@ else
                             else
                             {
                                 <tr @key="item.ItemEstructuraId">
-                                    <td class="cell-mono" style="padding-left:@(pad)px">@item.Codigo</td>
-                                    <td class="cert-col-desc" title="@item.Descripcion">@item.Descripcion</td>
-                                    <td style="text-align:center">@item.Unidad</td>
+                                    <td class="cell-mono">@item.Codigo</td>
+                                    <td class="cert-col-desc" style="@sangria" title="@item.Descripcion">@item.Descripcion</td>
+                                    <td class="centro">@item.Unidad</td>
                                     <td class="num">@(item.CantidadContrato is decimal cc ? Fmt.HastaN4(cc) : "")</td>
                                     <td class="num">@(item.PUBasico is decimal pu ? "$ " + Fmt.HastaN4(pu) : "")</td>
                                     <td class="num">@(item.MontoContrato is decimal mc ? "$ " + Fmt.N2(mc) : "")</td>
@@ -125,7 +127,7 @@ else
                                         @* aria-label: sin él, un lector de pantalla anuncia el input sin
                                            decir de qué ítem es (Radzen lo propaga al <input>). *@
                                         <RadzenNumeric TValue="decimal?" @bind-Value="pct[bloque.CertificadoEstructuraId][item.ItemEstructuraId]"
-                                                       Step="0.01" ShowUpDown="false" style="width:110px"
+                                                       Step="0.01" ShowUpDown="false" TextAlign="TextAlign.Right" style="width:110px"
                                                        aria-label="@($"% del mes — {item.Codigo} {item.Descripcion}")" />
                                     </td>
                                     <td class="num col-primary">@Fmt.Money(LiveMonto(bloque.CertificadoEstructuraId, item))</td>

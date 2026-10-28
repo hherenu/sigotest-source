@@ -448,19 +448,19 @@ else
                                 <caption class="sr-only">Autorizado, planificado y diferencia por bloque y moneda, con totales</caption>
                                 <thead>
                                     <tr>
-                                        <th scope="col" rowspan="2" style="text-align:left;vertical-align:bottom">Bloque</th>
+                                        <th scope="col" rowspan="2" style="vertical-align:bottom">Bloque</th>
                                         @foreach (var m in monedasTotales)
                                         {
                                             <th scope="colgroup" colspan="3">@m</th>
                                         }
-                                        <th scope="col" rowspan="2" style="text-align:left;vertical-align:bottom">Estado</th>
+                                        <th scope="col" rowspan="2" style="vertical-align:bottom">Estado</th>
                                     </tr>
                                     <tr>
                                         @foreach (var m in monedasTotales)
                                         {
-                                            <th scope="col">Autorizado</th>
-                                            <th scope="col">Planificado</th>
-                                            <th scope="col">Diferencia</th>
+                                            <th scope="col" class="num">Autorizado</th>
+                                            <th scope="col" class="num">Planificado</th>
+                                            <th scope="col" class="num">Diferencia</th>
                                         }
                                     </tr>
                                 </thead>
@@ -539,9 +539,9 @@ else
                                 <caption class="sr-only">Versiones anteriores del plan (snapshots de cada toma de conocimiento)</caption>
                                 <thead>
                                     <tr>
-                                        <th scope="col" style="text-align:left">Versión (mes)</th>
-                                        <th scope="col" style="text-align:left">Toma de conocimiento</th>
-                                        <th scope="col" style="text-align:left">Por</th>
+                                        <th scope="col">Versión (mes)</th>
+                                        <th scope="col">Toma de conocimiento</th>
+                                        <th scope="col">Por</th>
                                         <th scope="col"><span class="sr-only">Exportar</span></th>
                                     </tr>
                                 </thead>
@@ -940,8 +940,11 @@ else
     private RenderFragment CeldaGrilla(int autId, FilaPlan f, Moneda mon)
     {
         var key = Clave(autId, f, mon);
+        // TextAlign Right: la columna muestra las cifras a la derecha y al editar el número
+        // saltaba a la izquierda.
         return @<RadzenNumeric @ref="numericoEnEdicion" TValue="decimal?" Value="@(celdas.TryGetValue(key, out var v) ? v : null)"
             Change="@((decimal? nv) => { if (EnEdicion(autId, f, mon)) { celdas[key] = nv; IrA(null); } })" Step="0.01" ShowUpDown="false" style="width:100%"
+            TextAlign="TextAlign.Right"
             aria-label="@EtiquetaCelda(autId, f.Concepto, f.Anio, f.Mes, mon)" />;
     }
 

@@ -80,12 +80,12 @@
                 <caption class="sr-only">Secciones de la planilla y bloque del certificado al que se aplican</caption>
                 <thead>
                     <tr>
-                        <th scope="col" style="text-align:left">Sección de la planilla</th>
-                        <th scope="col">Filas</th>
-                        <th scope="col">Renglones</th>
-                        <th scope="col">Con %</th>
-                        <th scope="col">Monto mes planilla</th>
-                        <th scope="col" style="text-align:left;min-width:220px">Bloque del certificado</th>
+                        <th scope="col">Sección de la planilla</th>
+                        <th scope="col" class="centro">Filas</th>
+                        <th scope="col" class="num">Renglones</th>
+                        <th scope="col" class="num">Con %</th>
+                        <th scope="col" class="num">Monto mes planilla</th>
+                        <th scope="col" style="min-width:220px">Bloque del certificado</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -93,7 +93,7 @@
                     {
                         <tr @key="s.Indice">
                             <th scope="row" id="@IdSeccion(s)" style="text-align:left;font-weight:400">@s.Titulo</th>
-                            <td style="text-align:center">@s.FilaDesde–@s.FilaHasta</td>
+                            <td class="centro">@s.FilaDesde–@s.FilaHasta</td>
                             <td class="num">@s.Filas.Count</td>
                             <td class="num">@s.ConPorcentaje</td>
                             <td class="num">@(s.TotalMontoActualPlanilla is decimal t ? "$ " + Fmt.N2(t) : "")</td>

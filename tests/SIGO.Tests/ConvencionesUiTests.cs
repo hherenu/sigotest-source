@@ -129,6 +129,66 @@ public class ConvencionesUiTests
     }
 
     [Fact]
+    public void Listados_TodasLasColumnasConAncho()
+    {
+        // Con table-layout fixed una columna sin Width recibe solo el sobrante: en una notebook
+        // con zoom, Nombre y Contratista de Obras quedaban en «…». Con todas declaradas la
+        // tabla scrollea a lo ancho en vez de truncar, y en pantallas anchas reparte el sobrante.
+        var listado = new Regex(@"<GrillaListado\b[^>]*>(?<cuerpo>.*?)</GrillaListado>", RegexOptions.Singleline);
+        var columna = new Regex(@"<RadzenDataGridColumn\b(?:[^>""]|""[^""]*"")*>");
+        var columnas = Directory.EnumerateFiles(Componentes(), "*.razor", SearchOption.AllDirectories)
+            .SelectMany(f => listado.Matches(File.ReadAllText(f))
+                .SelectMany(b => columna.Matches(b.Groups["cuerpo"].Value))
+                .Select(c => (Archivo: Path.GetFileName(f), Etiqueta: c.Value)))
+            .ToList();
+        var sinAncho = columnas
+            .Where(c => !Regex.IsMatch(c.Etiqueta, @"\sWidth=""\d+px"""))
+            .Select(c => $"{c.Archivo}: {Regex.Match(c.Etiqueta, @"\sTitle=""[^""]*""").Value.Trim()}")
+            .ToList();
+
+        Assert.NotEmpty(columnas);
+        Assert.Empty(sinAncho);
+    }
+
+    [Fact]
+    public void Tablas_SinFilasCentradasNiSangriaArmadaAMano()
+    {
+        // Cifras a la derecha (.num) y centrado solo por celda (.centro): una fila centrada
+        // entera desencolumnaba los decimales. La sangría de las tablas jerárquicas sale de
+        // FilaEstructuraUi.Sangria, en la Descripción: armada a mano se invertía entre rubro e ítem.
+        var infractores = Directory.EnumerateFiles(Componentes(), "*.razor", SearchOption.AllDirectories)
+            .SelectMany(f =>
+            {
+                var texto = File.ReadAllText(f);
+                var hallados = new List<string>();
+                if (Regex.IsMatch(texto, @"<tr\b[^>]*text-align\s*:\s*center")) hallados.Add("fila centrada");
+                if (Regex.IsMatch(texto, @"nivel\s*\*\s*16")) hallados.Add("sangría a mano");
+                return hallados.Select(h => $"{Path.GetFileName(f)}: {h}");
+            })
+            .ToList();
+
+        Assert.Empty(infractores);
+    }
+
+    [Fact]
+    public void Estilos_GrillasConPisoYTitulosAlineadosConSusDatos()
+    {
+        var css = File.ReadAllText(Path.Combine(Componentes(), "..", "wwwroot", "css", "app-blazor.css"));
+
+        // Sin piso, con zoom los listados mostraban 0 o 1 fila.
+        var grilla = Regex.Match(css, @"\.app-content > \.rz-stack > \.rz-data-grid \{(?<reglas>[^}]*)\}");
+        Assert.True(grilla.Success, "no se encontró la regla de las grillas del layout");
+        Assert.Matches(@"min-height:\s*20rem", grilla.Groups["reglas"].Value);
+
+        // El título de cada columna arranca a la misma distancia del borde que sus datos.
+        var celda = Regex.Match(css, @"--rz-grid-cell-padding:\s*[\d.]+rem\s+(?<x>[\d.]+rem)");
+        var titulo = Regex.Match(css, @"--rz-grid-header-title-padding-inline:\s*(?<x>[\d.]+rem)");
+        Assert.True(celda.Success && titulo.Success, "faltan los tokens de padding de la grilla");
+        Assert.Equal(celda.Groups["x"].Value, titulo.Groups["x"].Value);
+        Assert.DoesNotMatch(@"\.rz-grid-table td\s*\{[^}]*!important", css);
+    }
+
+    [Fact]
     public void GrillasConFiltro_TodasLasColumnasFiltrables()
     {
         // Las calculadas también: muestran una propiedad del VM (CicloDelMes, RolesTexto…), que

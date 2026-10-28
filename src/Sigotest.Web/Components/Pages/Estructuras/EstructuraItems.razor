@@ -61,13 +61,17 @@ else
                         <Template Context="f">
                             @if (!f.Item.EsAgrupador)
                             {
-                                <span class="rz-text-truncate app-mono" style="padding-left:@(Pad(f))px">@f.Item.Codigo</span>
+                                <span class="rz-text-truncate app-mono">@f.Item.Codigo</span>
                             }
                         </Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="Fila" Title="Descripción">
+                    @* Sangría en la Descripción, para rubros e ítems por igual (como la vista
+                       previa de la importación): antes el ítem sangraba el Código y su
+                       Descripción quedaba a la izquierda de su rubro. Width como mínimo: sin
+                       ancho, la columna colapsaba a «…» en notebooks (table-layout fixed). *@
+                    <RadzenDataGridColumn TItem="Fila" Title="Descripción" Width="280px">
                         <Template Context="f">
-                            <span style="padding-left:@(f.Item.EsAgrupador ? Pad(f) : 0)px">@f.Item.Descripcion</span>
+                            <span style="padding-left:@(Pad(f))px">@f.Item.Descripcion</span>
                         </Template>
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="Fila" Title="Unidad" Width="70px" TextAlign="TextAlign.Center">

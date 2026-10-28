@@ -6,14 +6,14 @@
         <caption class="sr-only">Tabla de ponderación: coeficiente por insumo entre @EtiquetaBase y @EtiquetaSalto</caption>
         <thead>
             <tr>
-                <th scope="col">N°</th>
-                <th scope="col" style="text-align:left">Insumo</th>
-                <th scope="col">Peso %</th>
-                <th scope="col">Indicador @EtiquetaBase</th>
-                <th scope="col">Indicador @EtiquetaSalto</th>
-                <th scope="col">Kᵢ/K₀</th>
-                <th scope="col">Variación Ponderada</th>
-                <th scope="col" style="text-align:left">INDEC</th>
+                <th scope="col" class="centro">N°</th>
+                <th scope="col">Insumo</th>
+                <th scope="col" class="num">Peso %</th>
+                <th scope="col" class="num">Indicador @EtiquetaBase</th>
+                <th scope="col" class="num">Indicador @EtiquetaSalto</th>
+                <th scope="col" class="num">Kᵢ/K₀</th>
+                <th scope="col" class="num">Variación Ponderada</th>
+                <th scope="col">INDEC</th>
             </tr>
         </thead>
         <tbody>
@@ -22,15 +22,17 @@
                 @* Sin @key a propósito: la tabla es de solo lectura y se re-proyecta entera
                    por render; una clave de negocio (Numero) podría venir duplicada de datos
                    viejos y un @key duplicado tira la página al ErrorBoundary. *@
-                <tr class="@(f.KiK0.HasValue ? "" : "row-warning")" style="text-align:center">
-                    <td>@f.Numero</td>
-                    <td style="text-align:left">@f.Insumo</td>
-                    <td>@f.PesoPorcentaje.ToString("N2")%</td>
-                    <td>@f.ValorMesBase?.ToString("N2")</td>
-                    <td>@f.ValorMesSalto?.ToString("N2")</td>
-                    <td>@f.KiK0?.ToString("N2")</td>
-                    <td style="font-weight:600">@f.VariacionPonderada?.ToString("N2")</td>
-                    <td class="cell-mono" style="text-align:left">@f.DescripcionINDEC</td>
+                @* Cifras a la derecha (antes la fila entera iba centrada y los decimales
+                   no quedaban encolumnados). *@
+                <tr class="@(f.KiK0.HasValue ? "" : "row-warning")">
+                    <td class="centro">@f.Numero</td>
+                    <td>@f.Insumo</td>
+                    <td class="num">@f.PesoPorcentaje.ToString("N2")%</td>
+                    <td class="num">@f.ValorMesBase?.ToString("N2")</td>
+                    <td class="num">@f.ValorMesSalto?.ToString("N2")</td>
+                    <td class="num">@f.KiK0?.ToString("N2")</td>
+                    <td class="num" style="font-weight:600">@f.VariacionPonderada?.ToString("N2")</td>
+                    <td class="cell-mono">@f.DescripcionINDEC</td>
                 </tr>
             }
         </tbody>
@@ -38,12 +40,12 @@
             @* Un solo rótulo TOTAL (estaba duplicado) y cada total debajo de SU
                columna: Kᵢ/K₀ bajo Kᵢ/K₀ y el % bajo Variación Ponderada (antes
                quedaban corridos una columna a la derecha). *@
-            <tr style="text-align:center">
+            <tr>
                 <td colspan="2" class="num">TOTAL</td>
-                <td>100,00%</td>
+                <td class="num">100,00%</td>
                 <td colspan="2"></td>
-                <td style="color:@Color">@TotalKiK0?.ToString("N2")</td>
-                <td style="color:@Color">@PorcentajeAumento?.ToString("N4")%</td>
+                <td class="num" style="color:@Color">@TotalKiK0?.ToString("N2")</td>
+                <td class="num" style="color:@Color">@PorcentajeAumento?.ToString("N4")%</td>
                 <td></td>
             </tr>
         </tfoot>

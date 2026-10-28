@@ -187,7 +187,8 @@
 
 /* ===========================================================================
    (SAF) Helpers de layout: la app ocupa exactamente el viewport y las grillas
-   toman el alto restante con scroll INTERNO (la página nunca scrollea entera).
+   toman el alto restante con scroll INTERNO. Con poco alto (notebook con zoom)
+   la grilla no baja de su piso y scrollea la página entera (.rz-body).
    Cadena de altura: html/body → .rz-layout → .rz-body → .app-content → grilla.
    =========================================================================== */
 html, body {
@@ -238,31 +239,35 @@ html, body {
     justify-content: center;
 }
 
-/* El padding de contenido vive acá (SIGO envuelve @Body en .app-content). */
+/* El padding de contenido vive acá (SIGO envuelve @Body en .app-content).
+   min-height auto (no 0): si el contenido no entra (la grilla en su piso), el
+   contenedor crece y .rz-body —overflow auto del tema— scrollea la página. */
 .rz-body > .app-content {
     display: flex;
     flex-direction: column;
     flex: 1 1 auto;
-    min-height: 0;
+    min-height: auto;
     padding: 0.75rem 1.25rem 1rem;
 }
 
 /* El llenado de altura aplica SOLO a grillas en la cadena del layout (hijas
    directas de .app-content o de un RadzenStack raíz). Una grilla anidada en
    una tarjeta/panel queda FUERA: su contenedor tiene altura auto y flex-basis 0
-   la colapsaría a cero (pasó con la grilla de /usuarios). */
+   la colapsaría a cero (pasó con la grilla de /usuarios). El stack no lleva
+   min-height 0: no puede achicarse por debajo del piso de su grilla. */
 .app-content > .rz-stack:has(> .rz-data-grid) {
     flex: 1 1 0;
-    min-height: 0;
     gap: 0.5rem; /* menos aire entre la toolbar y la grilla */
 }
 
+/* Piso de 20rem (~6 filas con el encabezado y el paginado): sin piso, en una
+   notebook con zoom de 175 % los listados mostraban 0 o 1 fila (WCAG 1.4.10). */
 .app-content > .rz-data-grid,
 .app-content > .rz-stack > .rz-data-grid {
     display: flex;
     flex-direction: column;
     flex: 1 1 0;
-    min-height: 0;
+    min-height: 20rem;
 }
 
 .app-content > .rz-data-grid .rz-data-grid-data,
@@ -324,14 +329,15 @@ html, body {
     border-bottom: 2px solid gray !important;
 }
 
-.rz-grid-table td {
-    padding: 0.25rem 1rem !important;
-}
-
-/* Encabezados compactos: menos padding vertical para ganar filas visibles
-   sin achicar la letra. */
-.rz-data-grid {
-    --rz-grid-header-cell-padding: 0.25rem 0.5rem;
+/* Celdas a 1rem del borde y el título de cada columna a la misma distancia: el
+   título queda alineado con sus datos. Antes las celdas iban a 1rem con !important
+   y el título en los .5rem del tema Compact, corrido 8 px a la izquierda (y el
+   override del encabezado no aplicaba: perdía en especificidad contra la clase de
+   densidad). Todas las grillas son Compact; "body" le gana al tema, que define
+   estos tokens en la misma clase. El padding vertical sigue siendo el Compact. */
+body .rz-data-grid.rz-density-compact {
+    --rz-grid-cell-padding: 0.25rem 1rem;
+    --rz-grid-header-title-padding-inline: 1rem 0;
 }
 
 /* Títulos de columna en varias líneas en vez de elipsis (como en SAF): Radzen
@@ -417,10 +423,22 @@ html, body {
     padding: .28rem .45rem;
     white-space: nowrap;
 }
+/* Alineación: texto a la izquierda; cifras a la derecha, título incluido (.num),
+   para que los decimales queden encolumnados; centrado solo para N°, unidad,
+   fechas, badges e íconos (.centro) y los títulos de grupo (colspan). */
 .cert-grid thead th {
     background: color-mix(in srgb, var(--rz-text-color) 6%, transparent);
-    text-align: center;
+    text-align: left;
     font-weight: 600;
+}
+.cert-grid thead th[colspan] { text-align: center; }
+.cert-grid .centro { text-align: center; }
+/* Campos dentro de la tabla (% del mes en la carga): del alto y la letra de la fila.
+   Con los 2.5rem del tema las filas de ítems salían casi el doble de altas que las
+   de rubros. La cifra va a la derecha con TextAlign en el RadzenNumeric. */
+.cert-grid {
+    --rz-input-height: 1.75rem;
+    --rz-input-font-size: .8rem;
 }
 .cert-grid tfoot td {
     background: color-mix(in srgb, var(--rz-text-color) 10%, transparent);

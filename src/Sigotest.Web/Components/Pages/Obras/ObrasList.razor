@@ -39,13 +39,15 @@ else
 {
     <GrillaListado Vista="@vista">
         <RadzenDataGridColumn TItem="ObraVM" Property="NumeroLicitacion" Title="Licitación" Width="140px" />
-        <RadzenDataGridColumn TItem="ObraVM" Property="Nombre" Title="Nombre" />
-        <RadzenDataGridColumn TItem="ObraVM" Property="Contratista" Title="Contratista" />
-        @* Anchos con margen para el título completo + ícono de filtro (con 120px
-           quedaban "Act…"/"Fin …") y para el badge "PLAZO VENCIDO" entero. *@
-        <RadzenDataGridColumn TItem="ObraVM" Property="FechaActaInicio" Title="Acta Inicio" Width="160px"
+        @* Todas las columnas con Width (convenciones-ui): con table-layout fixed una columna
+           sin ancho recibe solo el sobrante y en una notebook con zoom quedaba en «…». *@
+        <RadzenDataGridColumn TItem="ObraVM" Property="Nombre" Title="Nombre" Width="240px" />
+        <RadzenDataGridColumn TItem="ObraVM" Property="Contratista" Title="Contratista" Width="200px" />
+        @* Fechas en 130px: el título parte en dos líneas («Acta / Inicio») en vez de
+           recortarse, y el badge "PLAZO VENCIDO" entra entero en los 150px de Estado. *@
+        <RadzenDataGridColumn TItem="ObraVM" Property="FechaActaInicio" Title="Acta Inicio" Width="130px"
                               FormatString="{0:dd/MM/yyyy}" TextAlign="TextAlign.Center" />
-        <RadzenDataGridColumn TItem="ObraVM" Property="FechaFinalContrato" Title="Fin Contrato" Width="160px"
+        <RadzenDataGridColumn TItem="ObraVM" Property="FechaFinalContrato" Title="Fin Contrato" Width="130px"
                               FormatString="{0:dd/MM/yyyy}" TextAlign="TextAlign.Center" />
         <RadzenDataGridColumn TItem="ObraVM" Property="Estado" Title="Estado" Width="150px" Sortable="false"
                               TextAlign="TextAlign.Center">
@@ -59,7 +61,8 @@ else
                 <RadzenBadge Text="@obra.CantidadTablas.ToString()" BadgeStyle="BadgeStyle.Secondary" />
             </Template>
         </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="ObraVM" Title="" Width="210px" Sortable="false" Filterable="false"
+        @* 3 íconos de 28px + separación + padding de celda ≈ 124px (tenía 210). *@
+        <RadzenDataGridColumn TItem="ObraVM" Title="" Width="130px" Sortable="false" Filterable="false"
                               TextAlign="TextAlign.Center">
             <Template Context="obra">
                 <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" JustifyContent="JustifyContent.Center">

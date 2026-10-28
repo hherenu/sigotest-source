@@ -69,6 +69,16 @@ regla, dejá el porqué en un comentario al lado (como hace el resto del código
 - `RadzenDataGrid`: `Density.Compact`, `PageSize="20"`, sin sombras, `AllowColumnResize="true"`
   en todas. Además de dejar ajustar anchos, evita que Radzen borre filtros y orden cada vez que
   la grilla recibe otra `Data` (sin redimensionar, Radzen 10 resetea las columnas).
+- El padding de celdas y títulos sale de los tokens `--rz-grid-cell-padding` y
+  `--rz-grid-header-title-padding-inline` (`app-blazor.css`), con el mismo margen izquierdo:
+  así el título queda alineado con sus datos. Nada de `padding … !important` en `td`.
+- Las grillas del layout (listados) tienen piso de alto (`min-height: 20rem`): si no entran, scrollea
+  la página. Sin piso, en una notebook con zoom mostraban 0 o 1 fila.
+- Listados: **todas las columnas con `Width`** (en px, como mínimo de la columna). Con
+  `table-layout: fixed` una columna sin ancho recibe solo el sobrante y queda en «…»; con todas
+  declaradas la tabla scrollea a lo ancho y, en pantallas anchas, reparte el sobrante. `MinWidth`
+  no sirve para esto: Radzen lo emite como `min-width` en la celda y la tabla fija lo ignora.
+  Columna de acciones: 28 px por ícono + separación + 32 de padding (3 íconos ≈ 130px).
 - Grillas con filtro: `ApplyFilterText="@GridTextos.AplicarFiltro"` y
   `ClearFilterText="@GridTextos.LimpiarFiltro"` (los de Radzen están en inglés).
 - Listados (grilla con filtro y paginado; portado de SAF): `<GrillaListado Vista="@vista">` con
@@ -89,10 +99,21 @@ regla, dejá el porqué en un comentario al lado (como hace el resto del código
   se ordenan alfabéticamente: Período filtra por año (`Property="Anio"`, `SortProperty="PeriodoOrden"`,
   el texto en el `Template`) y el mes se encuentra con la búsqueda rápida.
 - `ConvencionesUiTests` verifica: redimensionables en todas, textos compartidos en las que
-  filtran, listados con `GrillaListado` + `FiltrosGrilla`, y columnas filtrables sin `FilterProperty`.
+  filtran, listados con `GrillaListado` + `FiltrosGrilla` y todas sus columnas con ancho, columnas
+  filtrables sin `FilterProperty`, piso de alto y títulos alineados en el CSS, y tablas sin filas
+  centradas ni sangría armada a mano.
 - Grillas con carga masiva de datos tipeados: `GuardNavegacion` con predicado de
   cambios contra la DB (ver CertificadoCargar / PlanificacionEditar).
-- Inputs dentro de celdas: siempre con `aria-label` que identifique la fila/columna.
+- Inputs dentro de celdas: siempre con `aria-label` que identifique la fila/columna. Los
+  numéricos de una columna de cifras llevan `TextAlign="TextAlign.Right"` (al editar, el número
+  no salta de lado); dentro de `cert-grid` toman el alto y la letra de la fila.
+- Alineación: texto a la izquierda; **cifras a la derecha, título incluido**, para que los
+  decimales queden encolumnados; centrado solo para N°, unidad, fechas, badges e íconos. En
+  `cert-grid`: clase `num` en el `th` y los `td` de cifras, `centro` en los centrados, y los
+  títulos de grupo (`colspan`) van centrados solos. Nunca una fila entera centrada.
+- Tablas jerárquicas (rubros e ítems de una estructura): la sangría va en la **Descripción**,
+  para rubros e ítems por igual, con `FilaEstructuraUi.Sangria(nivel)` (16 px por nivel); el
+  Código va sin sangría, como columna alineada.
 - Tablas HTML propias (`cert-grid`): `caption` con clase `sr-only` y `scope` en los `th`;
   el encabezado es sticky (los detalles de fondo opaco y dos filas viven en
   `app-blazor.css`, sección cert-grid — no tocar sin leer los comentarios).

@@ -54,7 +54,7 @@ else
             <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Anio" SortProperty="PeriodoOrden" Title="Período" Width="150px">
                 <Template Context="c">@c.Periodo</Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Bloques" Title="Bloques" Sortable="false">
+            <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Bloques" Title="Bloques" Width="220px" Sortable="false">
                 <Template Context="c">
                     <span class="app-muted">@c.Bloques</span>
                 </Template>
@@ -66,7 +66,7 @@ else
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="FechaEmision" Title="Emisión" Width="110px"
                                   FormatString="{0:dd/MM/yyyy}" TextAlign="TextAlign.Center" />
-            <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Observaciones" Title="Observaciones" />
+            <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Observaciones" Title="Observaciones" Width="220px" />
             <RadzenDataGridColumn TItem="CertificadoListItemVM" Title="Acciones" Width="180px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                 <Template Context="c">
                     <RadzenButton Icon="visibility" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info" Variant="Variant.Text"

@@ -81,35 +81,37 @@ else
                     <caption class="sr-only">Detalle del certificado por ítem — @bloque.Titulo</caption>
                     <thead>
                         <tr>
-                            <th scope="col" rowspan="2" style="text-align:left">Cód.</th>
-                            <th scope="col" rowspan="2" class="cert-col-desc" style="text-align:left">Descripción<AsaAnchoDescripcion /></th>
-                            <th scope="col" rowspan="2">Unid.</th>
-                            <th scope="col" rowspan="2">Cant. Contrato</th>
-                            <th scope="col" rowspan="2">PU Básico</th>
-                            <th scope="col" rowspan="2">Monto Contrato</th>
+                            <th scope="col" rowspan="2">Cód.</th>
+                            <th scope="col" rowspan="2" class="cert-col-desc">Descripción<AsaAnchoDescripcion /></th>
+                            <th scope="col" rowspan="2" class="centro">Unid.</th>
+                            <th scope="col" rowspan="2" class="num">Cant. Contrato</th>
+                            <th scope="col" rowspan="2" class="num">PU Básico</th>
+                            <th scope="col" rowspan="2" class="num">Monto Contrato</th>
                             <th scope="colgroup" class="col-warning" colspan="2">ANTERIOR</th>
                             <th scope="colgroup" class="col-primary" colspan="2">MES</th>
                             <th scope="colgroup" class="col-info" colspan="3">ACUMULADO</th>
                         </tr>
                         <tr>
-                            <th scope="col" class="col-warning">Cant.</th>
-                            <th scope="col" class="col-warning">Monto</th>
-                            <th scope="col" class="col-primary">Cant.</th>
-                            <th scope="col" class="col-primary">Monto</th>
-                            <th scope="col" class="col-info">Cant.</th>
-                            <th scope="col" class="col-info">Monto</th>
-                            <th scope="col" class="col-info">%</th>
+                            <th scope="col" class="num col-warning">Cant.</th>
+                            <th scope="col" class="num col-warning">Monto</th>
+                            <th scope="col" class="num col-primary">Cant.</th>
+                            <th scope="col" class="num col-primary">Monto</th>
+                            <th scope="col" class="num col-info">Cant.</th>
+                            <th scope="col" class="num col-info">Monto</th>
+                            <th scope="col" class="num col-info">%</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var (item, nivel) in filasPorBloque[bloque.CertificadoEstructuraId])
                         {
-                            var pad = nivel * 16 + 8;
+                            @* Sangría en la Descripción, para rubros e ítems por igual: antes el ítem
+                               sangraba el Código y su Descripción quedaba a la izquierda de su rubro. *@
+                            var sangria = $"padding-left:{FilaEstructuraUi.Sangria(nivel)}px";
                             if (item.EsAgrupador)
                             {
                                 <tr @key="item.ItemEstructuraId" class="@(nivel == 0 ? "agrup-0" : "agrup-1")">
                                     <td></td>
-                                    <td class="cert-col-desc" style="padding-left:@(pad)px" title="@item.Descripcion">@item.Descripcion</td>
+                                    <td class="cert-col-desc" style="@sangria" title="@item.Descripcion">@item.Descripcion</td>
                                     <td></td><td></td><td></td>
                                     <td class="num">@Fmt.Money(item.MontoContrato ?? 0)</td>
                                     <td class="col-warning"></td>
@@ -124,9 +126,9 @@ else
                             else
                             {
                                 <tr @key="item.ItemEstructuraId">
-                                    <td class="cell-mono" style="padding-left:@(pad)px">@item.Codigo</td>
-                                    <td class="cert-col-desc" title="@item.Descripcion">@item.Descripcion</td>
-                                    <td style="text-align:center">@item.Unidad</td>
+                                    <td class="cell-mono">@item.Codigo</td>
+                                    <td class="cert-col-desc" style="@sangria" title="@item.Descripcion">@item.Descripcion</td>
+                                    <td class="centro">@item.Unidad</td>
                                     <td class="num">@(item.CantidadContrato is decimal cc ? Fmt.HastaN4(cc) : "")</td>
                                     <td class="num">@(item.PUBasico is decimal pu ? "$ " + Fmt.HastaN4(pu) : "")</td>
                                     <td class="num">@Fmt.Money(item.MontoContrato ?? 0)</td>

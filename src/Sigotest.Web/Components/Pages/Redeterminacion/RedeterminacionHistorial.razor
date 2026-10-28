@@ -66,12 +66,12 @@ else
                     <caption class="sr-only">Disparos de redeterminación de @obra.ObraNombre</caption>
                     <thead>
                         <tr>
-                            <th scope="col">Disparo N°</th>
-                            <th scope="col" title="Desde Presentada (expediente VR cargado) el disparo no se recalcula ni se elimina">Estado</th>
-                            <th scope="col">Mes de Disparo</th>
-                            <th scope="col" title="Variación de referencia respecto del mes base (habilita redeterminación desde el @(Redet.SaltoMinimo.ToString("N0"))%)">Variación Ref. %</th>
-                            <th scope="col" title="Coeficiente total Kᵢ/K₀ del salto">Coef. (K/K₀)</th>
-                            <th scope="col" title="Variación acumulada de la cadena de disparos">Var. Acumulada</th>
+                            <th scope="col" class="centro">Disparo N°</th>
+                            <th scope="col" class="centro" title="Desde Presentada (expediente VR cargado) el disparo no se recalcula ni se elimina">Estado</th>
+                            <th scope="col" class="centro">Mes de Disparo</th>
+                            <th scope="col" class="num" title="Variación de referencia respecto del mes base (habilita redeterminación desde el @(Redet.SaltoMinimo.ToString("N0"))%)">Variación Ref. %</th>
+                            <th scope="col" class="num" title="Coeficiente total Kᵢ/K₀ del salto">Coef. (K/K₀)</th>
+                            <th scope="col" class="num" title="Variación acumulada de la cadena de disparos">Var. Acumulada</th>
                             <th scope="col">Publicación</th>
                             @if (verExpediente)
                             {
@@ -79,31 +79,33 @@ else
                             }
                             @if (verCCyR)
                             {
-                                <th scope="col" title="Fecha de aprobación CCyR">Aprob. CCyR</th>
+                                <th scope="col" class="centro" title="Fecha de aprobación CCyR">Aprob. CCyR</th>
                             }
                             @if (verOS)
                             {
-                                <th scope="col" title="Fecha de aprobación OS">Aprob. OS</th>
+                                <th scope="col" class="centro" title="Fecha de aprobación OS">Aprob. OS</th>
                             }
                             @if (verLimite)
                             {
-                                <th scope="col" title="Fecha límite de presentación de la redeterminación definitiva">Límite Red. Def.</th>
+                                <th scope="col" class="centro" title="Fecha límite de presentación de la redeterminación definitiva">Límite Red. Def.</th>
                             }
-                            <th scope="col">Acciones</th>
+                            <th scope="col" class="centro">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
                         @* Con el mismo número, el dado de baja va antes del que lo reemplazó. *@
                         @foreach (var r in grupo.OrderBy(x => x.NroDisparo).ThenBy(x => RedeterminacionValidator.EsVigente(x.Estado)))
                         {
-                            <tr @key="r.Id" style="text-align:center" class="@(RedeterminacionValidator.EsVigente(r.Estado) ? null : "app-muted")">
-                                <td style="font-weight:700">@r.NroDisparo</td>
-                                <td>
+                            @* Sin centrar la fila entera: las cifras van a la derecha para que los
+                               decimales queden encolumnados (convenciones-ui, tablas cert-grid). *@
+                            <tr @key="r.Id" class="@(RedeterminacionValidator.EsVigente(r.Estado) ? null : "app-muted")">
+                                <td class="centro" style="font-weight:700">@r.NroDisparo</td>
+                                <td class="centro">
                                     <RadzenBadge Text="@RedeterminacionValidator.TextoEstado(r.Estado)" BadgeStyle="@EstadoUi.Badge(r.Estado)"
                                                  IsPill="true" Shade="Shade.Lighter" />
                                 </td>
-                                <td>@Fmt.MesCorto(r.MesSalto)-@(r.AnioSalto % 100)</td>
-                                <td style="white-space:nowrap">
+                                <td class="centro">@Fmt.MesCorto(r.MesSalto)-@(r.AnioSalto % 100)</td>
+                                <td class="num">
                                     @if (r.PorcentajeAumento.HasValue)
                                     {
                                         @* Badge con texto además del color: el rojo significa "no llega
@@ -119,26 +121,28 @@ else
                                         <span>—</span>
                                     }
                                 </td>
-                                <td>@r.TotalKiK0?.ToString("N2")</td>
-                                <td style="font-weight:600">@r.VariacionAcumulada?.ToString("N2")</td>
+                                <td class="num">@r.TotalKiK0?.ToString("N2")</td>
+                                <td class="num" style="font-weight:600">@r.VariacionAcumulada?.ToString("N2")</td>
                                 <td>@Fmt.PubMayus(r.IdPublicacionSalto ?? r.IdPublicacionBase)</td>
                                 @if (verExpediente)
                                 {
-                                    <td style="text-align:left">@(string.IsNullOrWhiteSpace(r.NroExpedienteVR) ? "—" : r.NroExpedienteVR)</td>
+                                    <td>@(string.IsNullOrWhiteSpace(r.NroExpedienteVR) ? "—" : r.NroExpedienteVR)</td>
                                 }
+                                @* dd/MM/yyyy como el resto de la app: con d/M/yyyy las fechas tenían
+                                   ancho variable y no quedaban encolumnadas. *@
                                 @if (verCCyR)
                                 {
-                                    <td>@r.FechaAprobacionCCyR?.ToString("d/M/yyyy")</td>
+                                    <td class="centro">@r.FechaAprobacionCCyR?.ToString("dd/MM/yyyy")</td>
                                 }
                                 @if (verOS)
                                 {
-                                    <td>@r.FechaAprobacionOS?.ToString("d/M/yyyy")</td>
+                                    <td class="centro">@r.FechaAprobacionOS?.ToString("dd/MM/yyyy")</td>
                                 }
                                 @if (verLimite)
                                 {
-                                    <td>@r.FechaLimitePresentacion?.ToString("d/M/yyyy")</td>
+                                    <td class="centro">@r.FechaLimitePresentacion?.ToString("dd/MM/yyyy")</td>
                                 }
-                                <td style="white-space:nowrap">
+                                <td class="centro">
                                     <RadzenButton Icon="visibility" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info" Variant="Variant.Text"
                                                   title="Ver" Click="@(() => Nav.NavigateTo($"redeterminacion/{r.Id}"))" />
                                     @* Habilitados aunque la regla de negocio no aplique: un botón
