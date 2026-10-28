@@ -153,6 +153,12 @@ public class CertificadoListItemVM
     public DateTime FechaEmision { get; set; }
     public string? Observaciones { get; set; }
 
+    /// <summary>Columna «Período» («Enero 2026»): lo que se ve y lo que ofrece su filtro.</summary>
+    public string Periodo => $"{Components.Shared.Fmt.MesNombreSeguro(Mes)} {Anio}";
+
+    /// <summary>Orden cronológico del período (el texto ordenaría por nombre de mes).</summary>
+    public int PeriodoOrden => Anio * 100 + Mes;
+
     /// <summary>Token de concurrencia de la fila: viaja al DELETE del certificado.</summary>
     public byte[] RowVersion { get; set; } = [];
 

@@ -39,6 +39,12 @@ public class ValorIndiceVM
     /// <summary>Identificador de la publicación INDEC Informa (ej: INDEC_INFORMA_02_26)</summary>
     public string? IdPublicacion { get; set; }
 
+    /// <summary>Columna «Período» («Enero 2026»): lo que se ve y lo que ofrece su filtro.</summary>
+    public string Periodo => $"{Components.Shared.Fmt.MesNombreSeguro(Mes)} {Anio}";
+
+    /// <summary>Orden cronológico del período (el texto ordenaría por nombre de mes).</summary>
+    public int PeriodoOrden => Anio * 100 + Mes;
+
     /// <summary>
     /// Token de concurrencia leído con la grilla: viaja al DELETE para detectar
     /// ediciones concurrentes desde que la página lo mostró.

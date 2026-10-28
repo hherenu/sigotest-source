@@ -335,7 +335,7 @@ else
                                (convención: PageSize 20) a propósito: es una planilla de 12 a 36 filas que se
                                lee y carga entera, y scrollea dentro de su alto fijo. ── *@
                             <RadzenDataGrid TItem="FilaPlan" Data="@FilasDe(id)" Density="Density.Compact" GridLines="DataGridGridLines.Both"
-                                            AllowPaging="false" AllowSorting="false" AllowFiltering="false" AllowColumnResize="false"
+                                            AllowPaging="false" AllowSorting="false" AllowFiltering="false" AllowColumnResize="true"
                                             Style="height:min(60vh, 560px)" class="rz-shadow-0"
                                             RowRender="@FilaRender" CellRender="@((DataGridCellRenderEventArgs<FilaPlan> args) => CeldaRender(id, args))"
                                             CellClick="@((DataGridCellMouseEventArgs<FilaPlan> args) => CeldaClick(id, args))">

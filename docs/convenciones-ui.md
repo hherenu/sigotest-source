@@ -40,7 +40,8 @@ regla, dejá el porqué en un comentario al lado (como hace el resto del código
   La colección de la página se declara **nullable** (`null` = cargando); inicializarla
   en `new()` hace que el estado vacío se muestre durante toda la carga (pasó en /usuarios).
 - Vacío: `<EstadoVacio Icono=... Titulo=... Descripcion=...>` con CTA de alta si existe.
-- Vacío por filtros en grillas: `EmptyText="Ningún registro coincide con los filtros aplicados."`.
+- Vacío por filtros en grillas: `EmptyText="@GridTextos.SinCoincidencias"` (en los listados,
+  `GridTextos.SinCoincidenciasListado`, que nombra «Quitar filtros»).
 - Estados de dominio → badge vía `EstadoUi` (mapa único). El color nunca es la única
   señal: acompañar con texto (ej. badge "Habilita / No habilita" junto a la variación).
 
@@ -65,7 +66,30 @@ regla, dejá el porqué en un comentario al lado (como hace el resto del código
 
 ## Grillas y tablas
 
-- `RadzenDataGrid`: `Density.Compact`, `PageSize="20"`, sin sombras.
+- `RadzenDataGrid`: `Density.Compact`, `PageSize="20"`, sin sombras, `AllowColumnResize="true"`
+  en todas. Además de dejar ajustar anchos, evita que Radzen borre filtros y orden cada vez que
+  la grilla recibe otra `Data` (sin redimensionar, Radzen 10 resetea las columnas).
+- Grillas con filtro: `ApplyFilterText="@GridTextos.AplicarFiltro"` y
+  `ClearFilterText="@GridTextos.LimpiarFiltro"` (los de Radzen están en inglés).
+- Listados (grilla con filtro y paginado; portado de SAF): `<GrillaListado Vista="@vista">` con
+  las columnas adentro y `<FiltrosGrilla Vista="@vista" Placeholder="Buscar …" />` en las acciones
+  de la cabecera. La configuración de la grilla, el pie («N de M filas») y el estado viven en el
+  componente; la página solo arma la `VistaGrilla<T>` sobre `EstadoGrillas.De("ruta")` (por obra o
+  índice si el listado cuelga de uno), con los campos de la búsqueda, y carga con
+  `vista.Cargar(lista)`. Filtros, orden, anchos, página y búsqueda sobreviven a la navegación
+  dentro de la pestaña (lo que elige la página fuera de la grilla, como el corte de
+  Planificación, no). Si una página cambia valores de las filas en el lugar, llama a
+  `vista.RefrescarOpcionesDeFiltro()`: Radzen guarda las opciones de cada filtro de lista y,
+  con `AllowColumnResize`, otra `Data` no las invalida (la vista lo hace sola al cambiar las filas).
+- Grillas con filtro: todas las columnas filtran salvo la de acciones (título vacío o «Acciones»).
+  Las calculadas muestran una propiedad de texto del VM (`EstadoPlanTexto`, `CicloDelMes`,
+  `RolesTexto`, `ActivoTexto`…), que es lo que ofrece su filtro; si el texto no ordena bien,
+  `SortProperty` con una clave. **Nunca `FilterProperty`**: en el filtro de lista, si difiere de
+  `Property`, Radzen toma `Property` como colección y abrir el filtro rompe la página. Las opciones
+  se ordenan alfabéticamente: Período filtra por año (`Property="Anio"`, `SortProperty="PeriodoOrden"`,
+  el texto en el `Template`) y el mes se encuentra con la búsqueda rápida.
+- `ConvencionesUiTests` verifica: redimensionables en todas, textos compartidos en las que
+  filtran, listados con `GrillaListado` + `FiltrosGrilla`, y columnas filtrables sin `FilterProperty`.
 - Grillas con carga masiva de datos tipeados: `GuardNavegacion` con predicado de
   cambios contra la DB (ver CertificadoCargar / PlanificacionEditar).
 - Inputs dentro de celdas: siempre con `aria-label` que identifique la fila/columna.

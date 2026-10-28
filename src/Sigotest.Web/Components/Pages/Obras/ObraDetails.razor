@@ -109,7 +109,7 @@ else
                 }
                 else
                 {
-                    <RadzenDataGrid Data="@obra.Prorrogas" TItem="ProrrogaObraVM" Density="Density.Compact">
+                    <RadzenDataGrid Data="@obra.Prorrogas" TItem="ProrrogaObraVM" Density="Density.Compact" AllowColumnResize="true">
                         <Columns>
                             <RadzenDataGridColumn TItem="ProrrogaObraVM" Property="Numero" Title="N°" Width="60px" TextAlign="TextAlign.Center" />
                             <RadzenDataGridColumn TItem="ProrrogaObraVM" Property="FechaFinAnterior" Title="Fin anterior" Width="120px" FormatString="{0:dd/MM/yyyy}" />
@@ -217,8 +217,9 @@ else
                     </RadzenStack>
                     <RadzenDataGrid Data="@tabla.Items" TItem="ItemPonderacionObraVM"
                                     Density="Density.Compact" AllowFiltering="true" FilterMode="FilterMode.CheckBoxList"
-                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" AllowSorting="true"
-                                    EmptyText="Ningún registro coincide con los filtros aplicados.">
+                                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" AllowSorting="true" AllowColumnResize="true"
+                                    EmptyText="@GridTextos.SinCoincidencias"
+                                    ApplyFilterText="@GridTextos.AplicarFiltro" ClearFilterText="@GridTextos.LimpiarFiltro">
                         <Columns>
                             <RadzenDataGridColumn TItem="ItemPonderacionObraVM" Property="Numero" Title="N°" Width="60px" TextAlign="TextAlign.Center" />
                             <RadzenDataGridColumn TItem="ItemPonderacionObraVM" Property="Insumo" Title="Insumo" />

@@ -162,7 +162,7 @@
                 {
                     @* PageSize 10 y no 20: hay una grilla por bloque dentro del diálogo. *@
                     <RadzenDataGrid Data="@ap.Problemas" TItem="DetalleFilaCertificado" Density="Density.Compact" class="app-grid-wrap"
-                                    AllowPaging="true" PageSize="10" AllowSorting="false">
+                                    AllowPaging="true" PageSize="10" AllowSorting="false" AllowColumnResize="true">
                         <Columns>
                             <RadzenDataGridColumn TItem="DetalleFilaCertificado" Title="Fila" Width="60px" TextAlign="TextAlign.Center">
                                 <Template Context="d">@d.Fila.Fila</Template>

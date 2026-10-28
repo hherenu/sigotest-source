@@ -4,6 +4,7 @@
 @inject NavigationManager Nav
 @inject DialogService DialogService
 @inject NotificationService Notifications
+@inject EstadoGrillas Grillas
 
 <PageTitle>@(indice is null ? "Valores" : $"Valores — {indice.FamiliaRecurso}")</PageTitle>
 
@@ -30,6 +31,10 @@ else
             </RadzenStack>
         </SubtituloExtra>
         <Acciones>
+            @if (valores.Count > 0)
+            {
+                <FiltrosGrilla Vista="@vista" Placeholder="Buscar período o publicación…" />
+            }
             <RadzenButton Text="Agregar valor" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
                           Disabled="@procesando" Click="@AbrirAgregarAsync" />
             <RadzenButton Text="Volver a Índices" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
@@ -52,31 +57,27 @@ else
         @* Grilla directa al contenido (sin tarjeta): entra en la cadena de altura del
            layout — ocupa el alto restante con scroll interno y encabezado fijo. El
            alta abre en diálogo desde la cabecera. *@
-        <RadzenDataGrid Data="@valores" TItem="ValorIndiceVM" Density="Density.Compact"
-                        AllowFiltering="true" FilterMode="FilterMode.CheckBoxList"
-                        FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
-                        AllowSorting="true" AllowPaging="true" PageSize="20"
-                        EmptyText="Ningún registro coincide con los filtros aplicados.">
-            <Columns>
-                <RadzenDataGridColumn TItem="ValorIndiceVM" Title="Período" Width="150px"
-                                      Property="Anio" SortOrder="SortOrder.Descending">
-                    <Template Context="v">@Fmt.MesNombre(v.Mes) @v.Anio</Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="ValorIndiceVM" Property="Valor" Title="Valor" Width="130px"
-                                      FormatString="{0:N2}" TextAlign="TextAlign.Right" />
-                <RadzenDataGridColumn TItem="ValorIndiceVM" Property="IdPublicacion" Title="Publicación" />
-                <RadzenDataGridColumn TItem="ValorIndiceVM" Title="" Width="60px" Sortable="false" Filterable="false"
-                                      TextAlign="TextAlign.Center">
-                    <Template Context="v">
-                        @* Ícono delete como todos los "eliminar" de fila (close significa
-                           "cancelar" en el resto de la app). *@
-                        <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger"
-                                      Variant="Variant.Text" title="Eliminar" Disabled="@procesando"
-                                      Click="@(() => EliminarAsync(v))" />
-                    </Template>
-                </RadzenDataGridColumn>
-            </Columns>
-        </RadzenDataGrid>
+        <GrillaListado Vista="@vista">
+            @* Filtra por año: Radzen ordena las opciones alfabéticamente («Abril 2025, Abril
+               2026…») y el mes se encuentra con la búsqueda rápida. Ordena por mes y año. *@
+            <RadzenDataGridColumn TItem="ValorIndiceVM" Title="Período" Width="150px"
+                                  Property="Anio" SortProperty="PeriodoOrden" SortOrder="SortOrder.Descending">
+                <Template Context="v">@v.Periodo</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="ValorIndiceVM" Property="Valor" Title="Valor" Width="130px"
+                                  FormatString="{0:N2}" TextAlign="TextAlign.Right" />
+            <RadzenDataGridColumn TItem="ValorIndiceVM" Property="IdPublicacion" Title="Publicación" />
+            <RadzenDataGridColumn TItem="ValorIndiceVM" Title="" Width="60px" Sortable="false" Filterable="false"
+                                  TextAlign="TextAlign.Center">
+                <Template Context="v">
+                    @* Ícono delete como todos los "eliminar" de fila (close significa
+                       "cancelar" en el resto de la app). *@
+                    <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger"
+                                  Variant="Variant.Text" title="Eliminar" Disabled="@procesando"
+                                  Click="@(() => EliminarAsync(v))" />
+                </Template>
+            </RadzenDataGridColumn>
+        </GrillaListado>
     }
 }
 
@@ -85,6 +86,8 @@ else
 
     private IndiceVM? indice;
     private List<ValorIndiceVM> valores = new();
+    // Estado por índice: los filtros de los valores de un índice no se aplican a otro.
+    private VistaGrilla<ValorIndiceVM> vista = null!;
     private bool noEncontrado;
     private bool procesando;
 
@@ -95,6 +98,7 @@ else
         if (idCargado == Id) return;
         idCargado = Id;
 
+        vista = new(Grillas.De($"indices/{Id}/valores"), v => [v.Periodo, v.IdPublicacion]);
         indice = await Service.ObtenerAsync(Id);
         if (indice is null) { noEncontrado = true; return; }
         noEncontrado = false;
@@ -104,6 +108,7 @@ else
     private async Task CargarValoresAsync()
     {
         valores = await Service.ListarValoresAsync(Id);
+        vista.Cargar(valores);
     }
 
     private async Task AbrirAgregarAsync()

@@ -81,6 +81,8 @@ builder.Services.AddRazorComponents()
     // 1 MB cubre varias publicaciones completas y no compromete al servidor.
     .AddHubOptions(o => o.MaximumReceiveMessageSize = 1024 * 1024);
 builder.Services.AddRadzenComponents();
+// Filtros, orden, anchos, página y búsqueda de los listados entre navegaciones (por circuito).
+builder.Services.AddScoped<EstadoGrillas>();
 // El tema elegido con el AppearanceToggle (claro/oscuro) persiste en una cookie,
 // para que sobreviva al F5 y a los reinicios del circuito.
 builder.Services.AddRadzenCookieThemeService(options =>

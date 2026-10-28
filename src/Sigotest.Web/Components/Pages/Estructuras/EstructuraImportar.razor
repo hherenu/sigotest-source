@@ -168,7 +168,7 @@ else
             @* PageSize 50 y no 20: la vista previa se revisa de corrido antes de importar y las
                planillas reales tienen cientos de filas. *@
             <RadzenDataGrid Data="@filasVista" TItem="FilaEstructuraImport" Density="Density.Compact" class="app-grid-wrap"
-                            AllowPaging="true" PageSize="50" AllowSorting="false" RowRender="@OnRowRender"
+                            AllowPaging="true" PageSize="50" AllowSorting="false" AllowColumnResize="true" RowRender="@OnRowRender"
                             EmptyText="Elegí al menos una sección para ver sus filas.">
                 <Columns>
                     <RadzenDataGridColumn TItem="FilaEstructuraImport" Property="Fila" Title="Fila" Width="60px" TextAlign="TextAlign.Center" />

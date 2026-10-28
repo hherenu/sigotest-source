@@ -4,6 +4,7 @@
 @inject NavigationManager Nav
 @inject DialogService DialogService
 @inject NotificationService Notifications
+@inject EstadoGrillas Grillas
 
 <PageTitle>@(obra is null ? "Certificados" : $"Certificados — {obra.Nombre}")</PageTitle>
 
@@ -23,6 +24,10 @@ else
                     Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(obra.Nombre, $"obras/{ObraId}"), new("Certificados") })">
         <Subtitulo>@obra.Nombre — @obra.NumeroLicitacion</Subtitulo>
         <Acciones>
+            @if (certificados.Count > 0)
+            {
+                <FiltrosGrilla Vista="@vista" Placeholder="Buscar N°, período, estado u observaciones…" />
+            }
             <RadzenButton Text="Nuevo Certificado" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
                           Click="@(() => Nav.NavigateTo($"obras/{ObraId}/certificados/nuevo"))" />
             <RadzenButton Text="Volver a Obra" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
@@ -42,46 +47,43 @@ else
     }
     else
     {
-        <RadzenDataGrid Data="@certificados" TItem="CertificadoListItemVM" AllowFiltering="true" FilterMode="FilterMode.CheckBoxList"
-                        FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" AllowSorting="true" AllowPaging="true"
-                        PageSize="20" Density="Density.Compact"
-                        EmptyText="Ningún registro coincide con los filtros aplicados.">
-            <Columns>
-                <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Numero" Title="N°" Width="60px" TextAlign="TextAlign.Center" />
-                <RadzenDataGridColumn TItem="CertificadoListItemVM" Title="Período" Width="150px" Filterable="false">
-                    <Template Context="c">@Fmt.MesNombre(c.Mes) @c.Anio</Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="CertificadoListItemVM" Title="Bloques" Filterable="false" Sortable="false">
-                    <Template Context="c">
-                        <span class="app-muted">@c.Bloques</span>
-                    </Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Estado" Title="Estado" Width="120px" TextAlign="TextAlign.Center">
-                    <Template Context="c">
-                        <RadzenBadge Text="@c.Estado.ToString()" IsPill="true" BadgeStyle="@EstadoUi.Badge(c.Estado)" />
-                    </Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="FechaEmision" Title="Emisión" Width="110px"
-                                      FormatString="{0:dd/MM/yyyy}" TextAlign="TextAlign.Center" />
-                <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Observaciones" Title="Observaciones" />
-                <RadzenDataGridColumn TItem="CertificadoListItemVM" Title="Acciones" Width="180px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
-                    <Template Context="c">
-                        <RadzenButton Icon="visibility" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info" Variant="Variant.Text"
-                                      title="Ver" Click="@(() => Nav.NavigateTo($"certificados/{c.Id}"))" />
-                        <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
-                                      title="Editar" Click="@(() => Nav.NavigateTo($"certificados/{c.Id}/cargar"))" />
-                        <RadzenButton Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text"
-                                      title="Excel" Click="@(() => Nav.NavigateTo($"/Certificado/DescargarExcel/{c.Id}", true))" />
-                        @* Habilitado aunque esté cerrado: un botón disabled no recibe foco ni
-                           hover táctil y el motivo del title quedaba invisible por teclado.
-                           El clic notifica el porqué; el title sigue como pista para mouse. *@
-                        <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
-                                      title="@(c.EsCerrado ? "Un certificado cerrado no se puede eliminar (reabrilo primero)" : "Eliminar")"
-                                      Disabled="@procesando" Click="@(() => EliminarAsync(c))" />
-                    </Template>
-                </RadzenDataGridColumn>
-            </Columns>
-        </RadzenDataGrid>
+        <GrillaListado Vista="@vista">
+            <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Numero" Title="N°" Width="60px" TextAlign="TextAlign.Center" />
+            @* Filtra por año: Radzen ordena las opciones alfabéticamente («Abril 2025, Abril
+               2026…») y el mes se encuentra con la búsqueda rápida. *@
+            <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Anio" SortProperty="PeriodoOrden" Title="Período" Width="150px">
+                <Template Context="c">@c.Periodo</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Bloques" Title="Bloques" Sortable="false">
+                <Template Context="c">
+                    <span class="app-muted">@c.Bloques</span>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Estado" Title="Estado" Width="120px" TextAlign="TextAlign.Center">
+                <Template Context="c">
+                    <RadzenBadge Text="@c.Estado.ToString()" IsPill="true" BadgeStyle="@EstadoUi.Badge(c.Estado)" />
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="FechaEmision" Title="Emisión" Width="110px"
+                                  FormatString="{0:dd/MM/yyyy}" TextAlign="TextAlign.Center" />
+            <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Observaciones" Title="Observaciones" />
+            <RadzenDataGridColumn TItem="CertificadoListItemVM" Title="Acciones" Width="180px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                <Template Context="c">
+                    <RadzenButton Icon="visibility" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info" Variant="Variant.Text"
+                                  title="Ver" Click="@(() => Nav.NavigateTo($"certificados/{c.Id}"))" />
+                    <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
+                                  title="Editar" Click="@(() => Nav.NavigateTo($"certificados/{c.Id}/cargar"))" />
+                    <RadzenButton Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text"
+                                  title="Excel" Click="@(() => Nav.NavigateTo($"/Certificado/DescargarExcel/{c.Id}", true))" />
+                    @* Habilitado aunque esté cerrado: un botón disabled no recibe foco ni
+                       hover táctil y el motivo del title quedaba invisible por teclado.
+                       El clic notifica el porqué; el title sigue como pista para mouse. *@
+                    <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
+                                  title="@(c.EsCerrado ? "Un certificado cerrado no se puede eliminar (reabrilo primero)" : "Eliminar")"
+                                  Disabled="@procesando" Click="@(() => EliminarAsync(c))" />
+                </Template>
+            </RadzenDataGridColumn>
+        </GrillaListado>
     }
 }
 
@@ -91,6 +93,8 @@ else
     private ObraResumenVM? obra;
     // null = cargando, como pide convenciones-ui (con new(), un render durante la carga mostraría «no hay certificados»).
     private List<CertificadoListItemVM>? certificados;
+    // Estado por obra: los filtros de los certificados de una obra no se aplican a otra.
+    private VistaGrilla<CertificadoListItemVM> vista = null!;
     private bool noEncontrada;
     private bool procesando;
 
@@ -101,6 +105,8 @@ else
         if (obraIdCargada == ObraId) return;
         obraIdCargada = ObraId;
 
+        vista = new(Grillas.De($"obras/{ObraId}/certificados"),
+            c => [c.Numero.ToString(), c.Periodo, c.Estado.ToString(), c.Observaciones]);
         obra = await Service.ObtenerObraAsync(ObraId);
         if (obra is null) { noEncontrada = true; return; }
         noEncontrada = false;
@@ -110,6 +116,7 @@ else
     private async Task CargarAsync()
     {
         certificados = await Service.ListarAsync(ObraId);
+        vista.Cargar(certificados);
     }
 
     private async Task EliminarAsync(CertificadoListItemVM c)

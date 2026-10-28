@@ -2,11 +2,16 @@
 @attribute [Authorize(Roles = Roles.Certificaciones)]
 @inject IndiceService Service
 @inject NavigationManager Nav
+@inject EstadoGrillas Grillas
 
 <PageTitle>Índices INDEC</PageTitle>
 
 <CabeceraPagina Titulo="Índices INDEC" Estilo="TextStyle.H4" Clase="rz-mb-4">
     <Acciones>
+        @if (indices is { Count: > 0 })
+        {
+            <FiltrosGrilla Vista="@vista" Placeholder="Buscar código, familia o índice normalizado…" />
+        }
         @* Un solo primario: importar es la acción frecuente (mensual); el alta de un
            índice nuevo es rara y baja a secundario. *@
         <RadzenButton Text="Importar publicación" Icon="upload" ButtonStyle="ButtonStyle.Primary"
@@ -27,35 +32,31 @@ else
         nombre con el que se elige el índice en las tablas de ponderación de las obras (de ahí salen los Ki/K0 del
         cálculo); <b>Cuadro</b> e <b>Inciso</b> son informativos y ubican el índice en la revista INDEC.
     </RadzenText>
-    <RadzenDataGrid Data="@indices" TItem="IndiceVM" AllowFiltering="true"
-                    FilterMode="FilterMode.CheckBoxList" AllowColumnResize="true"
-                    AllowSorting="true" AllowPaging="true" PageSize="20"
-                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
-                    EmptyText="Ningún registro coincide con los filtros aplicados."
-                    Density="Density.Compact">
-        <Columns>
-            <RadzenDataGridColumn TItem="IndiceVM" Property="CodigoIndice" Title="Código" Width="200px" />
-            <RadzenDataGridColumn TItem="IndiceVM" Property="FamiliaRecurso" Title="Familia de Recurso" />
-            <RadzenDataGridColumn TItem="IndiceVM" Property="IndiceNormalizado" Title="Índice Normalizado" />
-            <RadzenDataGridColumn TItem="IndiceVM" Property="CuadroReferencia" Title="Cuadro" Width="130px" />
-            <RadzenDataGridColumn TItem="IndiceVM" Property="IncisoCode" Title="Inciso" Width="120px" TextAlign="TextAlign.Center" />
-            <RadzenDataGridColumn TItem="IndiceVM" Title="" Width="215px" Sortable="false" Filterable="false"
-                                  TextAlign="TextAlign.Center">
-                <Template Context="indice">
-                    <RadzenButton Text="Valores mensuales" Icon="calendar_month" Size="ButtonSize.Small"
-                                  ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
-                                  Click="@(() => Nav.NavigateTo($"indices/{indice.Id}/valores"))" />
-                </Template>
-            </RadzenDataGridColumn>
-        </Columns>
-    </RadzenDataGrid>
+    <GrillaListado Vista="@vista">
+        <RadzenDataGridColumn TItem="IndiceVM" Property="CodigoIndice" Title="Código" Width="200px" />
+        <RadzenDataGridColumn TItem="IndiceVM" Property="FamiliaRecurso" Title="Familia de Recurso" />
+        <RadzenDataGridColumn TItem="IndiceVM" Property="IndiceNormalizado" Title="Índice Normalizado" />
+        <RadzenDataGridColumn TItem="IndiceVM" Property="CuadroReferencia" Title="Cuadro" Width="130px" />
+        <RadzenDataGridColumn TItem="IndiceVM" Property="IncisoCode" Title="Inciso" Width="120px" TextAlign="TextAlign.Center" />
+        <RadzenDataGridColumn TItem="IndiceVM" Title="" Width="215px" Sortable="false" Filterable="false"
+                              TextAlign="TextAlign.Center">
+            <Template Context="indice">
+                <RadzenButton Text="Valores mensuales" Icon="calendar_month" Size="ButtonSize.Small"
+                              ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
+                              Click="@(() => Nav.NavigateTo($"indices/{indice.Id}/valores"))" />
+            </Template>
+        </RadzenDataGridColumn>
+    </GrillaListado>
 }
 
 @code {
     private List<IndiceVM>? indices;
+    private VistaGrilla<IndiceVM> vista = null!;
 
     protected override async Task OnInitializedAsync()
     {
+        vista = new(Grillas.De("indices"), i => [i.CodigoIndice, i.FamiliaRecurso, i.IndiceNormalizado]);
         indices = await Service.ListarAsync();
+        vista.Cargar(indices);
     }
 }

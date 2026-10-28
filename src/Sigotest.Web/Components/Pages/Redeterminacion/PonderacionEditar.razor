@@ -80,7 +80,7 @@ else
             else
             {
                 <RadzenDataGrid Data="@vm.Items.OrderBy(i => i.Numero)" TItem="ItemPonderacionVM" AllowPaging="false"
-                                AllowSorting="false" AllowFiltering="false" GridLines="DataGridGridLines.Both" Density="Density.Compact">
+                                AllowSorting="false" AllowFiltering="false" AllowColumnResize="true" GridLines="DataGridGridLines.Both" Density="Density.Compact">
                     <Columns>
                         <RadzenDataGridColumn TItem="ItemPonderacionVM" Property="Numero" Title="N°" Width="52px" TextAlign="TextAlign.Center" />
                         <RadzenDataGridColumn TItem="ItemPonderacionVM" Property="Insumo" Title="Insumo" Width="220px" />

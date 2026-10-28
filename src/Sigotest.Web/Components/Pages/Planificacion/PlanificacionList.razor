@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = Roles.Planificacion)]
 @inject PlanificacionService Service
 @inject NavigationManager Nav
+@inject EstadoGrillas Grillas
 
 <PageTitle>Planificación</PageTitle>
 
@@ -14,6 +15,10 @@
     @* Dropdown pelado (sin FormField ni label): el recuadro con etiqueta flotante
        era mucho más alto que los botones chicos y desbalanceaba la fila. *@
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+        @if (obras is { Count: > 0 })
+        {
+            <FiltrosGrilla Vista="@vista" Placeholder="Buscar obra, licitación o director…" />
+        }
         <RadzenDropDown Name="ddCorte" TValue="CorteOption" Data="@cortes" TextProperty="Texto" @bind-Value="@corteSel"
                         Change="@(async _ => await CargarCorteAsync())" style="min-width:170px"
                         title="Versión del plan a mostrar" aria-label="Versión del plan a mostrar" />
@@ -36,78 +41,60 @@ else if (obras.Count == 0)
 }
 else
 {
-    <RadzenDataGrid @ref="grid" Data="@obras" TItem="PlanObraRowVM" AllowFiltering="true" FilterMode="FilterMode.CheckBoxList"
-                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" AllowSorting="true" AllowPaging="true"
-                    PageSize="20" Density="Density.Compact"
-                    EmptyText="Ningún registro coincide con los filtros aplicados.">
-        <Columns>
-            <RadzenDataGridColumn TItem="PlanObraRowVM" Property="Nombre" Title="Obra" />
-            <RadzenDataGridColumn TItem="PlanObraRowVM" Property="NumeroLicitacion" Title="Licitación" Width="140px" />
-            <RadzenDataGridColumn TItem="PlanObraRowVM" Property="DirectorObra" Title="Director" Width="180px" />
-            @if (corteSel.EsVigente)
-            {
-                <RadzenDataGridColumn TItem="PlanObraRowVM" Title="Estado del plan" Width="150px" TextAlign="TextAlign.Center" Filterable="false" Sortable="false">
-                    <Template Context="obra">
-                        @if (obra.EstadoPlan is null)
-                        {
-                            <RadzenBadge Text="Sin iniciar" IsPill="true" BadgeStyle="BadgeStyle.Dark" />
-                        }
-                        else
-                        {
-                            <RadzenBadge Text="@obra.EstadoPlan.Value.ToString()" IsPill="true" BadgeStyle="@EstadoUi.Badge(obra.EstadoPlan.Value)" />
-                        }
-                    </Template>
-                </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="PlanObraRowVM" Title="Ciclo del mes" Width="170px" TextAlign="TextAlign.Center" Filterable="false" Sortable="false">
-                    <Template Context="obra">
-                        @if (obra.ObraFinalizada)
-                        {
-                            <RadzenBadge Text="Obra finalizada" IsPill="true" BadgeStyle="BadgeStyle.Dark" />
-                        }
-                        else if (obra.FechaTomaConocimiento is DateTime ft)
-                        {
-                            <RadzenBadge Text="@($"Conocida el {ft.ToLocalTime():dd/MM}")" IsPill="true" BadgeStyle="BadgeStyle.Success" Shade="Shade.Lighter" />
-                        }
-                        else if (obra.EstadoPlan == EstadoPlanificacion.Aprobada)
-                        {
-                            <RadzenBadge Text="Falta toma de conocimiento" IsPill="true" BadgeStyle="BadgeStyle.Warning" Shade="Shade.Lighter" />
-                        }
-                        else
-                        {
-                            <span class="app-muted">—</span>
-                        }
-                    </Template>
-                </RadzenDataGridColumn>
-            }
-            else
-            {
-                <RadzenDataGridColumn TItem="PlanObraRowVM" Title="@($"Versión al corte ({corteSel.Texto})")" Width="220px" TextAlign="TextAlign.Center" Filterable="false" Sortable="false">
-                    <Template Context="obra">
-                        @if (versionesCorte.TryGetValue(obra.Id, out var v))
-                        {
-                            <RadzenBadge Text="@($"{Fmt.MesCorto(v.Mes)} {v.Anio} — conocida el {v.FechaTomaConocimiento.ToLocalTime():dd/MM/yyyy}")"
-                                         IsPill="true" BadgeStyle="BadgeStyle.Info" Shade="Shade.Lighter" />
-                        }
-                        else
-                        {
-                            <RadzenBadge Text="Sin versión" IsPill="true" BadgeStyle="BadgeStyle.Dark" />
-                        }
-                    </Template>
-                </RadzenDataGridColumn>
-            }
-            <RadzenDataGridColumn TItem="PlanObraRowVM" Title="Acciones" Width="130px" TextAlign="TextAlign.Center" Filterable="false" Sortable="false">
+    <GrillaListado Vista="@vista">
+        <RadzenDataGridColumn TItem="PlanObraRowVM" Property="Nombre" Title="Obra" />
+        <RadzenDataGridColumn TItem="PlanObraRowVM" Property="NumeroLicitacion" Title="Licitación" Width="140px" />
+        <RadzenDataGridColumn TItem="PlanObraRowVM" Property="DirectorObra" Title="Director" Width="180px" />
+        @* Las columnas calculadas muestran una propiedad de texto del VM: es también lo
+           que ofrece su filtro. *@
+        @if (corteSel.EsVigente)
+        {
+            <RadzenDataGridColumn TItem="PlanObraRowVM" Property="EstadoPlanTexto" Title="Estado del plan" Width="150px" TextAlign="TextAlign.Center" Sortable="false">
                 <Template Context="obra">
-                    <RadzenButton Text="Planificar" Icon="event_note" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
-                                  Click="@(() => Nav.NavigateTo($"planificacion/{obra.Id}/editar"))" />
+                    <RadzenBadge Text="@obra.EstadoPlanTexto" IsPill="true"
+                                 BadgeStyle="@(obra.EstadoPlan is EstadoPlanificacion e ? EstadoUi.Badge(e) : BadgeStyle.Dark)" />
                 </Template>
             </RadzenDataGridColumn>
-        </Columns>
-    </RadzenDataGrid>
+            <RadzenDataGridColumn TItem="PlanObraRowVM" Property="CicloDelMes" Title="Ciclo del mes" Width="170px" TextAlign="TextAlign.Center" Sortable="false">
+                <Template Context="obra">
+                    @if (obra.CicloDelMes == PlanObraRowVM.SinCiclo)
+                    {
+                        <span class="app-muted">@obra.CicloDelMes</span>
+                    }
+                    else if (obra.ObraFinalizada)
+                    {
+                        <RadzenBadge Text="@obra.CicloDelMes" IsPill="true" BadgeStyle="BadgeStyle.Dark" />
+                    }
+                    else
+                    {
+                        <RadzenBadge Text="@obra.CicloDelMes" IsPill="true" Shade="Shade.Lighter"
+                                     BadgeStyle="@(obra.FechaTomaConocimiento is null ? BadgeStyle.Warning : BadgeStyle.Success)" />
+                    }
+                </Template>
+            </RadzenDataGridColumn>
+        }
+        else
+        {
+            <RadzenDataGridColumn TItem="PlanObraRowVM" Property="VersionAlCorte" Title="@($"Versión al corte ({corteSel.Texto})")" Width="220px" TextAlign="TextAlign.Center" Sortable="false">
+                <Template Context="obra">
+                    <RadzenBadge Text="@obra.VersionAlCorte" IsPill="true"
+                                 BadgeStyle="@(versionesCorte.ContainsKey(obra.Id) ? BadgeStyle.Info : BadgeStyle.Dark)"
+                                 Shade="@(versionesCorte.ContainsKey(obra.Id) ? Shade.Lighter : Shade.Default)" />
+                </Template>
+            </RadzenDataGridColumn>
+        }
+        <RadzenDataGridColumn TItem="PlanObraRowVM" Title="Acciones" Width="130px" TextAlign="TextAlign.Center" Filterable="false" Sortable="false">
+            <Template Context="obra">
+                <RadzenButton Text="Planificar" Icon="event_note" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
+                              Click="@(() => Nav.NavigateTo($"planificacion/{obra.Id}/editar"))" />
+            </Template>
+        </RadzenDataGridColumn>
+    </GrillaListado>
 }
 
 @code {
-    private RadzenDataGrid<PlanObraRowVM>? grid;
     private List<PlanObraRowVM>? obras;
+    private VistaGrilla<PlanObraRowVM> vista = null!;
     private bool soloDirector;
 
     private string DescripcionVacio => soloDirector
@@ -126,11 +113,13 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        vista = new(Grillas.De("planificacion"), o => [o.Nombre, o.NumeroLicitacion, o.DirectorObra]);
         // El servicio aplica el alcance (un director sin rol de alcance total ve solo
         // sus obras asignadas) y trae el estado del plan de cada obra listada.
         var listado = await Service.ListadoAsync();
         soloDirector = listado.SoloDirector;
         obras = listado.Obras;
+        vista.Cargar(obras);
         cortes = [new(null, null, "Vigente"), .. listado.Cortes.Select(m => new CorteOption(m.Anio, m.Mes, $"{Fmt.MesCorto(m.Mes)} {m.Anio}"))];
     }
 
@@ -141,15 +130,23 @@ else
         // As-of: la última versión de cada obra hasta el corte inclusive.
         versionesCorte = await Service.VersionesAlCorteAsync(
             obras.Select(o => o.Id).ToList(), corteSel.Anio!.Value, corteSel.Mes!.Value);
+
+        // Texto de la columna y de su filtro: depende del corte, no de la obra.
+        foreach (var o in obras)
+            o.VersionAlCorte = PlanObraRowVM.TextoVersionAlCorte(versionesCorte.GetValueOrDefault(o.Id));
+        // Los textos cambiaron en el lugar (la Data es la misma): las opciones del filtro
+        // se recalculan y la grilla vuelve a aplicar los filtros sobre los textos nuevos.
+        vista.RefrescarOpcionesDeFiltro();
+        if (vista.Grid is not null) await vista.Grid.Reload();
     }
 
     /// <summary>
-    /// Descarga el Excel respetando lo que muestra la grilla: los filtros aplicados
-    /// (grid.View) y el corte elegido. "versiones" exporta todas las fotos mensuales.
+    /// Descarga el Excel respetando lo que muestra la grilla: la búsqueda y los filtros
+    /// aplicados (View) y el corte elegido. "versiones" exporta todas las fotos mensuales.
     /// </summary>
     private void Exportar(string modo)
     {
-        var visibles = grid?.View?.Select(o => o.Id).ToList() ?? obras?.Select(o => o.Id).ToList() ?? [];
+        var visibles = vista.Grid?.View?.Select(o => o.Id).ToList() ?? obras?.Select(o => o.Id).ToList() ?? [];
         var url = $"PlanificacionExport/General?modo={modo}&obras={string.Join(",", visibles)}";
         if (modo == "corte" && !corteSel.EsVigente)
             url += $"&anio={corteSel.Anio}&mes={corteSel.Mes}";
