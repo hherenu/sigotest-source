@@ -66,7 +66,7 @@ else
             </RadzenFormField>
 
             <RadzenFormField Text="Observaciones" Variant="Variant.Outlined" style="width:100%">
-                <RadzenTextArea @bind-Value="alta.Form.Observaciones" Rows="2" style="width:100%" />
+                <RadzenTextArea @bind-Value="alta.Form.Observaciones" MaxLength="LargoTexto.Observaciones" Rows="2" style="width:100%" />
             </RadzenFormField>
 
             <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">

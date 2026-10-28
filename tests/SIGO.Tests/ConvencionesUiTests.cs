@@ -30,4 +30,19 @@ public class ConvencionesUiTests
 
         Assert.Empty(infractores);
     }
+
+    [Fact]
+    public void TextosQueSeGuardan_ConMaxLength()
+    {
+        // Sin MaxLength se puede tipear más de lo que entra en la columna (LargoTexto). El
+        // pegado de índices no se guarda tal cual: se analiza fila por fila.
+        var etiqueta = new Regex(@"<RadzenText(Box|Area)\b[^<]*?@bind-Value=""(?<campo>[^""]+)""[^<]*?/>");
+        var sinLargo = Directory.EnumerateFiles(Componentes(), "*.razor", SearchOption.AllDirectories)
+            .SelectMany(f => etiqueta.Matches(File.ReadAllText(f))
+                .Where(m => !m.Value.Contains("MaxLength=") && m.Groups["campo"].Value != "textoPegado")
+                .Select(m => $"{Path.GetFileName(f)}: {m.Groups["campo"].Value}"))
+            .ToList();
+
+        Assert.Empty(sinLargo);
+    }
 }

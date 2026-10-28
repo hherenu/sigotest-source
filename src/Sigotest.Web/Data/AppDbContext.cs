@@ -1,13 +1,33 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using SIGO.Models;
 using SIGO.Services;
+using SIGO.Services.Validaciones;
 
 namespace SIGO.Data;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? currentUser = null) : DbContext(options)
 {
-    /// <summary>Largo por defecto de las columnas de texto (convención de abajo).</summary>
-    public const int LargoTextoPorDefecto = 250;
+    /// <summary>
+    /// Un texto más largo que su columna terminaba en un error de SQL en inglés («String or
+    /// binary data would be truncated»). Los formularios ya no dejan tipear de más
+    /// (<see cref="LargoTexto"/>); esto frena lo que llega por otro camino (importaciones,
+    /// servicios) con un mensaje que muestra el comienzo del texto para ubicarlo.
+    /// </summary>
+    private void ExigirLargos()
+    {
+        foreach (var e in ChangeTracker.Entries())
+        {
+            if (e.State is not (EntityState.Added or EntityState.Modified)) continue;
+            foreach (var p in e.Properties)
+            {
+                if (p.CurrentValue is not string texto || p.Metadata.GetMaxLength() is not int maximo || texto.Length <= maximo)
+                    continue;
+                var comienzo = texto.Length > 40 ? texto[..40] + "…" : texto;
+                throw new InvalidOperationException(
+                    $"Un texto tiene {texto.Length} caracteres y el máximo es {maximo}: «{comienzo}». Acortalo y volvé a guardar.");
+            }
+        }
+    }
 
     private void ApplyAudit()
     {
@@ -31,24 +51,28 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
     public override int SaveChanges()
     {
         ApplyAudit();
+        ExigirLargos();
         return base.SaveChanges();
     }
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         ApplyAudit();
+        ExigirLargos();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         ApplyAudit();
+        ExigirLargos();
         return base.SaveChangesAsync(cancellationToken);
     }
 
     public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         ApplyAudit();
+        ExigirLargos();
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
@@ -83,7 +107,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
     {
         // Los strings dejan de ser nvarchar(max) por defecto: 250 salvo override
         // (columnas indexables y sin ALTER masivo el día que se agregue Identity).
-        configurationBuilder.Properties<string>().HaveMaxLength(LargoTextoPorDefecto);
+        configurationBuilder.Properties<string>().HaveMaxLength(LargoTexto.PorDefecto);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -91,7 +115,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
         base.OnModelCreating(modelBuilder);
 
         // Textos largos que sí necesitan más que la convención de 250.
-        modelBuilder.Entity<Obra>().Property(o => o.CorreoDirectorObra).HasMaxLength(500);
+        modelBuilder.Entity<Obra>().Property(o => o.CorreoDirectorObra).HasMaxLength(LargoTexto.Descripcion);
         // Misma precisión que PlanMonto.Monto: el presupuesto es el autorizado de la Obra Básica.
         modelBuilder.Entity<Obra>(b =>
         {
@@ -102,14 +126,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
             b.Property(o => o.PresupuestoAdjudicadoUSD).HasPrecision(18, 4);
             b.Property(o => o.PresupuestoAdjudicadoEUR).HasPrecision(18, 4);
         });
-        modelBuilder.Entity<ItemEstructura>().Property(i => i.Descripcion).HasMaxLength(ItemEstructura.LargoMaximoDescripcion);
-        modelBuilder.Entity<ItemPonderacion>().Property(i => i.DescripcionINDEC).HasMaxLength(500);
-        modelBuilder.Entity<RedeterminacionGuardadaItem>().Property(i => i.DescripcionINDEC).HasMaxLength(500);
-        modelBuilder.Entity<Certificado>().Property(c => c.Observaciones).HasMaxLength(2000);
-        modelBuilder.Entity<ItemCertificado>().Property(i => i.Observaciones).HasMaxLength(2000);
-        modelBuilder.Entity<EstructuraCostos>().Property(e => e.Observaciones).HasMaxLength(2000);
-        modelBuilder.Entity<Planificacion>().Property(p => p.MotivoRevision).HasMaxLength(2000);
-        modelBuilder.Entity<Planificacion>().Property(p => p.Correcciones).HasMaxLength(2000);
+        modelBuilder.Entity<ItemEstructura>().Property(i => i.Descripcion).HasMaxLength(LargoTexto.Descripcion);
+        modelBuilder.Entity<ItemPonderacion>().Property(i => i.DescripcionINDEC).HasMaxLength(LargoTexto.Descripcion);
+        modelBuilder.Entity<RedeterminacionGuardadaItem>().Property(i => i.DescripcionINDEC).HasMaxLength(LargoTexto.Descripcion);
+        modelBuilder.Entity<Certificado>().Property(c => c.Observaciones).HasMaxLength(LargoTexto.Observaciones);
+        modelBuilder.Entity<ItemCertificado>().Property(i => i.Observaciones).HasMaxLength(LargoTexto.Observaciones);
+        modelBuilder.Entity<EstructuraCostos>().Property(e => e.Observaciones).HasMaxLength(LargoTexto.Observaciones);
+        modelBuilder.Entity<Planificacion>().Property(p => p.MotivoRevision).HasMaxLength(LargoTexto.Observaciones);
+        modelBuilder.Entity<Planificacion>().Property(p => p.Correcciones).HasMaxLength(LargoTexto.Observaciones);
 
         // Auditoría lista para Identity: mismo largo que AspNetUsers.Id (450).
         foreach (var et in modelBuilder.Model.GetEntityTypes()
@@ -190,8 +214,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
                 .HasForeignKey(p => p.ObraId)
                 .OnDelete(DeleteBehavior.Cascade);
             b.HasIndex(p => new { p.ObraId, p.Numero }).IsUnique();
-            b.Property(p => p.IFActo).HasMaxLength(250);
-            b.Property(p => p.Observaciones).HasMaxLength(2000);
+            b.Property(p => p.IFActo).HasMaxLength(LargoTexto.PorDefecto);
+            b.Property(p => p.Observaciones).HasMaxLength(LargoTexto.Observaciones);
         });
 
         // ── Protección del historial contractual ──────────────────────────────────
@@ -484,7 +508,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ICurrentUser? 
 
         // CodigoIndice es la clave de negocio del catálogo: acotada e única.
         modelBuilder.Entity<IndiceINDEC>()
-            .Property(x => x.CodigoIndice).HasMaxLength(50);
+            .Property(x => x.CodigoIndice).HasMaxLength(LargoTexto.CodigoIndice);
         modelBuilder.Entity<IndiceINDEC>()
             .HasIndex(x => x.CodigoIndice)
             .IsUnique();

@@ -1,5 +1,4 @@
 using ClosedXML.Excel;
-using SIGO.Data;
 using SIGO.Models;
 using SIGO.Models.Enums;
 using SIGO.Services.Validaciones;
@@ -350,7 +349,7 @@ public static class ImportadorEstructura
         string? codigo, string descripcion, string textoItem, string? siguienteCodigo, Contexto ctx)
     {
         var f = new FilaEstructuraImport { Fila = fila.Numero, Codigo = codigo, Descripcion = descripcion };
-        f.Descripcion = Recortar(f, f.Descripcion, ItemEstructura.LargoMaximoDescripcion, "Descripción recortada");
+        f.Descripcion = Recortar(f, f.Descripcion, LargoTexto.Descripcion, "Descripción recortada");
 
         if (EsSeparador(descripcion) || EsSeparador(textoItem))
         {
@@ -493,8 +492,8 @@ public static class ImportadorEstructura
     private static void CompletarItem(FilaEstructuraImport f, FilaExcel fila, NumerosFila numeros, Contexto ctx)
     {
         var codigo = f.Codigo;
-        if (codigo is not null) f.Codigo = Recortar(f, codigo, AppDbContext.LargoTextoPorDefecto, "Código recortado");
-        f.Unidad = numeros.Unidad.Length > 0 ? Recortar(f, numeros.Unidad, AppDbContext.LargoTextoPorDefecto, "Unidad recortada") : null;
+        if (codigo is not null) f.Codigo = Recortar(f, codigo, LargoTexto.PorDefecto, "Código recortado");
+        f.Unidad = numeros.Unidad.Length > 0 ? Recortar(f, numeros.Unidad, LargoTexto.PorDefecto, "Unidad recortada") : null;
         foreach (var error in numeros.Errores)
             f.AgregarDetalle($"{error}: se tomó como vacío");
 

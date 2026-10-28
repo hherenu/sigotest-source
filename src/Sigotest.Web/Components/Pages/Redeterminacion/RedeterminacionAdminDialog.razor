@@ -22,7 +22,7 @@
 <RadzenTemplateForm TItem="RedeterminacionAdminVM" Data="@Vm" Submit="@GuardarAsync">
     <RadzenStack Gap="1rem">
         <RadzenFormField Text="N° Expediente VR" Variant="Variant.Outlined" style="width:100%">
-            <RadzenTextBox @bind-Value="Vm.NroExpedienteVR" Placeholder="EX-2025-XXXXXXXX-GCABA-SBASE" style="width:100%" />
+            <RadzenTextBox @bind-Value="Vm.NroExpedienteVR" MaxLength="LargoTexto.PorDefecto" Placeholder="EX-2025-XXXXXXXX-GCABA-SBASE" style="width:100%" />
         </RadzenFormField>
         <RadzenFormField Text="Fecha Aprobación CCyR" Variant="Variant.Outlined" style="width:100%">
             <RadzenDatePicker @bind-Value="Vm.FechaAprobacionCCyR" DateFormat="dd/MM/yyyy" ShowTime="false" style="width:100%" />

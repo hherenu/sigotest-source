@@ -56,6 +56,8 @@ regla, dejá el porqué en un comentario al lado (como hace el resto del código
   La regla decide qué hacer con el vacío (los campos opcionales lo dejan pasar). Sin
   formulario (pegado de índices), la aplica el análisis y la fila queda inválida con el
   mismo mensaje. `ConvencionesUiTests` falla si vuelve a aparecer un `Min`/`Max`.
+- Textos que se guardan: `MaxLength` con el largo de su columna (`LargoTexto`, el mismo que
+  configura `AppDbContext`), para que no se pueda tipear más de lo que entra en la base.
 - Ayudas largas: caption (`app-muted`) debajo del campo, no dentro del label flotante.
 - Siglas de dominio: `title` en el FormField con el nombre completo.
 - Ediciones cortas (≤5 campos): diálogo con `Width = "min(Npx, 92vw)"`; el llamador

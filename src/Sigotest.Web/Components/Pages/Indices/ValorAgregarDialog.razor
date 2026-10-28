@@ -33,7 +33,7 @@
                                    Text="@IndiceValidator.ValorNoPositivo" Popup="true" />
         </div>
         <RadzenFormField Text="ID Publicación" Variant="Variant.Outlined" style="width:100%">
-            <RadzenTextBox @bind-Value="nuevo.IdPublicacion" Placeholder="Ej: INDEC_INFORMA_04_26" style="width:100%" />
+            <RadzenTextBox @bind-Value="nuevo.IdPublicacion" MaxLength="LargoTexto.PorDefecto" Placeholder="Ej: INDEC_INFORMA_04_26" style="width:100%" />
         </RadzenFormField>
         <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
             <RadzenButton Text="Cancelar" Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"

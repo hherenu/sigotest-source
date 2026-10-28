@@ -21,10 +21,10 @@
             <RadzenDatePicker @bind-Value="nueva.FechaActo" DateFormat="dd/MM/yyyy" ShowTime="false" style="width:100%" />
         </RadzenFormField>
         <RadzenFormField Text="IF del acto" Variant="Variant.Outlined" style="width:100%" title="N° de documento GDE (IF-…)">
-            <RadzenTextBox @bind-Value="nueva.IFActo" style="width:100%" />
+            <RadzenTextBox @bind-Value="nueva.IFActo" MaxLength="LargoTexto.PorDefecto" style="width:100%" />
         </RadzenFormField>
         <RadzenFormField Text="Observaciones" Variant="Variant.Outlined" style="width:100%">
-            <RadzenTextArea @bind-Value="nueva.Observaciones" Rows="2" style="width:100%" />
+            <RadzenTextArea @bind-Value="nueva.Observaciones" MaxLength="LargoTexto.Observaciones" Rows="2" style="width:100%" />
         </RadzenFormField>
         <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
             <RadzenButton Text="Cancelar" Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"

@@ -35,7 +35,7 @@
                    sus meses sean los de esa publicación, y con otro ID se importarían bajo una ajena. *@
                 <RadzenFormField Text="ID Publicación (INDEC_INFORMA_MM_AA) *" Variant="Variant.Outlined" style="width:100%">
                     <ChildContent>
-                        <RadzenTextBox @bind-Value="idPublicacion" @bind-Value:after="DescartarAnalisis" ReadOnly="@(planilla is not null)" style="width:100%" />
+                        <RadzenTextBox @bind-Value="idPublicacion" @bind-Value:after="DescartarAnalisis" MaxLength="LargoTexto.PorDefecto" ReadOnly="@(planilla is not null)" style="width:100%" />
                     </ChildContent>
                     <Helper>
                         <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">
