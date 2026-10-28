@@ -126,6 +126,20 @@ public class CertificadoValidatorTests
         Assert.Contains("último certificado cerrado (N° 2)", error);
     }
 
+    [Fact]
+    public void NumeroYAnio_PorCampo_SonLasReglasDelAlta()
+    {
+        // El form del alta evalúa cada campo con estas reglas: mismo resultado y mensaje que Alta.
+        var emision = new DateTime(2030, 1, 1);
+        Assert.Null(CertificadoValidator.Numero(1));
+        Assert.Equal(CertificadoValidator.NumeroInvalido, CertificadoValidator.Numero(0));
+        Assert.Equal(CertificadoValidator.NumeroInvalido, CertificadoValidator.Alta(0, 5, 2030, emision));
+        Assert.Null(CertificadoValidator.Anio(CertificadoValidator.AnioMinimo));
+        Assert.Null(CertificadoValidator.Anio(CertificadoValidator.AnioMaximo));
+        Assert.Equal("El año debe estar entre 2010 y 2099.", CertificadoValidator.Anio(2009));
+        Assert.Equal(CertificadoValidator.AnioFueraDeRango, CertificadoValidator.Alta(1, 5, 2100, emision));
+    }
+
     // ── Bloques (agregar / quitar) ───────────────────────────────────────────────
 
     [Fact]

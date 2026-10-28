@@ -65,35 +65,50 @@ else
                     <RadzenColumn Size="12" SizeMD="4">
                         @* El oficial es obligatorio en al menos una moneda (hay obras solo en dólares),
                            no en una en particular: no hay RequiredValidator por campo; lo exige el
-                           servicio (ObraValidator.Guardar) y la leyenda de abajo lo dice. *@
+                           servicio (ObraValidator.Guardar) y la leyenda de abajo lo dice. Cada importe
+                           pasa por la regla del servicio (ObraValidator.Presupuesto: vacío o mayor a
+                           cero), con su mensaje. Sin Min en los numéricos: Radzen llevaba un importe
+                           negativo a 0 sin avisar, y en pesos 0 es «vacío». *@
                         <RadzenFormField Text="Presupuesto oficial ($)" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoOficial" Min="0" Step="0.01" ShowUpDown="false" style="width:100%" />
+                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoOficial" Name="PresupuestoOficial" Step="0.01" ShowUpDown="false" style="width:100%" />
                         </RadzenFormField>
+                        <RadzenCustomValidator Component="PresupuestoOficial" Validator="@(() => ObraValidator.Presupuesto(obra.PresupuestoOficial) is null)"
+                                               Text="@ObraValidator.PresupuestoNoPositivo" Popup="true" />
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="4">
                         <RadzenFormField Text="Presupuesto oficial (US$)" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoOficialUSD" Min="0" Step="0.01" ShowUpDown="false" style="width:100%" />
+                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoOficialUSD" Name="PresupuestoOficialUSD" Step="0.01" ShowUpDown="false" style="width:100%" />
                         </RadzenFormField>
+                        <RadzenCustomValidator Component="PresupuestoOficialUSD" Validator="@(() => ObraValidator.Presupuesto(obra.PresupuestoOficialUSD) is null)"
+                                               Text="@ObraValidator.PresupuestoNoPositivo" Popup="true" />
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="4">
                         <RadzenFormField Text="Presupuesto oficial (€)" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoOficialEUR" Min="0" Step="0.01" ShowUpDown="false" style="width:100%" />
+                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoOficialEUR" Name="PresupuestoOficialEUR" Step="0.01" ShowUpDown="false" style="width:100%" />
                         </RadzenFormField>
+                        <RadzenCustomValidator Component="PresupuestoOficialEUR" Validator="@(() => ObraValidator.Presupuesto(obra.PresupuestoOficialEUR) is null)"
+                                               Text="@ObraValidator.PresupuestoNoPositivo" Popup="true" />
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="4">
                         <RadzenFormField Text="Presupuesto adjudicado ($)" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoAdjudicado" Min="0" Step="0.01" ShowUpDown="false" style="width:100%" />
+                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoAdjudicado" Name="PresupuestoAdjudicado" Step="0.01" ShowUpDown="false" style="width:100%" />
                         </RadzenFormField>
+                        <RadzenCustomValidator Component="PresupuestoAdjudicado" Validator="@(() => ObraValidator.Presupuesto(obra.PresupuestoAdjudicado) is null)"
+                                               Text="@ObraValidator.PresupuestoNoPositivo" Popup="true" />
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="4">
                         <RadzenFormField Text="Presupuesto adjudicado (US$)" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoAdjudicadoUSD" Min="0" Step="0.01" ShowUpDown="false" style="width:100%" />
+                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoAdjudicadoUSD" Name="PresupuestoAdjudicadoUSD" Step="0.01" ShowUpDown="false" style="width:100%" />
                         </RadzenFormField>
+                        <RadzenCustomValidator Component="PresupuestoAdjudicadoUSD" Validator="@(() => ObraValidator.Presupuesto(obra.PresupuestoAdjudicadoUSD) is null)"
+                                               Text="@ObraValidator.PresupuestoNoPositivo" Popup="true" />
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="4">
                         <RadzenFormField Text="Presupuesto adjudicado (€)" Variant="Variant.Outlined" style="width:100%">
-                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoAdjudicadoEUR" Min="0" Step="0.01" ShowUpDown="false" style="width:100%" />
+                            <RadzenNumeric TValue="decimal?" @bind-Value="obra.PresupuestoAdjudicadoEUR" Name="PresupuestoAdjudicadoEUR" Step="0.01" ShowUpDown="false" style="width:100%" />
                         </RadzenFormField>
+                        <RadzenCustomValidator Component="PresupuestoAdjudicadoEUR" Validator="@(() => ObraValidator.Presupuesto(obra.PresupuestoAdjudicadoEUR) is null)"
+                                               Text="@ObraValidator.PresupuestoNoPositivo" Popup="true" />
                     </RadzenColumn>
                     <RadzenColumn Size="12">
                         <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">

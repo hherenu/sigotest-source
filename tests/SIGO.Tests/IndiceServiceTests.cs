@@ -31,6 +31,23 @@ public class IndiceServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbFixtur
     }
 
     [Theory]
+    [InlineData(1999, 5, "año")]
+    [InlineData(2101, 5, "año")]
+    [InlineData(2041, 13, "mes")]
+    public async Task AgregarValor_ConPeriodoFueraDeRango_Rechaza(int anio, int mes, string campo)
+    {
+        // Antes solo lo acotaba la página (Min/Max del numérico) y el servicio guardaba lo que llegara.
+        var nuevo = new NuevoValorVM { Anio = anio, Mes = mes, Valor = 100m };
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Servicio(Roles.Admin).AgregarValorAsync(1, nuevo));
+        Assert.Contains(campo, ex.Message);
+
+        await using var db = fx.CrearContexto();
+        Assert.False(await db.ValoresIndice.AnyAsync(v => v.IndiceId == 1 && v.Anio == anio && v.Mes == mes));
+    }
+
+    [Theory]
     [InlineData("   ", "Mano de obra")]
     [InlineData("MANO_OBRA_T", "   ")]
     public async Task Crear_ConObligatorioSoloEspacios_Rechaza(string codigo, string familia)

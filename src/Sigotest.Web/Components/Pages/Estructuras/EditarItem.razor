@@ -55,19 +55,21 @@ else
                         </RadzenFormField>
                     </RadzenColumn>
                     @* Sin Min en los numéricos: Radzen lleva el valor tipeado al mínimo sin avisar
-                       (un PU de -500 se guardaba como 0). El validador muestra el motivo con el
-                       mismo mensaje que exige el servicio (EstructuraValidator.NoNegativos). *@
+                       (un PU de -500 se guardaba como 0). El validador evalúa la misma regla que
+                       exige el servicio (EstructuraValidator.NoNegativos), con su mensaje. *@
                     <RadzenColumn Size="6" SizeMD="3">
                         <RadzenFormField Text="Cantidad" Variant="Variant.Outlined" style="width:100%">
                             <RadzenNumeric @bind-Value="item.Cantidad" Name="Cantidad" Step="0.0001" ShowUpDown="false" style="width:100%" />
                         </RadzenFormField>
-                        <RadzenNumericRangeValidator Component="Cantidad" Min="0m" AllowNull="true" Text="La cantidad no puede ser negativa." Popup="true" />
+                        <RadzenCustomValidator Component="Cantidad" Validator="@(() => EstructuraValidator.Cantidad(item.Cantidad) is null)"
+                                               Text="@EstructuraValidator.CantidadNegativa" Popup="true" />
                     </RadzenColumn>
                     <RadzenColumn Size="6" SizeMD="3">
                         <RadzenFormField Text="PU Básico ($)" Variant="Variant.Outlined" style="width:100%">
                             <RadzenNumeric @bind-Value="item.PUBasico" Name="PUBasico" Step="0.0001" ShowUpDown="false" style="width:100%" />
                         </RadzenFormField>
-                        <RadzenNumericRangeValidator Component="PUBasico" Min="0m" AllowNull="true" Text="El PU no puede ser negativo." Popup="true" />
+                        <RadzenCustomValidator Component="PUBasico" Validator="@(() => EstructuraValidator.PUBasico(item.PUBasico) is null)"
+                                               Text="@EstructuraValidator.PUNegativo" Popup="true" />
                     </RadzenColumn>
                 </RadzenRow>
             }

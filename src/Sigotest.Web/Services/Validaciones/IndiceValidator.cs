@@ -11,10 +11,29 @@ public static class IndiceValidator
     /// Un valor mensual debe ser mayor que cero: 0 como divisor rompe el Ki/K0 del mes
     /// base, y como dividendo produce un coeficiente 0 que entra a la cadena de
     /// VariaciónAcumulada. ÚNICA implementación de la regla — la usan el alta manual
-    /// (AgregarValorAsync) y la importación de publicaciones (ImportadorIndec).
+    /// (AgregarValorAsync) y la importación de publicaciones (ImportadorIndec); el diálogo
+    /// de alta la evalúa tal cual con un RadzenCustomValidator (docs/convenciones-ui.md).
     /// </summary>
-    public static string? ValorMensual(decimal? valor) =>
-        valor is > 0 ? null : "El valor debe ser mayor que cero.";
+    public static string? ValorMensual(decimal? valor) => valor is > 0 ? null : ValorNoPositivo;
+
+    public const string ValorNoPositivo = "El valor debe ser mayor que cero.";
+
+    /// <summary>Rango de años de los valores mensuales (alta manual e importación).</summary>
+    public const int AnioMinimo = 2000;
+    public const int AnioMaximo = 2100;
+
+    public static readonly string AnioFueraDeRango = $"El año debe estar entre {AnioMinimo} y {AnioMaximo}.";
+
+    public static string? Anio(int anio) => anio is >= AnioMinimo and <= AnioMaximo ? null : AnioFueraDeRango;
+
+    /// <summary>
+    /// Período de un valor mensual: año en rango y mes 1-12. El alta manual no lo revisaba
+    /// en el servicio (solo el Min/Max del numérico de la página, que lleva el valor al
+    /// límite sin avisar) y un mes 13 guardado rompería las pantallas que muestran el
+    /// período (Fmt.MesCorto no lo admite).
+    /// </summary>
+    public static string? Periodo(int anio, int mes) =>
+        Anio(anio) ?? (mes is >= 1 and <= 12 ? null : "El mes debe estar entre 1 y 12.");
 
     /// <summary>
     /// Alta de índice: obligatorios whitespace-safe (los RequiredValidator de Radzen

@@ -163,6 +163,18 @@ public class EstructuraValidatorTests
     }
 
     [Fact]
+    public void CantidadYPU_PorCampo_SonLasReglasDeNoNegativos()
+    {
+        // Los forms de ítems evalúan cada campo con estas reglas: vacío pasa (agrupadores).
+        Assert.Null(EstructuraValidator.Cantidad(null));
+        Assert.Null(EstructuraValidator.Cantidad(0m));
+        Assert.Equal(EstructuraValidator.CantidadNegativa, EstructuraValidator.Cantidad(-1m));
+        Assert.Null(EstructuraValidator.PUBasico(null));
+        Assert.Equal(EstructuraValidator.PUNegativo, EstructuraValidator.PUBasico(-500m));
+        Assert.Equal(EstructuraValidator.PUNegativo, EstructuraValidator.NoNegativos(1m, -500m));
+    }
+
+    [Fact]
     public void Valores_PrimeroElSignoDespuesElRango()
     {
         Assert.Null(EstructuraValidator.Valores(2m, 10m));

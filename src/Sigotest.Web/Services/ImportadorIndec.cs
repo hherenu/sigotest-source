@@ -49,26 +49,42 @@ public static class ImportadorIndec
             switch (campos.Length)
             {
                 case 2 when TryValor(campos[1], out var v2):
-                    f.Anio = anioDefault; f.Mes = mesDefault; f.Valor = v2;
+                    Asignar(f, anioDefault, mesDefault, v2);
                     break;
-                case 4 when int.TryParse(campos[1], out var a) && a is >= 2000 and <= 2100
-                         && int.TryParse(campos[2], out var m) && m is >= 1 and <= 12
+                case 4 when int.TryParse(campos[1], out var a) && int.TryParse(campos[2], out var m)
                          && TryValor(campos[3], out var v4):
-                    f.Anio = a; f.Mes = m; f.Valor = v4;
+                    Asignar(f, a, m, v4);
                     break;
                 default:
                     f.Estado = EstadoFilaImport.FilaInvalida;
                     f.Detalle = "Se esperan 2 columnas (código, valor) o 4 (código, año, mes, valor).";
                     break;
             }
-
-            if (f.Estado == EstadoFilaImport.Ok && IndiceValidator.ValorMensual(f.Valor) is string error)
-            {
-                f.Estado = EstadoFilaImport.FilaInvalida;
-                f.Detalle = error;
-            }
         }
         return resultado;
+    }
+
+    /// <summary>
+    /// Mismas reglas que el alta manual (IndiceValidator): período válido y valor mayor que
+    /// cero, con su mensaje. El período por defecto (formato de 2 columnas) también pasa por
+    /// acá: la página ya no lo acota. Un período inválido no se asigna a la fila: la grilla
+    /// no podría mostrar un mes 13.
+    /// </summary>
+    private static void Asignar(FilaImport f, int anio, int mes, decimal valor)
+    {
+        f.Valor = valor;
+        if (IndiceValidator.Periodo(anio, mes) is string periodoInvalido)
+        {
+            f.Estado = EstadoFilaImport.FilaInvalida;
+            f.Detalle = periodoInvalido;
+            return;
+        }
+        f.Anio = anio; f.Mes = mes;
+        if (IndiceValidator.ValorMensual(valor) is string error)
+        {
+            f.Estado = EstadoFilaImport.FilaInvalida;
+            f.Detalle = error;
+        }
     }
 
     /// <summary>

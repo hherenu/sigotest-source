@@ -131,7 +131,7 @@ public class IndiceService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUs
     public async Task<bool> AgregarValorAsync(int indiceId, NuevoValorVM nuevo)
     {
         ExigirRol("agregar el valor");
-        Validacion.Exigir(IndiceValidator.ValorMensual(nuevo.Valor));
+        Validacion.Exigir(IndiceValidator.Periodo(nuevo.Anio, nuevo.Mes) ?? IndiceValidator.ValorMensual(nuevo.Valor));
         var pub = NormalizarPublicacion(nuevo.IdPublicacion);
         await using var db = await dbFactory.CreateDbContextAsync();
 

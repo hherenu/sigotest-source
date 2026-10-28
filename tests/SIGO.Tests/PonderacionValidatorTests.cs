@@ -46,6 +46,18 @@ public class PonderacionValidatorTests
         Assert.Null(PonderacionValidator.GuardarItem("Mano de Obra", 100m, 1));
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData(0d)]
+    [InlineData(-5d)]
+    [InlineData(150d)]   // antes el Max del numérico lo llevaba a 100 sin avisar
+    public void Peso_FueraDeRango_EsElMismoRechazoQueGuardarItem(double? peso)
+    {
+        // El form de PonderacionEditar evalúa Peso tal cual: mismo resultado y mensaje que el servicio.
+        Assert.Equal(PonderacionValidator.PesoFueraDeRango, PonderacionValidator.Peso((decimal?)peso));
+        Assert.Equal(PonderacionValidator.PesoFueraDeRango, PonderacionValidator.GuardarItem("Mano de Obra", (decimal?)peso, 1));
+    }
+
     [Fact]
     public void GuardarItem_SinIndice_Rechaza() =>
         Assert.Equal("Seleccioná el índice INDEC.",

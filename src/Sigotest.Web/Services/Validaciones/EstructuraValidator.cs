@@ -45,12 +45,18 @@ public static class EstructuraValidator
     /// del total sin verse) y las reducciones se certifican como % negativo del mes. El alta
     /// manual ya lo impedía en la página; la importación y el servicio no.
     /// </summary>
-    public static string? NoNegativos(decimal? cantidad, decimal? puBasico)
-    {
-        if (cantidad < 0) return "La cantidad no puede ser negativa.";
-        if (puBasico < 0) return "El PU no puede ser negativo.";
-        return null;
-    }
+    public static string? NoNegativos(decimal? cantidad, decimal? puBasico) =>
+        Cantidad(cantidad) ?? PUBasico(puBasico);
+
+    // Reglas de un campo con su mensaje: NoNegativos las exige y los forms de ítems las
+    // evalúan tal cual con un RadzenCustomValidator (docs/convenciones-ui.md). Vacío pasa:
+    // en los agrupadores no se cargan.
+    public const string CantidadNegativa = "La cantidad no puede ser negativa.";
+    public const string PUNegativo = "El PU no puede ser negativo.";
+
+    public static string? Cantidad(decimal? cantidad) => cantidad < 0 ? CantidadNegativa : null;
+
+    public static string? PUBasico(decimal? puBasico) => puBasico < 0 ? PUNegativo : null;
 
     /// <summary>
     /// Cantidad y PU de un ítem hoja, para el alta, la edición y la importación: no

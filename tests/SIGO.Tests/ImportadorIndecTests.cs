@@ -1,4 +1,5 @@
 using SIGO.Services;
+using SIGO.Services.Validaciones;
 
 namespace SIGO.Tests;
 
@@ -64,6 +65,21 @@ public class ImportadorIndecTests
         var filas = ImportadorIndec.ParsearLineas("PVC;2025;13;100\nPVC;1999;5;100", 2026, 1);
 
         Assert.All(filas, f => Assert.Equal(EstadoFilaImport.FilaInvalida, f.Estado));
+        // Con el motivo del alta manual (IndiceValidator.Periodo), y sin asignar el período:
+        // la grilla no podría mostrar un mes 13.
+        Assert.Equal("El mes debe estar entre 1 y 12.", filas[0].Detalle);
+        Assert.Equal(IndiceValidator.AnioFueraDeRango, filas[1].Detalle);
+        Assert.All(filas, f => Assert.Equal(0, f.Anio));
+    }
+
+    [Fact]
+    public void DosColumnas_ConElAnioDeLaPaginaFueraDeRango_EsFilaInvalida()
+    {
+        // La página ya no acota el año (Min/Max lo llevaba al límite sin avisar): lo valida el análisis.
+        var f = Assert.Single(ImportadorIndec.ParsearLineas("ALBANILERIA\t11883,8", 1999, 3));
+
+        Assert.Equal(EstadoFilaImport.FilaInvalida, f.Estado);
+        Assert.Equal(IndiceValidator.AnioFueraDeRango, f.Detalle);
     }
 
     [Fact]

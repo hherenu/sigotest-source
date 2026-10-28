@@ -132,10 +132,12 @@ else
                     <RadzenColumn Size="6" SizeMD="2">
                         <div>
                             <RadzenFormField Text="Peso % *" Variant="Variant.Outlined" style="width:100%">
-                                <RadzenNumeric @bind-Value="form.Peso" Name="Peso" Min="0.0001m" Max="100" Step="0.01"
-                                               ShowUpDown="false" style="width:100%" />
+                                <RadzenNumeric @bind-Value="form.Peso" Name="Peso" Step="0.01" ShowUpDown="false" style="width:100%" />
                             </RadzenFormField>
-                            <RadzenRequiredValidator Component="Peso" Text="El peso es obligatorio" Popup="true" />
+                            @* La regla que exige el servicio (PonderacionValidator.Peso), con su mensaje; vacío
+                               tampoco pasa. Sin Min/Max: Radzen llevaba un peso de 150 a 100 sin avisar. *@
+                            <RadzenCustomValidator Component="Peso" Validator="@(() => PonderacionValidator.Peso(form.Peso) is null)"
+                                                   Text="@PonderacionValidator.PesoFueraDeRango" Popup="true" />
                         </div>
                     </RadzenColumn>
                     <RadzenColumn Size="12" SizeMD="3">

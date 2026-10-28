@@ -9,9 +9,16 @@
 
 <RadzenTemplateForm TItem="NuevoValorVM" Data="@nuevo" Submit="@AgregarAsync">
     <RadzenStack Gap="0.75rem">
-        <RadzenFormField Text="Año" Variant="Variant.Outlined" style="width:100%">
-            <RadzenNumeric @bind-Value="nuevo.Anio" Min="2000" Max="2100" ShowUpDown="false" style="width:100%" />
-        </RadzenFormField>
+        @* Año y valor: las reglas de IndiceValidator que exige el servicio, evaluadas tal cual y
+           con el mismo mensaje. Sin Min/Max en los numéricos: Radzen lleva el valor tipeado al
+           límite sin avisar (un año 1999 se guardaba como 2000). *@
+        <div>
+            <RadzenFormField Text="Año" Variant="Variant.Outlined" style="width:100%">
+                <RadzenNumeric @bind-Value="nuevo.Anio" Name="Anio" ShowUpDown="false" style="width:100%" />
+            </RadzenFormField>
+            <RadzenCustomValidator Component="Anio" Validator="@(() => IndiceValidator.Anio(nuevo.Anio) is null)"
+                                   Text="@IndiceValidator.AnioFueraDeRango" Popup="true" />
+        </div>
         <RadzenFormField Text="Mes" Variant="Variant.Outlined" style="width:100%">
             <RadzenDropDown @bind-Value="nuevo.Mes" Data="@(Enumerable.Range(1, 12))" TValue="int" style="width:100%">
                 <Template Context="m">@Fmt.MesNombre(m)</Template>
@@ -21,8 +28,9 @@
             <RadzenFormField Text="Valor *" Variant="Variant.Outlined" style="width:100%">
                 <RadzenNumeric @bind-Value="nuevo.Valor" Name="Valor" Step="0.0001" ShowUpDown="false" style="width:100%" />
             </RadzenFormField>
-            <RadzenRequiredValidator Component="Valor" Text="El valor es obligatorio" Popup="true" />
-            <RadzenNumericRangeValidator Component="Valor" Min="0.0001" Text="El valor debe ser mayor que cero" Popup="true" />
+            @* Vacío tampoco pasa la regla: un solo aviso, el mismo que da el servicio. *@
+            <RadzenCustomValidator Component="Valor" Validator="@(() => IndiceValidator.ValorMensual(nuevo.Valor) is null)"
+                                   Text="@IndiceValidator.ValorNoPositivo" Popup="true" />
         </div>
         <RadzenFormField Text="ID Publicación" Variant="Variant.Outlined" style="width:100%">
             <RadzenTextBox @bind-Value="nuevo.IdPublicacion" Placeholder="Ej: INDEC_INFORMA_04_26" style="width:100%" />

@@ -15,12 +15,20 @@ public static class PonderacionValidator
     {
         if (string.IsNullOrWhiteSpace(insumo))
             return "El insumo es obligatorio.";
-        if (peso is null || peso <= 0m || peso > 100m)
-            return "El peso debe ser mayor que 0 y como máximo 100.";
+        if (Peso(peso) is string pesoInvalido)
+            return pesoInvalido;
         if (indiceId is null)
             return "Seleccioná el índice INDEC.";
         return null;
     }
+
+    public const string PesoFueraDeRango = "El peso debe ser mayor que 0 y como máximo 100.";
+
+    /// <summary>
+    /// Peso del insumo en (0, 100]; vacío tampoco pasa. GuardarItem la exige y el form de
+    /// PonderacionEditar la evalúa tal cual con un RadzenCustomValidator (docs/convenciones-ui.md).
+    /// </summary>
+    public static string? Peso(decimal? peso) => peso is > 0m and <= 100m ? null : PesoFueraDeRango;
 
     /// <summary>
     /// Trazabilidad (FK Restrict): un insumo referenciado por redeterminaciones guardadas
