@@ -124,6 +124,19 @@ public static class CertificadoValidator
         return null;
     }
 
+    /// <summary>Tope del % del mes de un ítem, en más o en menos.</summary>
+    public const decimal PorcentajeMesMaximo = 1000m;
+
+    /// <summary>
+    /// % del mes de un ítem: entre -1000 y 1000. Negativo es legítimo (BED, economías), pero
+    /// un valor tipeado de más (100.000) desbordaba la columna y terminaba en un error de SQL
+    /// en inglés. <paramref name="item"/> identifica la fila en el mensaje.
+    /// </summary>
+    public static string? PorcentajeMes(decimal porcentaje, string item) =>
+        Math.Abs(porcentaje) <= PorcentajeMesMaximo
+            ? null
+            : $"El % del mes del ítem {item} tiene que estar entre -{PorcentajeMesMaximo:0} y {PorcentajeMesMaximo:0}.";
+
     public static string? Aprobar(EstadoCertificado estado) =>
         estado != EstadoCertificado.Cerrado
             ? "Solo se puede aprobar un certificado cerrado."

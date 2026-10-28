@@ -183,4 +183,19 @@ public class CertificadoValidatorTests
         Assert.Equal(noEditable, CertificadoValidator.QuitarBloque(EstadoCertificado.Cerrado));
         Assert.Equal(noEditable, CertificadoValidator.QuitarBloque(EstadoCertificado.Aprobado));
     }
+
+    [Theory]
+    [InlineData(1000)]
+    [InlineData(-1000)]
+    [InlineData(0.5)]
+    public void PorcentajeMes_HastaMilEnMasOEnMenos(double pct) =>
+        Assert.Null(CertificadoValidator.PorcentajeMes((decimal)pct, "1.1"));
+
+    [Theory]
+    [InlineData(1000.0001)]
+    [InlineData(-1000.0001)]
+    [InlineData(100000)]
+    public void PorcentajeMes_FueraDeRango_DiceElItem(double pct) =>
+        Assert.Equal("El % del mes del ítem 1.1 tiene que estar entre -1000 y 1000.",
+            CertificadoValidator.PorcentajeMes((decimal)pct, "1.1"));
 }

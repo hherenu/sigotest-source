@@ -519,6 +519,8 @@ public class CertificadoService(IDbContextFactory<AppDbContext> dbFactory, ICurr
 
                 var itemEst = estructura.Items.FirstOrDefault(i => i.Id == itemEstructuraId);
                 if (itemEst is null || itemEst.EsAgrupador) continue;
+                Validacion.Exigir(CertificadoValidator.PorcentajeMes(pct,
+                    string.IsNullOrWhiteSpace(itemEst.Codigo) ? $"«{itemEst.Descripcion}»" : itemEst.Codigo));
 
                 var (cantidad, monto) = MovimientoDeMes(itemEst.Cantidad, itemEst.PUBasico, itemEst.Monto, pct);
 

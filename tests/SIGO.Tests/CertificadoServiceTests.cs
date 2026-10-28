@@ -694,4 +694,21 @@ public class CertificadoServiceTests(LocalDbFixture fx) : IClassFixture<LocalDbF
         await Assert.ThrowsAsync<InvalidOperationException>(async () => await sinRol.EliminarAsync(certId, await RowVersionAsync(certId)));
         await Assert.ThrowsAsync<InvalidOperationException>(() => sinRol.CrearAsync(e.ObraId, new Models.ViewModels.CertificadoNuevoVM()));
     }
+
+    [Fact]
+    public async Task GuardarItems_ConUnPorcentajeFueraDeRango_RechazaSinGuardarNada()
+    {
+        // 100.000 desbordaba la columna y terminaba en un error de SQL en inglés.
+        var e = await CrearEstructuraAsync();
+        var (certId, bloqueId) = await CrearCertificadoAsync(e, 1);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => Servicio(Roles.CCyR).GuardarItemsAsync(certId, new()
+        {
+            [bloqueId] = new() { [e.ItemCantId] = 10m, [e.ItemGlobalId] = 100000m }
+        }));
+        Assert.Equal("El % del mes del ítem 1.2 tiene que estar entre -1000 y 1000.", ex.Message);
+
+        await using var db = fx.CrearContexto();
+        Assert.False(await db.ItemsCertificado.AnyAsync(i => i.CertificadoEstructuraId == bloqueId));
+    }
 }

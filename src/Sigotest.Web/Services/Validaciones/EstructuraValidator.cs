@@ -111,6 +111,9 @@ public static class EstructuraValidator
     /// Normaliza los campos de un ítem antes de persistir: los agrupadores no llevan
     /// código/unidad/cantidad/PU/monto (son cabeceras de rubro que solo suman hijos),
     /// los textos van recortados y el monto se deriva con <see cref="CalcularMonto"/>.
+    /// Cantidad y PU se redondean a los 4 decimales de la columna antes de calcular el monto,
+    /// como en la importación: con 6,88905 × 63.421,2 la base guardaba la cantidad redondeada
+    /// y el monto de la sin redondear, y al 100 % se certificaba otro monto que el del contrato.
     ///
     /// <paramref name="conservarPadreDeAgrupador"/>: en el ALTA un agrupador nace en la
     /// raíz (false → padre null); en la EDICIÓN el padre se conserva tal como vino
@@ -122,6 +125,8 @@ public static class EstructuraValidator
         bool esAgrupador, int? agrupadorPadreId, string? codigo, string? descripcion,
         string? unidad, decimal? cantidad, decimal? puBasico, bool conservarPadreDeAgrupador = false)
     {
+        cantidad = cantidad is decimal c ? Math.Round(c, 4) : null;
+        puBasico = puBasico is decimal p ? Math.Round(p, 4) : null;
         return new ItemNormalizado(
             AgrupadorPadreId: esAgrupador
                 ? (conservarPadreDeAgrupador ? agrupadorPadreId : null)
