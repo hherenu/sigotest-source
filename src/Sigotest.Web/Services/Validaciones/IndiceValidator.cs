@@ -65,6 +65,20 @@ public static class IndiceValidator
                 ? null
                 : "El ID de publicación debe tener el formato INDEC_INFORMA_MM_AA (ej.: INDEC_INFORMA_08_26).";
 
+    /// <summary>
+    /// ID de publicación del alta manual de un valor: vacío es legítimo, pero si viene tiene
+    /// que tener el formato de la importación: «indec_informa_8_26» creaba otra publicación
+    /// del mismo período que nunca se elegía como la más reciente. Las tasas del Banco Nación
+    /// van siempre sin publicación (<see cref="IndiceService.CodigoTasasBancoNacion"/>).
+    /// </summary>
+    public static string? PublicacionAltaManual(string? idPublicacion, bool esTasasBancoNacion) =>
+        string.IsNullOrWhiteSpace(idPublicacion) ? null
+        : esTasasBancoNacion ? TasasSinPublicacion
+        : PublicacionImportacion(idPublicacion);
+
+    public const string TasasSinPublicacion =
+        "Las tasas del Banco Nación se cargan sin publicación: con una le ganarían a la tasa en el cálculo de esa publicación.";
+
     /// <summary>Código único en el catálogo: mensaje de negocio antes del error crudo del índice único.</summary>
     public static string? CodigoDuplicado(string codigo, bool existe) =>
         existe ? $"Ya existe un índice con el código «{codigo}»." : null;

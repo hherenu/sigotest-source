@@ -32,9 +32,23 @@
             <RadzenCustomValidator Component="Valor" Validator="@(() => IndiceValidator.ValorMensual(nuevo.Valor) is null)"
                                    Text="@IndiceValidator.ValorNoPositivo" Popup="true" />
         </div>
-        <RadzenFormField Text="ID Publicación" Variant="Variant.Outlined" style="width:100%">
-            <RadzenTextBox @bind-Value="nuevo.IdPublicacion" MaxLength="LargoTexto.PorDefecto" Placeholder="Ej: INDEC_INFORMA_04_26" style="width:100%" />
-        </RadzenFormField>
+        @* La regla del servicio (IndiceValidator.PublicacionAltaManual), con su mensaje: vacío
+           pasa; si viene, con el formato de la importación. Las tasas van sin publicación. *@
+        @if (EsTasas)
+        {
+            <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">Las tasas del Banco Nación se cargan sin publicación.</RadzenText>
+        }
+        else
+        {
+            <div>
+                <RadzenFormField Text="ID Publicación" Variant="Variant.Outlined" style="width:100%">
+                    <RadzenTextBox @bind-Value="nuevo.IdPublicacion" Name="IdPublicacion" Placeholder="Ej: INDEC_INFORMA_04_26"
+                                   MaxLength="LargoTexto.PorDefecto" style="width:100%" />
+                </RadzenFormField>
+                <RadzenCustomValidator Component="IdPublicacion" Validator="@(() => ErrorPublicacion is null)"
+                                       Text="@(ErrorPublicacion ?? "")" Popup="true" />
+            </div>
+        }
         <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" JustifyContent="JustifyContent.End">
             <RadzenButton Text="Cancelar" Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
                           Click="@(() => DialogService.Close(false))" />
@@ -46,9 +60,13 @@
 
 @code {
     [Parameter] public int IndiceId { get; set; }
+    [Parameter] public string? CodigoIndice { get; set; }
 
     private NuevoValorVM nuevo = new();
     private bool procesando;
+
+    private bool EsTasas => IndiceService.EsTasasBancoNacion(CodigoIndice);
+    private string? ErrorPublicacion => IndiceValidator.PublicacionAltaManual(nuevo.IdPublicacion, EsTasas);
 
     protected override void OnInitialized() =>
         nuevo = new NuevoValorVM { Anio = DateTime.Now.Year, Mes = DateTime.Now.Month };
