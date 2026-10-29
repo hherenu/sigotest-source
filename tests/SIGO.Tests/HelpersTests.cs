@@ -95,6 +95,93 @@ public class HelpersTests
     }
 
     [Fact]
+    public async Task Persistencia_Conflicto_UsaElMensajeDeLaPagina()
+    {
+        // Las páginas que conservan lo tipeado tras un conflicto no pueden pedir «Recargá la
+        // página»: recargar borra justamente lo que se conservó.
+        var conflicto = new Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException("x");
+
+        var generico = new Radzen.NotificationService();
+        Assert.False(await Persistencia.EjecutarAsync(() => throw conflicto, generico));
+        Assert.Contains("Recargá la página", Assert.Single(generico.Messages).Detail);
+
+        var propio = new Radzen.NotificationService();
+        Assert.False(await Persistencia.EjecutarAsync(() => throw conflicto, propio, conflicto: "Se conservó lo que tipeaste."));
+        var aviso = Assert.Single(propio.Messages);
+        Assert.Equal("Conflicto de concurrencia", aviso.Summary);
+        Assert.Equal("Se conservó lo que tipeaste.", aviso.Detail);
+    }
+
+    // ── RetornoObra (a dónde vuelven las secciones de una obra) ─────────────────
+
+    [Fact]
+    public void RetornoObra_SinMarcaVuelveALaFicha()
+    {
+        Assert.Equal(("obras/5", "Volver a Obra"), new RetornoObra().Volver(5));
+    }
+
+    [Fact]
+    public void RetornoObra_DesdeElListadoVuelveAObras_SoloEsaObra()
+    {
+        var retorno = new RetornoObra();
+        retorno.DesdeListado(5);
+
+        Assert.Equal(("obras", "Volver a Obras"), retorno.Volver(5));
+        // La marca es de una obra: otra que se abra sin pasar por el listado vuelve a su ficha.
+        Assert.Equal(("obras/7", "Volver a Obra"), retorno.Volver(7));
+    }
+
+    [Fact]
+    public void RetornoObra_PasarPorLaFichaVuelveALaFicha()
+    {
+        var retorno = new RetornoObra();
+        retorno.DesdeListado(5);
+        retorno.DesdeFicha();
+
+        Assert.Equal(("obras/5", "Volver a Obra"), retorno.Volver(5));
+    }
+
+    // ── Instantanea (cambios sin guardar de un formulario) ──────────────────────
+
+    private sealed class Formulario
+    {
+        public string Nombre { get; set; } = "";
+        public DateTime? Fecha { get; set; }
+    }
+
+    [Fact]
+    public void Instantanea_DetectaCambiosYVolverAlValorOriginalNoEsCambio()
+    {
+        var modelo = new Formulario { Nombre = "Obra" };
+        var foto = new Instantanea<Formulario>();
+        Assert.False(foto.Cambio(modelo)); // sin foto todavía: no hay cambios
+
+        foto.Tomar(modelo);
+        Assert.False(foto.Cambio(modelo));
+
+        modelo.Fecha = new DateTime(2026, 10, 1);
+        Assert.True(foto.Cambio(modelo));
+
+        modelo.Fecha = null;
+        Assert.False(foto.Cambio(modelo));
+        Assert.False(foto.Cambio(null));
+    }
+
+    [Fact]
+    public void Instantanea_ObraVMSeSerializaEntero()
+    {
+        // El formulario de obra la evalúa en cada render: si el VM (con sus propiedades
+        // calculadas, Estado y Presupuestos) no se pudiera serializar, la página caería.
+        var obra = new SIGO.Models.ViewModels.ObraVM { Nombre = "Línea F", FechaActaInicio = new DateTime(2026, 3, 1) };
+        var foto = new Instantanea<SIGO.Models.ViewModels.ObraVM>();
+        foto.Tomar(obra);
+        Assert.False(foto.Cambio(obra));
+
+        obra.Contratista = "Constructora";
+        Assert.True(foto.Cambio(obra));
+    }
+
+    [Fact]
     public void MesNombreSeguro_AcotaLosDatosSucios()
     {
         Assert.Equal("Marzo", Fmt.MesNombreSeguro(3));

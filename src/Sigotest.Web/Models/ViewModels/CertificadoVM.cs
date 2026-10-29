@@ -137,6 +137,16 @@ public static class CargaCertificado
         }
         return resultado;
     }
+
+    /// <summary>
+    /// Ítems cuyo % tipeado difiere de lo guardado (vacío y 0 son lo mismo): el contador
+    /// «N cambios sin guardar» de la carga y el aviso al salir de la página.
+    /// </summary>
+    public static int CambiosSinGuardar(CertificadoVM vm, IReadOnlyDictionary<int, Dictionary<int, decimal?>> tipeado) =>
+        vm.Bloques.Sum(bloque => tipeado.TryGetValue(bloque.CertificadoEstructuraId, out var porItem)
+            ? bloque.Items.Count(i => !i.EsAgrupador
+                && (porItem.GetValueOrDefault(i.ItemEstructuraId) ?? 0m) != (i.PorcentajeMes ?? 0m))
+            : 0);
 }
 
 /// <summary>
@@ -152,6 +162,12 @@ public class CertificadoListItemVM
     public Models.Enums.EstadoCertificado Estado { get; set; }
     public DateTime FechaEmision { get; set; }
     public string? Observaciones { get; set; }
+
+    /// <summary>Columna «Período» («Enero 2026»): lo que se ve y lo que ofrece su filtro.</summary>
+    public string Periodo => $"{Components.Shared.Fmt.MesNombreSeguro(Mes)} {Anio}";
+
+    /// <summary>Orden cronológico del período (el texto ordenaría por nombre de mes).</summary>
+    public int PeriodoOrden => Anio * 100 + Mes;
 
     /// <summary>Token de concurrencia de la fila: viaja al DELETE del certificado.</summary>
     public byte[] RowVersion { get; set; } = [];

@@ -18,7 +18,7 @@ else if (r is null)
 }
 else
 {
-    <CabeceraPagina Titulo="@($"Cálculo guardado — {r.ObraNombre}")" Estilo="TextStyle.H4">
+    <CabeceraPagina Titulo="@($"Cálculo guardado — {r.ObraNombre}")">
         <Subtitulo>
             @r.ObraNumeroLicitacion · Guardado @r.FechaGuardado.ToString("dd/MM/yyyy HH:mm")
         </Subtitulo>
@@ -42,7 +42,7 @@ else
         </BannerResultado>
 
         <div class="rz-mb-3">
-            <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-0" style="font-weight:600;display:inline">Tabla de Ponderación — @r.ObraNombre</RadzenText>
+            <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-0 app-titulo-bloque" style="display:inline">Tabla de Ponderación — @r.ObraNombre</RadzenText>
             <RadzenText TextStyle="TextStyle.Caption" class="app-muted" style="display:inline;margin-left:.5rem">@($"{Fmt.MesCorto(r.MesBase)} {r.AnioBase}") → @($"{Fmt.MesCorto(r.MesSalto)} {r.AnioSalto}")</RadzenText>
         </div>
         <TablaPonderacionCalculo EtiquetaBase="@($"{Fmt.MesCorto(r.MesBase)} {r.AnioBase}")"

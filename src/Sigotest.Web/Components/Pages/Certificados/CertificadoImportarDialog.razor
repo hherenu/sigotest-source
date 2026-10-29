@@ -80,12 +80,12 @@
                 <caption class="sr-only">Secciones de la planilla y bloque del certificado al que se aplican</caption>
                 <thead>
                     <tr>
-                        <th scope="col" style="text-align:left">Sección de la planilla</th>
-                        <th scope="col">Filas</th>
-                        <th scope="col">Renglones</th>
-                        <th scope="col">Con %</th>
-                        <th scope="col">Monto mes planilla</th>
-                        <th scope="col" style="text-align:left;min-width:220px">Bloque del certificado</th>
+                        <th scope="col">Sección de la planilla</th>
+                        <th scope="col" class="centro">Filas</th>
+                        <th scope="col" class="num">Renglones</th>
+                        <th scope="col" class="num">Con %</th>
+                        <th scope="col" class="num">Monto mes planilla</th>
+                        <th scope="col" style="min-width:220px">Bloque del certificado</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -93,7 +93,7 @@
                     {
                         <tr @key="s.Indice">
                             <th scope="row" id="@IdSeccion(s)" style="text-align:left;font-weight:400">@s.Titulo</th>
-                            <td style="text-align:center">@s.FilaDesde–@s.FilaHasta</td>
+                            <td class="centro">@s.FilaDesde–@s.FilaHasta</td>
                             <td class="num">@s.Filas.Count</td>
                             <td class="num">@s.ConPorcentaje</td>
                             <td class="num">@(s.TotalMontoActualPlanilla is decimal t ? "$ " + Fmt.N2(t) : "")</td>
@@ -132,7 +132,7 @@
         @foreach (var ap in aplicaciones)
         {
             <RadzenCard @key="ap.CertificadoEstructuraId" Variant="Variant.Outlined">
-                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1" style="font-weight:600">@ap.TituloBloque</RadzenText>
+                <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-1 app-titulo-bloque">@ap.TituloBloque</RadzenText>
                 <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap" class="rz-mb-2">
                     <RadzenBadge Text="@($"{ap.Coincidentes} ítems coinciden")" BadgeStyle="BadgeStyle.Success" />
                     @if (ap.Desconocidos > 0)
@@ -162,21 +162,21 @@
                 {
                     @* PageSize 10 y no 20: hay una grilla por bloque dentro del diálogo. *@
                     <RadzenDataGrid Data="@ap.Problemas" TItem="DetalleFilaCertificado" Density="Density.Compact" class="app-grid-wrap"
-                                    AllowPaging="true" PageSize="10" AllowSorting="false">
+                                    AllowPaging="true" PageSize="10" AllowSorting="false" AllowColumnResize="true">
                         <Columns>
-                            <RadzenDataGridColumn TItem="DetalleFilaCertificado" Title="Fila" Width="60px" TextAlign="TextAlign.Center">
+                            <RadzenDataGridColumn TItem="DetalleFilaCertificado" Title="Fila" Width="@AnchoColumna.Numero" TextAlign="TextAlign.Center">
                                 <Template Context="d">@d.Fila.Fila</Template>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn TItem="DetalleFilaCertificado" Title="Código" Width="170px">
+                            <RadzenDataGridColumn TItem="DetalleFilaCertificado" Title="Código" Width="@AnchoColumna.Codigo">
                                 <Template Context="d"><span class="app-mono">@d.Fila.Codigo</span></Template>
                             </RadzenDataGridColumn>
                             <RadzenDataGridColumn TItem="DetalleFilaCertificado" Title="Descripción (planilla)" Width="300px" WhiteSpace="WhiteSpace.Wrap">
                                 <Template Context="d">@d.Fila.Descripcion</Template>
                             </RadzenDataGridColumn>
                             <RadzenDataGridColumn TItem="DetalleFilaCertificado" Title="Estado" Width="180px">
-                                <Template Context="d"><RadzenBadge Text="@EtiquetaEstado(d.Estado)" BadgeStyle="@BadgeEstado(d.Estado)" /></Template>
+                                <Template Context="d"><span class="@ClaseEstado(d.Estado)">@EtiquetaEstado(d.Estado)</span></Template>
                             </RadzenDataGridColumn>
-                            <RadzenDataGridColumn TItem="DetalleFilaCertificado" Title="% mes" Width="90px" TextAlign="TextAlign.Right">
+                            <RadzenDataGridColumn TItem="DetalleFilaCertificado" Title="% mes" Width="@AnchoColumna.Porcentaje" TextAlign="TextAlign.Right">
                                 <Template Context="d">@(d.Fila.PctActual is decimal p ? Fmt.N2(p) + "%" : "")</Template>
                             </RadzenDataGridColumn>
                             <RadzenDataGridColumn TItem="DetalleFilaCertificado" Title="% ant. planilla / sistema" Width="160px" TextAlign="TextAlign.Right">
@@ -326,10 +326,11 @@
         _ => "Código repetido"
     };
 
-    private static BadgeStyle BadgeEstado(EstadoFilaCertificado e) => e switch
+    /// <summary>Color de alerta del estado (convenciones-ui, «Celdas en texto»): lo que coincide va sin color.</summary>
+    private static string? ClaseEstado(EstadoFilaCertificado e) => e switch
     {
-        EstadoFilaCertificado.Coincide => BadgeStyle.Success,
-        EstadoFilaCertificado.AnteriorDistinto => BadgeStyle.Warning,
-        _ => BadgeStyle.Danger
+        EstadoFilaCertificado.Coincide => null,
+        EstadoFilaCertificado.AnteriorDistinto => "app-texto-aviso",
+        _ => "app-texto-error"
     };
 }

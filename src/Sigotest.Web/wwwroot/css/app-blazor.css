@@ -11,12 +11,51 @@
    MARCA secundario, ilegible como texto). */
 .app-muted { color: var(--rz-text-secondary-color) !important; }
 
+/* Color de alerta en una celda (convenciones-ui, «Celdas en texto»): solo para lo que hay que
+   corregir antes de importar o guardar. Color de texto, nunca fondo; el texto dice el problema. */
+.app-texto-error { color: var(--rz-danger); }
+.app-texto-aviso { color: var(--rz-warning-dark); }
+
 /* Respiro superior de los títulos de página: sin esto quedaban pegados al borde
    del contenido. Va en el PRIMER elemento de la página (no en el h1): un margen
    en el h1 lo empujaba hacia abajo dentro de la fila flex de la cabecera y los
    badges a su lado quedaban descentrados. */
 .app-content > :first-child {
-    margin-top: 10px;
+    margin-top: 0.5rem;
+}
+
+/* ===========================================================================
+   Escala de la UI (docs/convenciones-ui.md). Anchos de formulario: tres en vez de
+   los nueve max-width sueltos que había (420 a 960px).
+   =========================================================================== */
+.app-form-angosto { max-width: 560px; }
+.app-form-medio { max-width: 720px; }
+.app-form-ancho { max-width: 960px; }
+
+/* Título de un bloque o sección sin tarjeta propia (bloque del certificado, obra del
+   historial, tabla de ponderación): Subtitle1 en semibold. Los títulos de tarjeta son H6. */
+.app-titulo-bloque { font-weight: 600; }
+
+/* Total destacado junto a un título (Monto Total Contrato, Σ Pesos). */
+.app-total { font-weight: 700; }
+
+/* Dato destacado dentro de un texto (la fecha de fin de contrato en la ficha de la obra). */
+.app-destacado { font-weight: 600; }
+
+/* Largo de línea cómodo para textos de ayuda y descripciones (estados vacíos). */
+.app-medida-corta { max-width: 48ch; }
+
+/* Tamaños de texto de la escala de Radzen para textos sueltos (nada de font-size inline). */
+.app-fs-body2 { font-size: var(--rz-text-body2-font-size, .875rem); }
+.app-fs-caption { font-size: var(--rz-text-caption-font-size, .75rem); }
+
+/* Buscadores y selectores en la barra de acciones de la cabecera: más cerca de los
+   28px de los botones Small que los 40px del tema. */
+.app-cabecera-acciones {
+    --rz-input-height: 2rem;
+    --rz-input-font-size: .875rem;
+    /* Con el padding del tema (.4375rem) el texto del selector quedaba bajo el centro. */
+    --rz-input-padding-block: .25rem;
 }
 
 /* Miga de pan de CabeceraPagina (páginas anidadas bajo obra). */
@@ -24,8 +63,8 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 0.35rem;
-    font-size: 0.78rem;
+    gap: 0.25rem;
+    font-size: 0.75rem;
     color: var(--rz-text-secondary-color);
     margin-bottom: 0.25rem;
 }
@@ -44,7 +83,7 @@
     border: 1px solid var(--banner-color);
     border-radius: var(--rz-border-radius);
     background: color-mix(in srgb, var(--banner-color) 14%, transparent);
-    padding: 0.75rem 1.125rem;
+    padding: 0.75rem 1rem;
 }
 
 .app-banner-resultado__valor {
@@ -78,7 +117,7 @@
 
 .sigo-home {
     max-width: 1120px;
-    padding: 2rem 1rem;
+    padding: 0;
 }
 
 .sigo-home__header {
@@ -87,13 +126,13 @@
 
 .sigo-home__eyebrow {
     color: var(--rz-primary);
-    font-size: .85rem;
+    font-size: .875rem;
     font-weight: 700;
     text-transform: uppercase;
 }
 
 .sigo-home h1 {
-    margin: .35rem 0 .5rem;
+    margin: .25rem 0 .5rem;
 }
 
 .sigo-home__grid {
@@ -104,7 +143,7 @@
 
 .sigo-home__tile {
     display: grid;
-    gap: .45rem;
+    gap: .5rem;
     padding: 1rem;
     min-height: 140px;
     color: inherit;
@@ -157,6 +196,13 @@
     outline: none;
 }
 
+/* Título que enfoca FocusOnNavigate (Routes.razor) al cargar, recargar o navegar: el foco es
+   para que el lector de pantalla anuncie la página, no una marca. No es un control, así que va
+   sin el recuadro del foco (el navegador lo dibujaba al cargar o recargar). */
+h1:focus {
+    outline: none;
+}
+
 /* Foco visible por teclado en los tiles del Home (el outline por defecto se
    perdía sobre el fondo sutil). */
 .sigo-home__tile:focus-visible {
@@ -187,7 +233,8 @@
 
 /* ===========================================================================
    (SAF) Helpers de layout: la app ocupa exactamente el viewport y las grillas
-   toman el alto restante con scroll INTERNO (la página nunca scrollea entera).
+   toman el alto restante con scroll INTERNO. Con poco alto (notebook con zoom)
+   la grilla no baja de su piso y scrollea la página entera (.rz-body).
    Cadena de altura: html/body → .rz-layout → .rz-body → .app-content → grilla.
    =========================================================================== */
 html, body {
@@ -209,31 +256,64 @@ html, body {
     padding: 0;
 }
 
-/* El padding de contenido vive acá (SIGO envuelve @Body en .app-content). */
+/* ===========================================================================
+   Sidebar (MainLayout): expandida mide lo que ocupa el menú (como SAF), no los
+   300px fijos de Radzen. Colapsada (clase app-sidebar-iconos, DisplayStyle Icon)
+   se reescriben los tokens del panel-menu para que cada ítem sea
+   padding + ícono + padding = 0.8125rem + 1.5rem + 0.8125rem = 3.125rem, el
+   mismo ancho que el RadzenSidebarToggle de la cabecera: la columna de íconos
+   queda alineada con el botón de menú. Sin esto Radzen dejaba el margen
+   derecho del ícono (1rem) y el sangrado de 3rem del submenú (Redeterminación),
+   y la columna salía más ancha de lo que parece con los íconos corridos.
+   =========================================================================== */
+.rz-layout > .rz-sidebar {
+    width: max-content;
+}
+
+.rz-layout > .rz-sidebar.app-sidebar-iconos {
+    --rz-panel-menu-item-padding-inline: 0.8125rem;
+    --rz-panel-menu-icon-margin-inline: 0;
+    --rz-panel-menu-item-2nd-level-margin-inline: 0;
+    --rz-panel-menu-item-2nd-level-padding-inline: 0.8125rem;
+    --rz-panel-menu-item-2nd-level-offset: 0.8125rem;
+    --rz-panel-menu-icon-2nd-level-margin-inline: 0;
+}
+
+/* El submenú usa un ícono más chico (0.8 del tamaño base): centrado en la
+   columna en vez de pegado al borde izquierdo. */
+.app-sidebar-iconos .rz-panel-menu .rz-navigation-item-link {
+    justify-content: center;
+}
+
+/* El padding de contenido vive acá (SIGO envuelve @Body en .app-content).
+   min-height auto (no 0): si el contenido no entra (la grilla en su piso), el
+   contenedor crece y .rz-body —overflow auto del tema— scrollea la página. */
 .rz-body > .app-content {
     display: flex;
     flex-direction: column;
     flex: 1 1 auto;
-    min-height: 0;
+    min-height: auto;
     padding: 0.75rem 1.25rem 1rem;
 }
 
 /* El llenado de altura aplica SOLO a grillas en la cadena del layout (hijas
    directas de .app-content o de un RadzenStack raíz). Una grilla anidada en
    una tarjeta/panel queda FUERA: su contenedor tiene altura auto y flex-basis 0
-   la colapsaría a cero (pasó con la grilla de /usuarios). */
+   la colapsaría a cero (pasó con la grilla de /usuarios). El stack no lleva
+   min-height 0: no puede achicarse por debajo del piso de su grilla. */
 .app-content > .rz-stack:has(> .rz-data-grid) {
     flex: 1 1 0;
-    min-height: 0;
     gap: 0.5rem; /* menos aire entre la toolbar y la grilla */
 }
 
+/* Piso de 20rem (~6 filas con el encabezado y el paginado): sin piso, en una
+   notebook con zoom de 175 % los listados mostraban 0 o 1 fila (WCAG 1.4.10). */
 .app-content > .rz-data-grid,
 .app-content > .rz-stack > .rz-data-grid {
     display: flex;
     flex-direction: column;
     flex: 1 1 0;
-    min-height: 0;
+    min-height: 20rem;
 }
 
 .app-content > .rz-data-grid .rz-data-grid-data,
@@ -288,21 +368,22 @@ html, body {
 }
 
 /* ===========================================================================
-   (SAF) RadzenDataGrid: cabecera notoria y celdas compactas
+   (SAF) RadzenDataGrid: cabecera notoria y padding de celdas y títulos
    =========================================================================== */
 .rz-data-grid table thead th {
     font-weight: bold !important;
     border-bottom: 2px solid gray !important;
 }
 
-.rz-grid-table td {
-    padding: 0.25rem 1rem !important;
-}
-
-/* Encabezados compactos: menos padding vertical para ganar filas visibles
-   sin achicar la letra. */
-.rz-data-grid {
-    --rz-grid-header-cell-padding: 0.25rem 0.5rem;
+/* Celdas a 1rem del borde y el título de cada columna a la misma distancia: el
+   título queda alineado con sus datos. Antes las celdas iban a 1rem con !important
+   y el título en los .5rem del tema Compact, corrido 8 px a la izquierda (y el
+   override del encabezado no aplicaba: perdía en especificidad contra la clase de
+   densidad). Todas las grillas son Compact; "body" le gana al tema, que define
+   estos tokens en la misma clase. El padding vertical sigue siendo el Compact. */
+body .rz-data-grid.rz-density-compact {
+    --rz-grid-cell-padding: 0.25rem 1rem;
+    --rz-grid-header-title-padding-inline: 1rem 0;
 }
 
 /* Títulos de columna en varias líneas en vez de elipsis (como en SAF): Radzen
@@ -353,10 +434,14 @@ html, body {
 }
 
 /* ===========================================================================
-   (SAF) Notificaciones: respetar saltos de línea (\n) en el detalle
+   (SAF) Notificaciones: respetar saltos de línea (\n) en el detalle.
+   SOLO en .rz-notification-content: la versión anterior ponía pre-line en todo
+   .rz-notification y, heredado por .rz-notification-item-wrapper (fondo blanco
+   en material), los saltos de línea del markup de Radzen se convertían en una
+   línea vacía bajo el toast coloreado: una franja blanca "fuera de cuadro".
    =========================================================================== */
-.rz-notification, .rz-notification .rz-notification, .rz-notification .rz-notification-content, .rz-notification .rz-notification-message, .rz-notification .rz-notification-detail {
-    white-space: pre-line !important;
+.rz-notification .rz-notification-content {
+    white-space: pre-line;
 }
 
 /* ===========================================================================
@@ -374,6 +459,8 @@ html, body {
     border-spacing: 0;
     border-top: 1px solid var(--rz-base-300);
     border-left: 1px solid var(--rz-base-300);
+    /* Única excepción a la escala de fuentes (convenciones-ui): las tablas densas de
+       13 columnas del certificado necesitan .8rem para entrar en una notebook. */
     font-size: .8rem;
 }
 .cert-grid th,
@@ -381,13 +468,25 @@ html, body {
     border: none;
     border-right: 1px solid var(--rz-base-300);
     border-bottom: 1px solid var(--rz-base-300);
-    padding: .28rem .45rem;
+    padding: .25rem .5rem;
     white-space: nowrap;
 }
+/* Alineación: texto a la izquierda; cifras a la derecha, título incluido (.num),
+   para que los decimales queden encolumnados; centrado solo para N°, unidad,
+   fechas, badges e íconos (.centro) y los títulos de grupo (colspan). */
 .cert-grid thead th {
     background: color-mix(in srgb, var(--rz-text-color) 6%, transparent);
-    text-align: center;
+    text-align: left;
     font-weight: 600;
+}
+.cert-grid thead th[colspan] { text-align: center; }
+.cert-grid .centro { text-align: center; }
+/* Campos dentro de la tabla (% del mes en la carga): del alto y la letra de la fila.
+   Con los 2.5rem del tema las filas de ítems salían casi el doble de altas que las
+   de rubros. La cifra va a la derecha con TextAlign en el RadzenNumeric. */
+.cert-grid {
+    --rz-input-height: 1.75rem;
+    --rz-input-font-size: .8rem;
 }
 .cert-grid tfoot td {
     background: color-mix(in srgb, var(--rz-text-color) 10%, transparent);
@@ -620,7 +719,8 @@ html, body {
 @keyframes app-spin { to { transform: rotate(360deg); } }
 /* El splash lo retira un script en App.razor cuando aparece el layout (no depende de :has()). */
 
-/* Overlay de "cargando circuito" desconectado */
+/* Barra de error no controlado de Blazor (MainLayout): la página dejó de responder. Los
+   cortes de conexión los muestra #components-reconnect-modal (App.razor). */
 #blazor-error-ui {
     display: none;
     position: fixed;
@@ -631,6 +731,52 @@ html, body {
     color: var(--rz-on-danger, #fff);
     text-align: center;
 }
+
+/* ===========================================================================
+   Aviso de reconexión (App.razor). Blazor 10 (blazor.web.js) le pone a
+   #components-reconnect-modal una clase por estado: show (reintentando, más retrying
+   desde el segundo intento), paused (circuito en pausa: Reanudar), failed (se agotaron
+   los reintentos: Reintentar), resume-failed y rejected (el servidor ya no tiene la
+   sesión: Recargar), hide al volver. Con un aviso propio no recarga solo.
+   =========================================================================== */
+#components-reconnect-modal {
+    display: none;
+}
+#components-reconnect-modal.components-reconnect-show,
+#components-reconnect-modal.components-reconnect-retrying,
+#components-reconnect-modal.components-reconnect-paused,
+#components-reconnect-modal.components-reconnect-failed,
+#components-reconnect-modal.components-reconnect-resume-failed,
+#components-reconnect-modal.components-reconnect-rejected {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, #000 40%, transparent);
+}
+.app-reconexion-caja {
+    max-width: min(28rem, 92vw);
+    padding: 1.5rem;
+    border-radius: 6px;
+    background: var(--rz-base-background-color, #fff);
+    color: var(--rz-text-color, #212121);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .3);
+}
+.app-reconexion-titulo { margin: 0 0 .5rem; font-weight: 600; font-size: 1.125rem; }
+.app-reconexion-caja p { margin: 0 0 .75rem; }
+.app-reconexion-caja .rz-button + .rz-button { margin-left: .5rem; }
+.app-reconexion-intentando,
+.app-reconexion-pausada,
+.app-reconexion-fallida,
+.app-reconexion-rechazada { display: none; }
+.components-reconnect-show .app-reconexion-intentando,
+.components-reconnect-retrying .app-reconexion-intentando,
+.components-reconnect-paused .app-reconexion-pausada,
+.components-reconnect-failed .app-reconexion-fallida,
+.components-reconnect-resume-failed .app-reconexion-rechazada,
+.components-reconnect-rejected .app-reconexion-rechazada { display: block; }
 
 /* ===========================================================================
    (SAF) Planificación: stepper del circuito (RadzenSteps) compacto e informativo
@@ -647,14 +793,14 @@ html, body {
     --rz-steps-number-height: 1.5rem;
     --rz-steps-number-line-height: 1.5rem;
     --rz-steps-number-padding-block: 0;
-    --rz-steps-title-margin-inline: .4rem .75rem;
+    --rz-steps-title-margin-inline: .5rem .75rem;
     --rz-steps-title-selected-color: var(--rz-steps-color);
     --rz-text-disabled-color: var(--rz-steps-color);
     --rz-steps-number-selected-background: var(--rz-text-color);
     --rz-steps-number-selected-color: var(--rz-base-background-color);
     --rz-steps-number-background-color: var(--rz-base-300);
     --rz-steps-number-color: var(--rz-text-secondary-color);
-    font-size: .85rem;
+    font-size: .875rem;
     user-select: none;
 }
 

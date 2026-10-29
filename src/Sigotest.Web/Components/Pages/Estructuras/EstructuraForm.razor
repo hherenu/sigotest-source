@@ -18,13 +18,13 @@ else if (obra is null)
 }
 else
 {
-    <CabeceraPagina Titulo="Nueva Estructura de Costos" Clase="rz-mb-4"
+    <CabeceraPagina Titulo="Nueva Estructura de Costos"
                     Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(obra.Nombre, $"obras/{ObraId}"), new("Estructuras", $"obras/{ObraId}/estructuras"), new("Nueva") })">
         <Subtitulo>@obra.Nombre — @obra.NumeroLicitacion</Subtitulo>
     </CabeceraPagina>
 
     <RadzenTemplateForm TItem="EstructuraFormVM" Data="@estructura" Submit="@GuardarAsync">
-        <RadzenStack Gap="1rem" style="max-width: 520px;">
+        <RadzenStack Gap="1rem" class="app-form-angosto">
             <div>
                 <RadzenFormField Text="Nombre de la estructura *" Variant="Variant.Outlined" style="width:100%">
                     <RadzenTextBox @bind-Value="estructura.Nombre" MaxLength="LargoTexto.PorDefecto" Name="Nombre" Placeholder="Ej: Estructura Original, Adicional N°1" style="width:100%" />

@@ -268,6 +268,32 @@ public class PlanObraRowVM
     public EstadoPlanificacion? EstadoPlan { get; set; }
     public DateTime? FechaTomaConocimiento { get; set; }
     public bool ObraFinalizada { get; set; }
+
+    /// <summary>Columna «Estado del plan»: lo que se ve y lo que ofrece su filtro.</summary>
+    public string EstadoPlanTexto => EstadoPlan is EstadoPlanificacion e ? Components.Shared.EstadoUi.Texto(e) : "Sin iniciar";
+
+    /// <summary>Columna «Ciclo del mes» mientras el plan no está aprobado ni la obra finalizada.</summary>
+    public const string SinCiclo = "—";
+
+    /// <summary>Columna «Ciclo del mes»: lo que se ve y lo que ofrece su filtro.</summary>
+    public string CicloDelMes =>
+        ObraFinalizada ? "Obra finalizada"
+        : FechaTomaConocimiento is DateTime ft ? $"Conocida el {ft.ToLocalTime():dd/MM}"
+        : EstadoPlan == EstadoPlanificacion.Aprobada ? "Falta toma de conocimiento"
+        : SinCiclo;
+
+    /// <summary>
+    /// Columna «Versión al corte»: depende del corte elegido y no de la obra, así que la
+    /// completa el listado al elegirlo con <see cref="TextoVersionAlCorte"/> (texto de la
+    /// columna y de su filtro).
+    /// </summary>
+    public string? VersionAlCorte { get; set; }
+
+    /// <summary>«Sep 2026 — conocida el 05/10/2026», o «Sin versión» si la obra no tiene una al corte.</summary>
+    public static string TextoVersionAlCorte(VersionCorteVM? version) =>
+        version is null
+            ? "Sin versión"
+            : $"{Components.Shared.Fmt.MesCorto(version.Mes)} {version.Anio} — conocida el {version.FechaTomaConocimiento.ToLocalTime():dd/MM/yyyy}";
 }
 
 /// <summary>Un mes con versiones tomadas, ofrecido como corte del listado.</summary>

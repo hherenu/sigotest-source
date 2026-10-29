@@ -3,17 +3,16 @@
 @inject ICurrentUser CurrentUser
 @inject NavigationManager Nav
 @inject ThemeService Tema
-@inject IJSRuntime JS
 @* Registrarlo en Program.cs NO alcanza: es scoped y RadzenTheme no lo resuelve —
    este inject es lo que lo construye en cada circuito. Al construirse lee la cookie
    SIGOTheme (restaura la elección tras F5) y se suscribe para escribirla en cada
    cambio de tema. Sin esto el toggle no persistía. *@
 @inject CookieThemeService PersistenciaTema
 
-@* La clase tema-claro habilita los overrides de contraste de app-blazor.css
-   (alertas Lighter y toasts, ilegibles con la paleta humanistic sobre fondo
-   claro). Envuelve también a RadzenComponents: los toasts renderizan ahí,
-   FUERA de RadzenLayout, y sin el wrapper no heredarían los tokens. *@
+@* La clase tema-claro ya no tiene estilos: los overrides de contraste de la era humanistic
+   se retiraron al pasar a material (ver la cabecera de app-blazor.css). Queda como gancho
+   por si un toast o una alerta vuelve a necesitar un ajuste solo en el tema claro; el
+   wrapper envuelve también a RadzenComponents, donde renderizan los toasts. *@
 <div class="@(EsTemaClaro ? "tema-claro" : null)">
 @* Skip-link (WCAG 2.4.1): invisible salvo con foco; evita tabular por todo el
    menú lateral en cada página para llegar al contenido. *@
@@ -25,11 +24,11 @@
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
             <RadzenSidebarToggle Click="@(() => sidebarExpanded = !sidebarExpanded)" />
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem"
-                         style="margin-left:auto" class="rz-pr-3">
+                         style="margin-left:auto" class="rz-pr-5">
                 <RadzenAppearanceToggle />
                 @if (usuario is not null)
                 {
-                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem"
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem"
                                  title="@usuarioCompleto">
                         <RadzenIcon Icon="account_circle" />
                         @* RadzenText trae su propio color de texto (oscuro en tema claro), ilegible
@@ -42,8 +41,11 @@
     </RadzenHeader>
 
     @* Como en SAF: colapsar no oculta el menú, lo deja en modo solo-íconos
-       (DisplayStyle) con la sidebar angosta al ancho del contenido. *@
-    <RadzenSidebar Responsive="false" Style="width: max-content">
+       (DisplayStyle) con la sidebar angosta al ancho del contenido. Los anchos
+       viven en app-blazor.css (.rz-layout > .rz-sidebar); la clase
+       app-sidebar-iconos ajusta los paddings del menú en modo solo-íconos para
+       que la columna mida lo mismo que el toggle de la cabecera. *@
+    <RadzenSidebar Responsive="false" class="@(sidebarExpanded ? null : "app-sidebar-iconos")">
         <RadzenPanelMenu DisplayStyle="@(sidebarExpanded ? MenuItemDisplayStyle.IconAndText : MenuItemDisplayStyle.Icon)" ShowArrow="false">
             @* El menú solo muestra los módulos a los que el rol del usuario accede.
                En modo solo-íconos Radzen suprime el texto y no pone title: sin el
@@ -93,14 +95,17 @@
 
 <RadzenComponents />
 
+@* Lo muestra Blazor ante un error no controlado que deja la página sin responder (no
+   ante un corte de conexión: eso lo avisa #components-reconnect-modal, en App.razor). *@
 <div id="blazor-error-ui">
-    Se perdió la conexión con el servidor.
+    Ocurrió un error inesperado y la página dejó de responder. Recargala para seguir; si se repite, avisá a Sistemas.
     <a href="" class="reload">Recargar</a>
 </div>
 </div>
 
 @code {
-    private bool sidebarExpanded = true;
+    // Arranca en modo solo-íconos en cualquier pantalla; el toggle manda después.
+    private bool sidebarExpanded = false;
     private ErrorBoundary? errorBoundary;
 
     private bool EsTemaClaro => Tema.Theme is { Length: > 0 } t && !t.Contains("dark");
@@ -140,19 +145,4 @@
     // Al navegar a otra página, el boundary vuelve a renderizar el contenido normal
     // (sin esto quedaría clavado en el error hasta un F5).
     protected override void OnParametersSet() => errorBoundary?.Recover();
-
-    // Sidebar colapsada de entrada en pantallas angostas (Responsive=false la
-    // dejaba expandida tapando media pantalla en móvil). Solo el estado INICIAL:
-    // el toggle manual manda después. Server-side no conoce el viewport, por eso
-    // se consulta por JS tras el primer render.
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender) return;
-        var ancho = await JS.InvokeAsync<int>("sigoAnchoVentana");
-        if (ancho < 900 && sidebarExpanded)
-        {
-            sidebarExpanded = false;
-            StateHasChanged();
-        }
-    }
 }

@@ -10,7 +10,7 @@
 
 @* Mismo nombre que el menú y el Home ("Calcular Redeterminación"): el módulo tenía
    cuatro nombres distintos y el usuario no podía confirmar dónde estaba. *@
-<CabeceraPagina Titulo="Calcular Redeterminación" Estilo="TextStyle.H4" Clase="rz-mb-4">
+<CabeceraPagina Titulo="Calcular Redeterminación" Estilo="TextStyle.H4">
     <Badges>
         @if (editarId.HasValue)
         {
@@ -101,7 +101,7 @@
                        y un guardado se veía como acción destructiva. El estado ya lo
                        comunica el banner. *@
                     <RadzenButton Text="@(editarId.HasValue ? "Actualizar cálculo" : "Guardar cálculo")" Icon="save"
-                                  ButtonStyle="ButtonStyle.Primary"
+                                  Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
                                   IsBusy="@guardando" BusyText="Guardando..." Click="@GuardarAsync" />
                 }
                 <RadzenButton Text="Excel" Icon="download" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Flat"
@@ -115,7 +115,7 @@
         @if (vm.Items.Any())
         {
             <div class="rz-mb-3">
-                <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-0" style="font-weight:600;display:inline">Tabla de Ponderación — @obra?.Nombre</RadzenText>
+                <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-0 app-titulo-bloque" style="display:inline">Tabla de Ponderación — @obra?.Nombre</RadzenText>
                 <RadzenText TextStyle="TextStyle.Caption" class="app-muted" style="display:inline;margin-left:.5rem">@MesBaseCorto → @MesSaltoCorto</RadzenText>
             </div>
             <TablaPonderacionCalculo EtiquetaBase="@MesBaseCorto" EtiquetaSalto="@MesSaltoCorto"

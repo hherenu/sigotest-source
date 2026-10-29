@@ -1,4 +1,4 @@
-@* Cabecera estándar de las páginas de detalle/edición: título H1 (+badges) y subtítulo
+@* Cabecera estándar de todas las páginas (salvo el Home y SinAcceso): título H1 (+badges) y subtítulo
    a la izquierda, botones de acción a la derecha. Antes estaba copiada con variaciones
    accidentales en 9 páginas; las diferencias deliberadas entran por parámetros. *@
 @if (Migas is { Count: > 0 })
@@ -27,7 +27,7 @@
 }
 <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
              AlignItems="AlignItems.Center" Wrap="FlexWrap.Wrap" Gap="0.5rem" class="@Clase">
-    <RadzenStack Gap="0.15rem">
+    <RadzenStack Gap="0.25rem">
         @if (Badges is null)
         {
             <RadzenText TextStyle="@Estilo" TagName="TagName.H1" class="rz-mb-0">@Titulo</RadzenText>
@@ -47,7 +47,10 @@
     </RadzenStack>
     @if (Acciones is not null)
     {
-        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+        @* Botones Small (convenciones-ui) y, con app-cabecera-acciones, buscadores y
+           selectores de la misma altura que ellos. *@
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap"
+                     class="app-cabecera-acciones">
             @Acciones
         </RadzenStack>
     }
@@ -57,7 +60,10 @@
     /// <summary>Título de la página (H1 visual en el TextStyle de <see cref="Estilo"/>).</summary>
     [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
 
-    /// <summary>TextStyle del título: H5 en detalle/edición, H4 en los listados raíz.</summary>
+    /// <summary>
+    /// TextStyle del título: H4 solo en las páginas raíz del menú (Obras, Índices INDEC,
+    /// Calcular, Historial, Planificación, Usuarios); el resto, H5 (ConvencionesUiTests).
+    /// </summary>
     [Parameter] public TextStyle Estilo { get; set; } = TextStyle.H5;
 
     /// <summary>Badges a la derecha del título (estado, fechas).</summary>
@@ -72,8 +78,11 @@
     /// <summary>Botones de la derecha.</summary>
     [Parameter] public RenderFragment? Acciones { get; set; }
 
-    /// <summary>Clases del contenedor; el margen inferior lo decide la página.</summary>
-    [Parameter] public string Clase { get; set; } = "rz-mb-3";
+    /// <summary>
+    /// Clases del contenedor. El margen inferior es 1rem en todas las páginas (antes la
+    /// mitad pasaba rz-mb-4 y la otra mitad quedaba en rz-mb-3).
+    /// </summary>
+    [Parameter] public string Clase { get; set; } = "rz-mb-4";
 
     /// <summary>Tramo de la miga de pan: texto + ruta (null = página actual, sin link).</summary>
     public record Miga(string Texto, string? Ruta = null);

@@ -3,14 +3,21 @@
 @inject UsuarioService Service
 @inject DialogService DialogService
 @inject NotificationService Notifications
+@inject EstadoGrillas Grillas
 
 <PageTitle>Usuarios</PageTitle>
 
-<CabeceraPagina Titulo="Usuarios" Estilo="TextStyle.H4" Clase="rz-mb-4">
+<CabeceraPagina Titulo="Usuarios" Estilo="TextStyle.H4">
     <Subtitulo>
         La autenticación es Windows y <b>no hay alta manual</b>: quien entra por primera vez se registra solo,
         <b>sin ningún rol</b> (no puede hacer nada hasta que un Admin le tilde roles acá). Un usuario sin roles o inactivo no accede a ningún módulo.
     </Subtitulo>
+    <Acciones>
+        @if (usuarios is { Count: > 0 })
+        {
+            <FiltrosGrilla Vista="@vista" Placeholder="Buscar usuario, nombre o email…" />
+        }
+    </Acciones>
 </CabeceraPagina>
 
 @if (usuarios is null)
@@ -28,56 +35,53 @@ else
        layout — ocupa el alto restante con scroll interno y encabezado fijo. La
        edición abre en diálogo (el registro es automático al primer ingreso,
        acá no se crean usuarios). *@
-    <RadzenDataGrid Data="@usuarios" TItem="UsuarioVM" Density="Density.Compact"
-                    AllowFiltering="true" FilterMode="FilterMode.CheckBoxList"
-                    FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
-                    AllowSorting="true" AllowPaging="true" PageSize="20"
-                    EmptyText="Ningún registro coincide con los filtros aplicados.">
-        <Columns>
-            <RadzenDataGridColumn TItem="UsuarioVM" Property="WindowsUser" Title="Usuario Windows" Width="180px" />
-            <RadzenDataGridColumn TItem="UsuarioVM" Property="Nombre" Title="Nombre" />
-            <RadzenDataGridColumn TItem="UsuarioVM" Property="Email" Title="Email" />
-            <RadzenDataGridColumn TItem="UsuarioVM" Title="Roles" Sortable="false" Filterable="false">
-                <Template Context="u">
-                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" Wrap="FlexWrap.Wrap">
-                        @foreach (var r in u.Roles.OrderBy(x => x))
-                        {
-                            <RadzenBadge Text="@r.ToString()" IsPill="true"
-                                         BadgeStyle="@(r == RolUsuario.Admin ? BadgeStyle.Danger : BadgeStyle.Info)" />
-                        }
-                    </RadzenStack>
-                </Template>
-            </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="UsuarioVM" Property="Activo" Title="Activo" Width="80px" TextAlign="TextAlign.Center">
-                <Template Context="u">
-                    <RadzenIcon Icon="@(u.Activo ? "check_circle" : "cancel")"
-                                IconColor="@(u.Activo ? "var(--rz-success)" : "var(--rz-danger)")"
-                                title="@(u.Activo ? "Activo" : "Inactivo")" />
-                </Template>
-            </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="UsuarioVM" Title="" Width="90px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
-                <Template Context="u">
-                    @* editar=Primary y eliminar=delete, como todas las filas de la app
-                       (eran Warning y close, únicos acá). *@
-                    <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
-                                  title="Editar" Disabled="@procesando" Click="@(() => EditarAsync(u))" />
-                    <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
-                                  title="Eliminar" Disabled="@procesando" Click="@(() => EliminarAsync(u))" />
-                </Template>
-            </RadzenDataGridColumn>
-        </Columns>
-    </RadzenDataGrid>
+    <GrillaListado Vista="@vista">
+        <RadzenDataGridColumn TItem="UsuarioVM" Property="WindowsUser" Title="Usuario Windows" Width="180px" />
+        <RadzenDataGridColumn TItem="UsuarioVM" Property="Nombre" Title="Nombre" Width="200px" />
+        <RadzenDataGridColumn TItem="UsuarioVM" Property="Email" Title="Email" Width="220px" />
+        @* El filtro ofrece las combinaciones de roles tal como se ven («Admin, Gerente»):
+           tildar «Admin» no incluye «Admin, Gerente»; su buscador encuentra todas las que
+           tienen un rol. *@
+        @* Roles y Activo en texto, sin badges ni ícono en color (convenciones-ui, «Celdas en texto»). *@
+        <RadzenDataGridColumn TItem="UsuarioVM" Property="RolesTexto" Title="Roles" Width="200px" Sortable="false" WhiteSpace="WhiteSpace.Wrap">
+            <Template Context="u">
+                <span class="@(u.Roles.Any() ? null : "app-muted")">@u.RolesTexto</span>
+            </Template>
+        </RadzenDataGridColumn>
+        @* Property es el texto y no el bool: con un FilterProperty distinto, Radzen toma
+           Property como colección (SelectMany) y el filtro rompía la página. *@
+        <RadzenDataGridColumn TItem="UsuarioVM" Property="ActivoTexto" SortProperty="Activo" Title="Activo" Width="@AnchoColumna.Estado" />
+        <RadzenDataGridColumn TItem="UsuarioVM" Title="" Width="@AnchoColumna.Acciones(2)" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+            <Template Context="u">
+                @* editar=Primary y eliminar=delete, como todas las filas de la app
+                   (eran Warning y close, únicos acá). *@
+                <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
+                              title="Editar" Disabled="@procesando" Click="@(() => EditarAsync(u))" />
+                <RadzenButton Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text"
+                              title="Eliminar" Disabled="@procesando" Click="@(() => EliminarAsync(u))" />
+            </Template>
+        </RadzenDataGridColumn>
+    </GrillaListado>
 }
 
 @code {
     // Nullable: null = cargando. Inicializarla en new() mostraba el estado vacío
     // ("Todavía no hay usuarios registrados") durante toda la carga.
     private List<UsuarioVM>? usuarios;
+    private VistaGrilla<UsuarioVM> vista = null!;
     private bool procesando;
 
-    protected override async Task OnInitializedAsync() => await CargarAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        vista = new(Grillas.De("usuarios"), u => [u.WindowsUser, u.Nombre, u.Email]);
+        await CargarAsync();
+    }
 
-    private async Task CargarAsync() => usuarios = await Service.ListarAsync();
+    private async Task CargarAsync()
+    {
+        usuarios = await Service.ListarAsync();
+        vista.Cargar(usuarios);
+    }
 
     private async Task EditarAsync(UsuarioVM u)
     {
@@ -103,7 +107,7 @@ else
             var resultado = await DialogService.OpenAsync<UsuarioEditarDialog>(
                 $"Editar — {u.WindowsUser}",
                 new Dictionary<string, object?> { [nameof(UsuarioEditarDialog.Usuario)] = copia },
-                new DialogOptions { Width = "min(480px, 92vw)" });
+                new DialogOptions { Width = AnchoDialogo.Corto });
 
             if (resultado is true)
                 await CargarAsync();

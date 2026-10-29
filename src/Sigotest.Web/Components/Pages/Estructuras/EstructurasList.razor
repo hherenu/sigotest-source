@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = Roles.Certificaciones)]
 @inject EstructuraService Estructuras
 @inject NavigationManager Nav
+@inject RetornoObra Retorno
 @inject DialogService DialogService
 @inject NotificationService Notifications
 
@@ -19,14 +20,15 @@ else if (obra is null || estructuras is null)
 }
 else
 {
-    <CabeceraPagina Titulo="Estructuras de Costos" Clase="rz-mb-4"
+    <CabeceraPagina Titulo="Estructuras de Costos"
                     Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(obra.Nombre, $"obras/{ObraId}"), new("Estructuras") })">
         <Subtitulo>@obra.Nombre — @obra.NumeroLicitacion</Subtitulo>
         <Acciones>
             <RadzenButton Text="Nueva Estructura" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
                           Click="@(() => Nav.NavigateTo($"obras/{ObraId}/estructuras/nueva"))" />
-            <RadzenButton Text="Volver a Obra" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
-                          Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"obras/{ObraId}"))" />
+            @* Vuelve a donde se entró: la ficha o el listado de Obras (RetornoObra). *@
+            <RadzenButton Text="@Retorno.Volver(ObraId).Texto" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
+                          Variant="Variant.Flat" Click="@(() => Nav.NavigateTo(Retorno.Volver(ObraId).Ruta))" />
         </Acciones>
     </CabeceraPagina>
 
@@ -48,8 +50,8 @@ else
                 <RadzenColumn @key="est.Id" Size="12" SizeMD="6">
                     <RadzenCard Variant="Variant.Outlined">
                         <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
-                                     AlignItems="AlignItems.Center" class="rz-mb-2">
-                            <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-0" style="font-weight:600">@est.Nombre</RadzenText>
+                                     AlignItems="AlignItems.Center" class="rz-mb-3">
+                            <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-0 app-titulo-bloque">@est.Nombre</RadzenText>
                             <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">
                                 Creada: @est.FechaCreacion.ToString("dd/MM/yyyy")
                             </RadzenText>

@@ -1,0 +1,33 @@
+@typeparam TItem where TItem : notnull
+@inherits ComponenteDeVista<TItem>
+@* Grilla de los listados (obras, certificados, índices, valores, usuarios, planificación):
+   la misma configuración en todos, con el estado en la VistaGrilla de la página (portado
+   de SAF). La página solo declara las columnas; la búsqueda va en la cabecera con
+   FiltrosGrilla sobre la misma vista.
+   Data es Vista.Filas y nunca una lista armada en el render: Radzen vuelve a la página 1
+   con cada Data nueva. AllowColumnResize además evita que, con otra Data, Radzen borre
+   filtros y orden.
+   @key: si la página arma otra vista (otra obra u otro índice sin salir de la página), la
+   grilla se crea de nuevo; @ref solo se asigna al crearla y la vista nueva quedaba sin
+   grilla, con los filtros de la anterior aplicados. *@
+<RadzenDataGrid @key="Vista" @ref="Vista.Grid" Data="@Vista.Filas" TItem="TItem"
+                AllowFiltering="true" FilterMode="FilterMode.CheckBoxList"
+                FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                AllowSorting="true" AllowPaging="true" PageSize="20" AllowColumnResize="true"
+                Density="Density.Compact"
+                EmptyText="@GridTextos.VacioListado(Vista.Total)"
+                ApplyFilterText="@GridTextos.AplicarFiltro" ClearFilterText="@GridTextos.LimpiarFiltro"
+                SettingsChanged="@Vista.GuardarSettings" LoadSettings="@Vista.CargarSettings">
+    <Columns>
+        @ChildContent
+    </Columns>
+    <FooterTemplate>
+        @* Cuántas filas quedan a la vista y, si la búsqueda o los filtros recortan, de cuántas. *@
+        <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">@GridTextos.Filas(Vista.Visibles, Vista.Total)</RadzenText>
+    </FooterTemplate>
+</RadzenDataGrid>
+
+@code {
+    /// <summary>Las columnas (RadzenDataGridColumn), todas con filtro salvo la de acciones.</summary>
+    [Parameter, EditorRequired] public RenderFragment ChildContent { get; set; } = null!;
+}

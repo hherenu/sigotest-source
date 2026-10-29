@@ -18,7 +18,7 @@
 </CabeceraPagina>
 
 <RadzenDropDown @bind-Value="filterObraId" Data="@obras" TextProperty="Etiqueta" ValueProperty="Id" TValue="int?"
-                AllowClear="true" Placeholder="-- Todas las obras --" style="width:100%;max-width:420px" class="rz-mb-3"
+                AllowClear="true" Placeholder="-- Todas las obras --" style="width:100%" class="rz-mb-3 app-form-angosto"
                 title="Filtrar por obra" aria-label="Filtrar por obra"
                 Change="@OnFiltroChanged" />
 
@@ -60,18 +60,18 @@ else
         var verOS = grupo.Any(x => x.FechaAprobacionOS is not null);
         var verLimite = grupo.Any(x => x.FechaLimitePresentacion is not null);
         <RadzenCard @key="grupo.Key" Variant="Variant.Outlined" class="rz-mb-4">
-            <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-3" style="font-weight:600">@obra.ObraNumeroLicitacion — @obra.ObraNombre</RadzenText>
+            <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-3 app-titulo-bloque">@obra.ObraNumeroLicitacion — @obra.ObraNombre</RadzenText>
             <div class="cert-scroll">
                 <table class="cert-grid">
                     <caption class="sr-only">Disparos de redeterminación de @obra.ObraNombre</caption>
                     <thead>
                         <tr>
-                            <th scope="col">Disparo N°</th>
+                            <th scope="col" class="centro">Disparo N°</th>
                             <th scope="col" title="Desde Presentada (expediente VR cargado) el disparo no se recalcula ni se elimina">Estado</th>
-                            <th scope="col">Mes de Disparo</th>
-                            <th scope="col" title="Variación de referencia respecto del mes base (habilita redeterminación desde el @(Redet.SaltoMinimo.ToString("N0"))%)">Variación Ref. %</th>
-                            <th scope="col" title="Coeficiente total Kᵢ/K₀ del salto">Coef. (K/K₀)</th>
-                            <th scope="col" title="Variación acumulada de la cadena de disparos">Var. Acumulada</th>
+                            <th scope="col" class="centro">Mes de Disparo</th>
+                            <th scope="col" class="num" title="Variación de referencia respecto del mes base (habilita redeterminación desde el @(Redet.SaltoMinimo.ToString("N0"))%)">Variación Ref. %</th>
+                            <th scope="col" class="num" title="Coeficiente total Kᵢ/K₀ del salto">Coef. (K/K₀)</th>
+                            <th scope="col" class="num" title="Variación acumulada de la cadena de disparos">Var. Acumulada</th>
                             <th scope="col">Publicación</th>
                             @if (verExpediente)
                             {
@@ -79,66 +79,68 @@ else
                             }
                             @if (verCCyR)
                             {
-                                <th scope="col" title="Fecha de aprobación CCyR">Aprob. CCyR</th>
+                                <th scope="col" class="centro" title="Fecha de aprobación CCyR">Aprob. CCyR</th>
                             }
                             @if (verOS)
                             {
-                                <th scope="col" title="Fecha de aprobación OS">Aprob. OS</th>
+                                <th scope="col" class="centro" title="Fecha de aprobación OS">Aprob. OS</th>
                             }
                             @if (verLimite)
                             {
-                                <th scope="col" title="Fecha límite de presentación de la redeterminación definitiva">Límite Red. Def.</th>
+                                <th scope="col" class="centro" title="Fecha límite de presentación de la redeterminación definitiva">Límite Red. Def.</th>
                             }
-                            <th scope="col">Acciones</th>
+                            <th scope="col" class="centro">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
                         @* Con el mismo número, el dado de baja va antes del que lo reemplazó. *@
                         @foreach (var r in grupo.OrderBy(x => x.NroDisparo).ThenBy(x => RedeterminacionValidator.EsVigente(x.Estado)))
                         {
-                            <tr @key="r.Id" style="text-align:center" class="@(RedeterminacionValidator.EsVigente(r.Estado) ? null : "app-muted")">
-                                <td style="font-weight:700">@r.NroDisparo</td>
-                                <td>
-                                    <RadzenBadge Text="@RedeterminacionValidator.TextoEstado(r.Estado)" BadgeStyle="@EstadoUi.Badge(r.Estado)"
-                                                 IsPill="true" Shade="Shade.Lighter" />
-                                </td>
-                                <td>@Fmt.MesCorto(r.MesSalto)-@(r.AnioSalto % 100)</td>
-                                <td style="white-space:nowrap">
+                            @* Sin centrar la fila entera: las cifras van a la derecha para que los
+                               decimales queden encolumnados (convenciones-ui, tablas cert-grid). *@
+                            <tr @key="r.Id" class="@(RedeterminacionValidator.EsVigente(r.Estado) ? null : "app-muted")">
+                                <td class="centro" style="font-weight:700">@r.NroDisparo</td>
+                                @* En texto, sin badge (convenciones-ui, «Celdas en texto»). *@
+                                <td>@RedeterminacionValidator.TextoEstado(r.Estado)</td>
+                                <td class="centro">@Fmt.MesCorto(r.MesSalto)-@(r.AnioSalto % 100)</td>
+                                <td class="num">
                                     @if (r.PorcentajeAumento.HasValue)
                                     {
-                                        @* Badge con texto además del color: el rojo significa "no llega
-                                           al salto mínimo", no "variación negativa", y sin texto se
-                                           malinterpretaba (y era invisible para daltónicos). *@
-                                        <span style="@($"font-weight:700;color:{Redet.ColorSuba(r.PorcentajeAumento)}")">@r.PorcentajeAumento.Value.ToString("N4")%</span>
-                                        <RadzenBadge Text="@(Redet.EsSuba(r.PorcentajeAumento) ? "Habilita" : "No habilita")" IsPill="true"
-                                                     BadgeStyle="@(Redet.EsSuba(r.PorcentajeAumento) ? BadgeStyle.Success : BadgeStyle.Danger)"
-                                                     Shade="Shade.Lighter" class="rz-ml-1" />
+                                        @* Solo la cifra en color, sin el badge «Habilita / No habilita»
+                                           (decisión del usuario, 2026-10-29: recargaba la columna). El
+                                           rojo significa «no llega al salto mínimo», no «variación
+                                           negativa»: el criterio va en el title de la celda y del
+                                           encabezado (excepción documentada en convenciones-ui). *@
+                                        <span style="@($"font-weight:700;color:{Redet.ColorSuba(r.PorcentajeAumento)}")"
+                                              title="@(Redet.EsSuba(r.PorcentajeAumento) ? "Habilita la redeterminación" : $"No habilita: la suba no llega al {Redet.SaltoMinimo:N0} %")">@r.PorcentajeAumento.Value.ToString("N4")%</span>
                                     }
                                     else
                                     {
                                         <span>—</span>
                                     }
                                 </td>
-                                <td>@r.TotalKiK0?.ToString("N2")</td>
-                                <td style="font-weight:600">@r.VariacionAcumulada?.ToString("N2")</td>
+                                <td class="num">@r.TotalKiK0?.ToString("N2")</td>
+                                <td class="num" style="font-weight:600">@r.VariacionAcumulada?.ToString("N2")</td>
                                 <td>@Fmt.PubMayus(r.IdPublicacionSalto ?? r.IdPublicacionBase)</td>
                                 @if (verExpediente)
                                 {
-                                    <td style="text-align:left">@(string.IsNullOrWhiteSpace(r.NroExpedienteVR) ? "—" : r.NroExpedienteVR)</td>
+                                    <td>@(string.IsNullOrWhiteSpace(r.NroExpedienteVR) ? "—" : r.NroExpedienteVR)</td>
                                 }
+                                @* dd/MM/yyyy como el resto de la app: con d/M/yyyy las fechas tenían
+                                   ancho variable y no quedaban encolumnadas. *@
                                 @if (verCCyR)
                                 {
-                                    <td>@r.FechaAprobacionCCyR?.ToString("d/M/yyyy")</td>
+                                    <td class="centro">@r.FechaAprobacionCCyR?.ToString("dd/MM/yyyy")</td>
                                 }
                                 @if (verOS)
                                 {
-                                    <td>@r.FechaAprobacionOS?.ToString("d/M/yyyy")</td>
+                                    <td class="centro">@r.FechaAprobacionOS?.ToString("dd/MM/yyyy")</td>
                                 }
                                 @if (verLimite)
                                 {
-                                    <td>@r.FechaLimitePresentacion?.ToString("d/M/yyyy")</td>
+                                    <td class="centro">@r.FechaLimitePresentacion?.ToString("dd/MM/yyyy")</td>
                                 }
-                                <td style="white-space:nowrap">
+                                <td class="centro">
                                     <RadzenButton Icon="visibility" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info" Variant="Variant.Text"
                                                   title="Ver" Click="@(() => Nav.NavigateTo($"redeterminacion/{r.Id}"))" />
                                     @* Habilitados aunque la regla de negocio no aplique: un botón
@@ -232,7 +234,7 @@ else
             var resultado = await DialogService.OpenAsync<RedeterminacionAdminDialog>(
                 $"Disparo N° {vm.NroDisparo} — Datos Administrativos",
                 new Dictionary<string, object?> { [nameof(RedeterminacionAdminDialog.Vm)] = vm },
-                new DialogOptions { Width = "min(480px, 92vw)" });
+                new DialogOptions { Width = AnchoDialogo.Corto });
 
             if (resultado is true)
                 await CargarAsync();

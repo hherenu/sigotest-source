@@ -20,7 +20,7 @@ else if (estructura is null)
 }
 else
 {
-    <CabeceraPagina Titulo="Importar ítems desde Excel" Clase="rz-mb-4"
+    <CabeceraPagina Titulo="Importar ítems desde Excel"
                     Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(estructura.ObraNombre, $"obras/{estructura.ObraId}"), new("Estructuras", $"obras/{estructura.ObraId}/estructuras"), new(estructura.Nombre, $"estructuras/{Id}"), new("Importar") })">
         <Subtitulo>@estructura.ObraNombre — @estructura.ObraNumeroLicitacion</Subtitulo>
         <Acciones>
@@ -33,7 +33,7 @@ else
        las descripciones de ítem son largas y a dos columnas la grilla no se leía. La
        acción va al final del panel, después de las opciones que definen qué se importa. *@
     <RadzenCard Variant="Variant.Outlined" class="rz-mb-3">
-        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Planilla</RadzenText>
+        <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-3">Planilla</RadzenText>
         <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-3">
             Se aceptan la <b>planilla de desglose</b> del Anexo VII (Item, Descripción, U, Cantidad, Precio Unitario),
             la <b>planilla de cotización</b> (Rubro, Descripción, U, Cantidad, Subtotal) y el <b>balance de un BED</b>
@@ -123,7 +123,7 @@ else
     </RadzenCard>
 
     <RadzenCard Variant="Variant.Outlined">
-        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">Vista previa</RadzenText>
+        <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-3">Vista previa</RadzenText>
         @if (leyendo)
         {
             <EstadoCargando Texto="Leyendo la planilla…" />
@@ -168,29 +168,29 @@ else
             @* PageSize 50 y no 20: la vista previa se revisa de corrido antes de importar y las
                planillas reales tienen cientos de filas. *@
             <RadzenDataGrid Data="@filasVista" TItem="FilaEstructuraImport" Density="Density.Compact" class="app-grid-wrap"
-                            AllowPaging="true" PageSize="50" AllowSorting="false" RowRender="@OnRowRender"
+                            AllowPaging="true" PageSize="50" AllowSorting="false" AllowColumnResize="true" RowRender="@OnRowRender"
                             EmptyText="Elegí al menos una sección para ver sus filas.">
                 <Columns>
-                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Property="Fila" Title="Fila" Width="60px" TextAlign="TextAlign.Center" />
+                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Property="Fila" Title="Fila" Width="@AnchoColumna.Numero" TextAlign="TextAlign.Center" />
                     <RadzenDataGridColumn TItem="FilaEstructuraImport" Title="Tipo" Width="135px">
                         <Template Context="f">
-                            <RadzenBadge Text="@EtiquetaTipo(f.Tipo)" BadgeStyle="@BadgeTipo(f.Tipo)" />
+                            <span class="@ClaseTipo(f.Tipo)">@EtiquetaTipo(f.Tipo)</span>
                         </Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Title="Código" Width="185px">
+                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Title="Código" Width="@AnchoColumna.Codigo">
                         <Template Context="f"><span class="app-mono">@f.Codigo</span></Template>
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="FilaEstructuraImport" Title="Descripción" Width="360px" WhiteSpace="WhiteSpace.Wrap">
                         <Template Context="f"><span style="display:block;padding-left:@(FilaEstructuraUi.Sangria(f.Nivel))px">@f.Descripcion</span></Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Property="Unidad" Title="U" Width="60px" TextAlign="TextAlign.Center" />
-                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Title="Cantidad" Width="110px" TextAlign="TextAlign.Right">
+                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Property="Unidad" Title="Unidad" Width="@AnchoColumna.Unidad" TextAlign="TextAlign.Center" />
+                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Title="Cantidad" Width="@AnchoColumna.Cantidad" TextAlign="TextAlign.Right">
                         <Template Context="f">@(f.Cantidad is decimal c ? Fmt.HastaN4(c) : "")</Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Title="PU" Width="150px" TextAlign="TextAlign.Right">
+                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Title="PU Básico" Width="@AnchoColumna.Importe" TextAlign="TextAlign.Right">
                         <Template Context="f">@(f.PUBasico is decimal p ? "$ " + Fmt.HastaN4(p) : "")</Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Title="Monto" Width="150px" TextAlign="TextAlign.Right">
+                    <RadzenDataGridColumn TItem="FilaEstructuraImport" Title="Monto" Width="@AnchoColumna.Importe" TextAlign="TextAlign.Right">
                         <Template Context="f">@(f.Monto is decimal m ? "$ " + Fmt.N2(m) : "")</Template>
                     </RadzenDataGridColumn>
                     <RadzenDataGridColumn TItem="FilaEstructuraImport" Property="Detalle" Title="Detalle" Width="260px" WhiteSpace="WhiteSpace.Wrap" />
@@ -368,11 +368,7 @@ else
         _ => "Ignorada"
     };
 
-    private static BadgeStyle BadgeTipo(TipoFilaEstructura t) => t switch
-    {
-        TipoFilaEstructura.Rubro or TipoFilaEstructura.SubRubro => BadgeStyle.Info,
-        TipoFilaEstructura.Item => BadgeStyle.Success,
-        TipoFilaEstructura.ItemSinMonto or TipoFilaEstructura.ItemSinCodigo => BadgeStyle.Warning,
-        _ => BadgeStyle.Secondary
-    };
+    /// <summary>Color de alerta del tipo (convenciones-ui, «Celdas en texto»): solo los ítems con advertencia.</summary>
+    private static string? ClaseTipo(TipoFilaEstructura t) =>
+        t is TipoFilaEstructura.ItemSinMonto or TipoFilaEstructura.ItemSinCodigo ? "app-texto-aviso" : null;
 }

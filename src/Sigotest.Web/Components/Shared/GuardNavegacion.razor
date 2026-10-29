@@ -1,6 +1,7 @@
 @inject DialogService DialogService
 
-@* Guard de navegación para páginas de carga masiva (certificados y planificación):
+@* Guard de navegación para páginas de carga masiva (certificados y planificación) y
+   formularios largos (obra, con Instantanea para detectar los cambios):
    con cambios tipeados sin guardar, la navegación interna pide confirmación con un
    diálogo Radzen y la externa (F5, cerrar pestaña, forceLoad) dispara el aviso
    nativo del navegador vía ConfirmExternalNavigation. El predicado lo aporta cada

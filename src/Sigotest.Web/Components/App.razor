@@ -36,13 +36,48 @@
     <div id="app-loading"><div class="app-spinner"></div></div>
 
     <Routes @rendermode="modoRender" />
+
+    @* Aviso de reconexión en castellano. Sin un elemento con este id, Blazor muestra el suyo
+       en inglés («Rejoining the server…»); con él, solo le pone una clase por estado (ver
+       app-blazor.css) y no recarga solo. Va acá, estático, y no en el layout: tiene que
+       existir aunque el circuito se haya caído. Reconectar o reanudar conservan lo tipeado;
+       una sesión que el servidor ya no tiene (la app se reinició) no. *@
+    <div id="components-reconnect-modal" class="app-reconexion" data-nosnippet>
+        <div class="app-reconexion-caja" role="alertdialog" aria-modal="true" aria-labelledby="app-reconexion-titulo">
+            <p id="app-reconexion-titulo" class="app-reconexion-titulo">Se perdió la conexión con el servidor</p>
+            <p class="app-reconexion-intentando">
+                Reintentando… Lo que cargaste y no guardaste sigue en pantalla: esperá a que vuelva
+                la conexión antes de seguir, y no recargues la página.
+            </p>
+            <div class="app-reconexion-pausada">
+                <p>La conexión quedó en pausa. Lo que no guardaste sigue en pantalla.</p>
+                <button type="button" class="rz-button rz-button-md rz-variant-filled rz-primary rz-shade-default"
+                        onclick="Blazor.resumeCircuit()">Reanudar</button>
+            </div>
+            <div class="app-reconexion-fallida">
+                <p>
+                    No se pudo reconectar. Lo que no guardaste sigue en pantalla mientras no recargues:
+                    reintentá cuando vuelva la red. Recargar la página lo descarta.
+                </p>
+                <button type="button" class="rz-button rz-button-md rz-variant-filled rz-primary rz-shade-default"
+                        onclick="Blazor.reconnect()">Reintentar</button>
+                <button type="button" class="rz-button rz-button-md rz-variant-flat rz-light rz-shade-default"
+                        onclick="location.reload()">Recargar la página</button>
+            </div>
+            <div class="app-reconexion-rechazada">
+                <p>
+                    La sesión con el servidor terminó (por ejemplo, porque se reinició la aplicación)
+                    y lo que no estaba guardado se perdió. Recargá la página para seguir.
+                </p>
+                <button type="button" class="rz-button rz-button-md rz-variant-filled rz-primary rz-shade-default"
+                        onclick="location.reload()">Recargar la página</button>
+            </div>
+        </div>
+    </div>
+
     <script src="_framework/blazor.web.js"></script>
     <script src="_content/Radzen.Blazor/Radzen.Blazor.js"></script>
     <script>
-        // Ancho del viewport para MainLayout (colapso inicial de la sidebar en
-        // pantallas angostas; Blazor Server no lo conoce sin JS).
-        window.sigoAnchoVentana = function () { return window.innerWidth; };
-
         // Ancho de la columna Descripción de las tablas cert-grid-ajustable (asa
         // .cert-col-asa del encabezado; el CSS está en app-blazor.css): arrastrar, o las
         // flechas con el foco en el asa (Mayús = paso largo); doble clic o Inicio vuelven

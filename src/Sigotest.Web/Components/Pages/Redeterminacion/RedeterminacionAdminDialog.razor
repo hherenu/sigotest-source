@@ -20,7 +20,7 @@
 </RadzenText>
 
 <RadzenTemplateForm TItem="RedeterminacionAdminVM" Data="@Vm" Submit="@GuardarAsync">
-    <RadzenStack Gap="1rem">
+    <RadzenStack Gap="0.75rem">
         <RadzenFormField Text="N° Expediente VR" Variant="Variant.Outlined" style="width:100%">
             <RadzenTextBox @bind-Value="Vm.NroExpedienteVR" MaxLength="LargoTexto.PorDefecto" Placeholder="EX-2025-XXXXXXXX-GCABA-SBASE" style="width:100%" />
         </RadzenFormField>

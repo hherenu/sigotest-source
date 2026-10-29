@@ -1,0 +1,22 @@
+@typeparam TItem where TItem : notnull
+@inherits ComponenteDeVista<TItem>
+@* Búsqueda rápida y «Quitar filtros» de los listados (portado de la barra de grillas de
+   SAF). Va en las acciones de la cabecera, sobre la misma VistaGrilla que la GrillaListado
+   de la página: la vista avisa los cambios a los dos. *@
+@* oninput y no Change: filtra mientras se tipea (el camino corto, tipo Ctrl+F, sin pasar
+   por los popups de filtro de cada columna). *@
+<RadzenTextBox Value="@Vista.Busqueda" Placeholder="@Placeholder" aria-label="@Placeholder" title="@Placeholder"
+               Style="width: 240px"
+               @oninput="@(e => Vista.Buscar(e.Value?.ToString() ?? string.Empty))" />
+@* Solo con algo filtrado: aparecer avisa que la vista está recortada, y un botón
+   deshabilitado no explicaría por qué (convenciones-ui: Disabled es para procesando). *@
+@if (Vista.HayFiltros)
+{
+    <RadzenButton Text="Quitar filtros" Icon="filter_alt_off" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
+                  title="Quitar la búsqueda y los filtros de las columnas" Click="@Vista.QuitarFiltrosAsync" />
+}
+
+@code {
+    /// <summary>Qué campos recorre la búsqueda (ej. «Buscar licitación, obra o contratista…»).</summary>
+    [Parameter, EditorRequired] public string Placeholder { get; set; } = string.Empty;
+}
