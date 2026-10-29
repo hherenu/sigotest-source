@@ -21,6 +21,9 @@ línea, por qué.
 - **[T] Foco al navegar**: `FocusOnNavigate` (en `Routes.razor`) enfoca el H1 para que el lector de
   pantalla anuncie la página. Va sin recuadro (`h1:focus` en `app-blazor.css`): no es un control y
   el navegador lo marcaba al cargar o recargar. No saques `FocusOnNavigate` para evitar el marco.
+- **[T] Nunca `href="#ancla"` suelto**: con `<base href="/">` se resuelve contra la portada
+  («/#ancla») y navega al inicio. Ruta actual + ancla, como el «Saltar al contenido» de
+  `MainLayout`, que además mueve el foco al contenido (el scroll de Blazor al ancla no lo mueve).
 - **[T] H4 solo en las páginas del menú** (Obras, Índices INDEC, Calcular, Historial, Planificación,
   Usuarios: `Estilo="TextStyle.H4"`). El resto queda en H5, el default (no se escribe). *Por qué:* el
   título saltaba de tamaño entre páginas hermanas.
@@ -393,6 +396,10 @@ servidor.
 
 - Solo en `wwwroot/css/app-blazor.css`, derivado de tokens `--rz-*` para que funcione en claro y en
   oscuro. Sin `<style>` en las páginas.
+- **[T] Sin colores fijos por nombre** (`gray`, `black`, `white`…): un neutro se mezcla del texto
+  del tema, `color-mix(in srgb, var(--rz-text-color) N%, transparent)`.
+- **Tema por defecto: claro** (`material`). El oscuro queda solo si el usuario lo eligió con el
+  botón claro/oscuro (cookie `SIGOTheme`, la normaliza `Temas.Normalizar`).
 - **`style` inline permitido**:
   - `width:100%` en campos;
   - colores dinámicos con `var(--rz-…)`;
@@ -456,6 +463,8 @@ servidor.
 | `Escala_SinFuentesNiAnchosSueltos` | Sin `font-size`/`font-weight`/`max-width` inline; diálogos con `AnchoDialogo` |
 | `Reconexion_AvisoPropioEnCastellanoParaCadaEstado` | Aviso de reconexión propio para cada estado |
 | `Foco_AlNavegarEnElTituloSinRecuadro` | El foco al navegar va al H1, sin recuadro |
+| `Enlaces_SinAnclaSuelta` | Sin `href="#…"`; el skip-link con la ruta actual y foco al contenido |
+| `Estilos_SinColoresFijosPorNombre` | Sin `gray`/`black`/`white`… en `app-blazor.css` |
 | `Celdas_EnTextoSinBadgesNiColorDeEstado` | Sin badges ni íconos en color en celdas; sin color de texto en los listados |
 
 `GrillasTests` cubre el comportamiento de los listados (búsqueda, estado entre navegaciones,

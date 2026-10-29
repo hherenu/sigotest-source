@@ -24,7 +24,7 @@
     @* El CSS del tema lo emite RadzenTheme (en vez de un <link> fijo) para que el
        AppearanceToggle del layout pueda alternar claro/oscuro en caliente. El tema
        inicial se lee de la cookie SIGOTheme acá (SSR, antes del circuito): si no,
-       el usuario de tema claro veía un flash oscuro en cada carga completa hasta
+       quien eligió el otro tema veía un flash del tema por defecto en cada carga completa hasta
        que CookieThemeService permutaba el CSS. La allowlist cubre además una cookie
        adulterada, que dejaría la app apuntando a un CSS inexistente. *@
     <RadzenTheme Theme="@temaInicial" @rendermode="modoRender" />
