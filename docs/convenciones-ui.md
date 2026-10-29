@@ -63,6 +63,8 @@ regla, dejá el porqué en un comentario al lado (como hace el resto del código
 - Siglas de dominio: `title` en el FormField con el nombre completo.
 - Ediciones cortas (≤5 campos): diálogo con `Width = "min(Npx, 92vw)"`; el llamador
   pasa una COPIA del VM y recarga si el diálogo cierra con `true`.
+- Formularios largos (ObraForm): `GuardNavegacion` con `Instantanea<T>` (foto JSON del modelo al
+  cargar) y un flag de guardado que se pone dentro de la acción de guardar, antes de navegar.
 
 ## Grillas y tablas
 
@@ -102,8 +104,14 @@ regla, dejá el porqué en un comentario al lado (como hace el resto del código
   filtran, listados con `GrillaListado` + `FiltrosGrilla` y todas sus columnas con ancho, columnas
   filtrables sin `FilterProperty`, piso de alto y títulos alineados en el CSS, y tablas sin filas
   centradas ni sangría armada a mano.
-- Grillas con carga masiva de datos tipeados: `GuardNavegacion` con predicado de
-  cambios contra la DB (ver CertificadoCargar / PlanificacionEditar).
+- Grillas con carga masiva de datos tipeados (CertificadoCargar / PlanificacionEditar):
+  `GuardNavegacion` con predicado de cambios contra la DB y contador «N cambios sin guardar»
+  junto a cada «Guardar». **Guardar no saca de la página** (se guarda de a poco) y después de
+  guardar se relee; si el guardado falla, se relee **conservando lo tipeado** (el token queda al
+  día) y el conflicto se avisa con un mensaje propio (`Persistencia.EjecutarAsync(…, conflicto:)`):
+  el genérico pide recargar la página, que borra lo conservado.
+- Una acción que se aplica al momento dentro de una pantalla que espera «Guardar» (ej. «Quitar
+  bloque»): el confirm dice que es inmediata, qué borra y que no se puede deshacer.
 - Inputs dentro de celdas: siempre con `aria-label` que identifique la fila/columna. Los
   numéricos de una columna de cifras llevan `TextAlign="TextAlign.Right"` (al editar, el número
   no salta de lado); dentro de `cert-grid` toman el alto y la letra de la fila.
@@ -129,6 +137,10 @@ regla, dejá el porqué en un comentario al lado (como hace el resto del código
   Confirm: un doble clic no apila diálogos). Lo mismo al abrir un diálogo con
   `DialogService.OpenAsync`: `procesando = true` antes de abrirlo y `false` en un `finally`.
 - Notificación de éxito corta (3-4s); advertencias con instrucción de recuperación.
+- Conexión: el aviso de reconexión es propio y en castellano (`#components-reconnect-modal` en
+  `App.razor`, estilos por estado en `app-blazor.css`); dice que lo no guardado sigue en pantalla
+  mientras no se recargue. `#blazor-error-ui` (MainLayout) es para errores no controlados, no para
+  cortes de conexión.
 
 ## Varios
 

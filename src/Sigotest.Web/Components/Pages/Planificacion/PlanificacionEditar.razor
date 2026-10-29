@@ -1200,9 +1200,14 @@ else
             .ToList();
 
         IReadOnlyList<string> advertencias = [];
+        // Mensaje propio: tras el fallo se relee conservando lo tipeado, y el genérico pedía
+        // recargar la página, que lo borraba. Lo que el otro guardó en un dato que también se
+        // editó lo avisa BuildStateAsync («Cambios de otro usuario»).
         var ok = await Persistencia.EjecutarAsync(
             async () => advertencias = await Service.GuardarGrillaAsync(vm!.PlanificacionId, montos, vm.Periodos, vm.RowVersion),
-            Notifications);
+            Notifications,
+            conflicto: "Otro usuario guardó esta planificación mientras cargabas. Se trajeron sus cambios y se " +
+                       "conservó lo que tipeaste en los datos que no tocó: revisalo y volvé a guardar.");
         await BuildStateAsync(conservarSesion: !ok);
         if (ok) AvisarReglasDelCircuito(advertencias);
         return ok;

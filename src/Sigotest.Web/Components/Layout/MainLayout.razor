@@ -95,8 +95,10 @@
 
 <RadzenComponents />
 
+@* Lo muestra Blazor ante un error no controlado que deja la página sin responder (no
+   ante un corte de conexión: eso lo avisa #components-reconnect-modal, en App.razor). *@
 <div id="blazor-error-ui">
-    Se perdió la conexión con el servidor.
+    Ocurrió un error inesperado y la página dejó de responder. Recargala para seguir; si se repite, avisá a Sistemas.
     <a href="" class="reload">Recargar</a>
 </div>
 </div>

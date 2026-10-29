@@ -15,7 +15,12 @@ namespace SIGO.Components.Shared;
 public static class Persistencia
 {
     /// <summary>Devuelve true solo si la operación se completó sin errores.</summary>
-    public static async Task<bool> EjecutarAsync(Func<Task> accion, NotificationService notif)
+    /// <param name="conflicto">
+    /// Mensaje propio para un conflicto de concurrencia. Las páginas que tras un fallo
+    /// releen conservando lo tipeado (carga de certificado, planificación) no pueden decir
+    /// «Recargá la página»: recargar borra justamente lo que se conservó.
+    /// </param>
+    public static async Task<bool> EjecutarAsync(Func<Task> accion, NotificationService notif, string? conflicto = null)
     {
         try
         {
@@ -26,7 +31,7 @@ public static class Persistencia
         catch (DbUpdateConcurrencyException)
         {
             notif.Notify(NotificationSeverity.Warning, "Conflicto de concurrencia",
-                "Otro usuario modificó este registro mientras trabajabas. Recargá la página y volvé a intentar.", 8000);
+                conflicto ?? "Otro usuario modificó este registro mientras trabajabas. Recargá la página y volvé a intentar.", 8000);
         }
         catch (DbUpdateException ex)
         {
@@ -250,6 +255,23 @@ public static class UiAcciones
         notif.Notify(NotificationSeverity.Success, tituloExito, detalleExito(), 3000);
         nav.NavigateTo(destino());
     }
+}
+
+/// <summary>
+/// Foto de un formulario para saber si tiene cambios sin guardar (GuardNavegacion): se
+/// compara la serialización JSON del modelo entero, sin listar campo por campo (un campo
+/// nuevo en el VM queda cubierto solo).
+/// </summary>
+public sealed class Instantanea<T> where T : class
+{
+    private string? foto;
+
+    /// <summary>Toma la foto (al cargar el formulario o tras guardarlo).</summary>
+    public void Tomar(T modelo) => foto = System.Text.Json.JsonSerializer.Serialize(modelo);
+
+    /// <summary>true si el modelo difiere de la foto. Sin foto o sin modelo, no hay cambios.</summary>
+    public bool Cambio(T? modelo) =>
+        modelo is not null && foto is not null && System.Text.Json.JsonSerializer.Serialize(modelo) != foto;
 }
 
 /// <summary>Resultado de <see cref="UiAcciones.ConfirmarYEliminarAsync"/>.</summary>

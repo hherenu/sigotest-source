@@ -189,6 +189,23 @@ public class ConvencionesUiTests
     }
 
     [Fact]
+    public void Reconexion_AvisoPropioEnCastellanoParaCadaEstado()
+    {
+        // Sin el elemento, Blazor muestra su aviso en inglés. Con él, solo le pone una clase
+        // por estado (blazor.web.js de .NET 10): cada estado necesita su texto y su estilo.
+        var app = File.ReadAllText(Path.Combine(Componentes(), "App.razor"));
+        var css = File.ReadAllText(Path.Combine(Componentes(), "..", "wwwroot", "css", "app-blazor.css"));
+
+        Assert.Contains(@"id=""components-reconnect-modal""", app);
+        foreach (var bloque in new[] { "app-reconexion-intentando", "app-reconexion-pausada", "app-reconexion-fallida", "app-reconexion-rechazada" })
+            Assert.Contains(bloque, app);
+        foreach (var estado in new[] { "show", "retrying", "paused", "failed", "resume-failed", "rejected" })
+            Assert.Contains($".components-reconnect-{estado} .app-reconexion-", css);
+        // Con un aviso propio Blazor no recarga solo: la sesión rechazada necesita el botón.
+        Assert.Contains("location.reload()", app);
+    }
+
+    [Fact]
     public void GrillasConFiltro_TodasLasColumnasFiltrables()
     {
         // Las calculadas también: muestran una propiedad del VM (CicloDelMes, RolesTexto…), que

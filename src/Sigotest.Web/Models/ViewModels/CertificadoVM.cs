@@ -137,6 +137,16 @@ public static class CargaCertificado
         }
         return resultado;
     }
+
+    /// <summary>
+    /// Ítems cuyo % tipeado difiere de lo guardado (vacío y 0 son lo mismo): el contador
+    /// «N cambios sin guardar» de la carga y el aviso al salir de la página.
+    /// </summary>
+    public static int CambiosSinGuardar(CertificadoVM vm, IReadOnlyDictionary<int, Dictionary<int, decimal?>> tipeado) =>
+        vm.Bloques.Sum(bloque => tipeado.TryGetValue(bloque.CertificadoEstructuraId, out var porItem)
+            ? bloque.Items.Count(i => !i.EsAgrupador
+                && (porItem.GetValueOrDefault(i.ItemEstructuraId) ?? 0m) != (i.PorcentajeMes ?? 0m))
+            : 0);
 }
 
 /// <summary>

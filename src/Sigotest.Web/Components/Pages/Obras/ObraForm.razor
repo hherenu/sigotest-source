@@ -19,6 +19,9 @@ else if (obra is null)
 }
 else
 {
+    @* Unos 20 campos: un clic en el menú los descartaba sin preguntar. *@
+    <GuardNavegacion HayCambios="@HayCambiosSinGuardar" />
+
     <CabeceraPagina Titulo="@Titulo" Estilo="TextStyle.H4" Clase="rz-mb-4" Migas="@Migas" />
 
     <RadzenTemplateForm TItem="ObraVM" Data="@obra" Submit="@GuardarAsync">
@@ -237,6 +240,11 @@ else
     private ObraVM? obra;
     private bool noEncontrada;
     private bool guardando;
+    // Foto del formulario recién cargado; guardado: la navegación posterior al guardado no pregunta.
+    private readonly Instantanea<ObraVM> instantanea = new();
+    private bool guardado;
+
+    private bool HayCambiosSinGuardar() => !guardado && instantanea.Cambio(obra);
 
     private string Titulo => Id is null ? "Nueva Obra" : "Editar Obra";
 
@@ -269,6 +277,7 @@ else
             obra = await ObraService.ObtenerAsync(Id.Value);
             noEncontrada = obra is null;
         }
+        if (obra is not null) instantanea.Tomar(obra);
     }
 
     private async Task GuardarAsync()
@@ -279,7 +288,13 @@ else
         try
         {
             await UiAcciones.GuardarYNavegarAsync(Notifications, Nav,
-                () => Id is null ? ObraService.CrearAsync(obra) : ObraService.ActualizarAsync(obra),
+                async () =>
+                {
+                    await (Id is null ? ObraService.CrearAsync(obra) : ObraService.ActualizarAsync(obra));
+                    // Antes de navegar (lo hace GuardarYNavegarAsync tras el éxito): lo
+                    // guardado ya no son cambios pendientes. Si el guardado falla no se llega acá.
+                    guardado = true;
+                },
                 "Obra guardada", () => obra.Nombre, () => "obras");
         }
         finally { guardando = false; }

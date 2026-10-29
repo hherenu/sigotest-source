@@ -84,6 +84,35 @@ public class CargaCertificadoTests
     }
 
     [Fact]
+    public void CambiosSinGuardar_CuentaLosItemsQueDifierenDeLoGuardado()
+    {
+        var vm = Vm(10m, 0m, null);
+        var tipeado = CargaCertificado.Porcentajes(vm);
+        Assert.Equal(0, CargaCertificado.CambiosSinGuardar(vm, tipeado)); // recién cargado: nada
+
+        tipeado[Bloque][ItemA] = 12m;   // cambio
+        tipeado[Bloque][ItemB] = 0m;    // 0 y vacío son lo mismo: no cuenta
+        tipeado[Bloque][ItemC] = 5m;    // cambio
+        Assert.Equal(2, CargaCertificado.CambiosSinGuardar(vm, tipeado));
+
+        tipeado[Bloque][ItemA] = 10m;   // volver al valor guardado deja de contar
+        Assert.Equal(1, CargaCertificado.CambiosSinGuardar(vm, tipeado));
+    }
+
+    [Fact]
+    public void CambiosSinGuardar_TrasGuardarYReleerDaCero()
+    {
+        // La carga ya no navega al detalle tras guardar: relee y el contador tiene que
+        // volver a cero sin ningún flag aparte.
+        var tipeado = CargaCertificado.Porcentajes(Vm(10m, null, null));
+        tipeado[Bloque][ItemA] = 15m;
+        tipeado[Bloque][ItemC] = 3m;
+
+        var releido = Vm(15m, null, 3m);
+        Assert.Equal(0, CargaCertificado.CambiosSinGuardar(releido, CargaCertificado.Porcentajes(releido)));
+    }
+
+    [Fact]
     public void Recarga_BloqueNuevoSaleDeLaBaseYElQuitadoDesaparece()
     {
         var anterior = Vm(10m, null, null);

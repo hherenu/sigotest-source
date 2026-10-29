@@ -684,6 +684,52 @@ body .rz-data-grid.rz-density-compact {
 }
 
 /* ===========================================================================
+   Aviso de reconexión (App.razor). Blazor 10 (blazor.web.js) le pone a
+   #components-reconnect-modal una clase por estado: show (reintentando, más retrying
+   desde el segundo intento), paused (circuito en pausa: Reanudar), failed (se agotaron
+   los reintentos: Reintentar), resume-failed y rejected (el servidor ya no tiene la
+   sesión: Recargar), hide al volver. Con un aviso propio no recarga solo.
+   =========================================================================== */
+#components-reconnect-modal {
+    display: none;
+}
+#components-reconnect-modal.components-reconnect-show,
+#components-reconnect-modal.components-reconnect-retrying,
+#components-reconnect-modal.components-reconnect-paused,
+#components-reconnect-modal.components-reconnect-failed,
+#components-reconnect-modal.components-reconnect-resume-failed,
+#components-reconnect-modal.components-reconnect-rejected {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, #000 40%, transparent);
+}
+.app-reconexion-caja {
+    max-width: min(28rem, 92vw);
+    padding: 1.5rem;
+    border-radius: 6px;
+    background: var(--rz-base-background-color, #fff);
+    color: var(--rz-text-color, #212121);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .3);
+}
+.app-reconexion-titulo { margin: 0 0 .5rem; font-weight: 600; font-size: 1.125rem; }
+.app-reconexion-caja p { margin: 0 0 .75rem; }
+.app-reconexion-caja .rz-button + .rz-button { margin-left: .5rem; }
+.app-reconexion-intentando,
+.app-reconexion-pausada,
+.app-reconexion-fallida,
+.app-reconexion-rechazada { display: none; }
+.components-reconnect-show .app-reconexion-intentando,
+.components-reconnect-retrying .app-reconexion-intentando,
+.components-reconnect-paused .app-reconexion-pausada,
+.components-reconnect-failed .app-reconexion-fallida,
+.components-reconnect-resume-failed .app-reconexion-rechazada,
+.components-reconnect-rejected .app-reconexion-rechazada { display: block; }
+
+/* ===========================================================================
    (SAF) Planificación: stepper del circuito (RadzenSteps) compacto e informativo
    =========================================================================== */
 /* Variables del propio tema de Radzen redefinidas en el contenedor: círculos más
