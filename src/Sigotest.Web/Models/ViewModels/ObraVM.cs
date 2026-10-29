@@ -52,9 +52,6 @@ public class ObraVM
     /// <summary>Token de concurrencia de la sesión: viaja al UPDATE/DELETE del servicio.</summary>
     public byte[] RowVersion { get; set; } = [];
 
-    /// <summary>Cantidad de tablas de ponderación (columna "Tablas"; solo la carga el listado).</summary>
-    public int CantidadTablas { get; set; }
-
     /// <summary>
     /// true si la obra tiene prórrogas registradas: la fecha de fin deja de editarse en
     /// el formulario (se modifica agregando o eliminando prórrogas). Lo cargan

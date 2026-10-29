@@ -73,7 +73,7 @@ else
     @foreach (var bloque in vm.Bloques.OrderBy(b => b.Orden))
     {
         <RadzenCard @key="bloque.CertificadoEstructuraId" Variant="Variant.Outlined" class="rz-mb-3">
-            <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-2" style="font-weight:600">@bloque.Titulo</RadzenText>
+            <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-3 app-titulo-bloque">@bloque.Titulo</RadzenText>
             @* Descripción ajustable, como en la carga: ocupa el ancho libre y corta el texto con
                «…» (completo en el title); el asa del encabezado cambia el ancho. *@
             <div class="cert-scroll">
@@ -196,7 +196,7 @@ else
     private RenderFragment ResumenCard(string label, string value, bool primary) =>@<RadzenCard Variant="@(primary ? Variant.Filled : Variant.Outlined)"
                                                                                                   style="@(primary ? "background:var(--rz-primary);color:var(--rz-on-primary)" : "")" class="rz-text-align-center rz-px-4 rz-py-2">
         <RadzenText TextStyle="TextStyle.Caption" class="rz-mb-1" style="@(primary ? "color:var(--rz-on-primary)" : "")">@label</RadzenText>
-        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">@value</RadzenText>
+        <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-0">@value</RadzenText>
     </RadzenCard>;
 
     private Task CerrarAsync() => TransicionAsync(

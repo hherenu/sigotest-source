@@ -8,7 +8,7 @@
 <PageTitle>Importar publicación INDEC</PageTitle>
 
 @* CabeceraPagina en vez del stack manual (duplicaba su markup a mano). *@
-<CabeceraPagina Titulo="Importar publicación INDEC" Estilo="TextStyle.H4" Clase="rz-mb-4"
+<CabeceraPagina Titulo="Importar publicación INDEC"
                 Migas="@(new CabeceraPagina.Miga[] { new("Índices INDEC", "indices"), new("Importar") })">
     <Acciones>
         <RadzenButton Text="Volver a Índices" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat"
@@ -29,7 +29,7 @@
            angosto, los pasos se apilan en vez de partir el archivo y sus acciones. *@
         <RadzenColumn Size="12" SizeLG="3">
             <RadzenStack Gap="0.75rem">
-                <RadzenText TextStyle="TextStyle.Overline" TagName="TagName.H2" class="rz-mb-0">1 · Publicación</RadzenText>
+                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-0">1 · Publicación</RadzenText>
                 @* El ejemplo va en Helper: Radzen no renderiza Placeholder dentro de un FormField.
                    Con una planilla cargada el ID es el del archivo y no se edita: la lectura exige que
                    sus meses sean los de esa publicación, y con otro ID se importarían bajo una ajena. *@
@@ -52,7 +52,7 @@
 
         <RadzenColumn Size="12" SizeLG="6">
             <RadzenStack Gap="0.75rem">
-                <RadzenText TextStyle="TextStyle.Overline" TagName="TagName.H2" class="rz-mb-0">2 · Plantilla Excel</RadzenText>
+                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-0">2 · Plantilla Excel</RadzenText>
                 @* Plantilla (PlantillaIndices): la descarga lleva el catálogo vigente y los meses de
                    la publicación; en cada índice se pega la fila de valores del PDF y Excel la
                    reparte en los meses. Subida, sus valores pasan por el mismo análisis que el
@@ -74,7 +74,7 @@
 
         <RadzenColumn Size="12" SizeLG="3">
             <RadzenStack Gap="0.75rem">
-                <RadzenText TextStyle="TextStyle.Overline" TagName="TagName.H2" class="rz-mb-0">3 · Revisar e importar</RadzenText>
+                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-0">3 · Revisar e importar</RadzenText>
                 <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-0">
                     Solo se importan las filas «A importar».
                 </RadzenText>
@@ -136,7 +136,7 @@
 <RadzenCard Variant="Variant.Outlined">
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween"
                  Wrap="FlexWrap.Wrap" Gap="0.75rem" class="rz-mb-3">
-        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Vista previa</RadzenText>
+        <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-0">Vista previa</RadzenText>
         @if (filas.Count > 0)
         {
             <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
@@ -179,18 +179,18 @@
         <RadzenDataGrid Data="@filas" TItem="FilaImport" Density="Density.Compact"
                         AllowSorting="true" AllowPaging="true" PageSize="20" AllowColumnResize="true">
             <Columns>
-                <RadzenDataGridColumn TItem="FilaImport" Property="Linea" Title="Línea" Width="70px" TextAlign="TextAlign.Center" />
-                <RadzenDataGridColumn TItem="FilaImport" Property="Codigo" Title="Código" Width="250px" />
-                <RadzenDataGridColumn TItem="FilaImport" Title="Período" Width="110px">
+                <RadzenDataGridColumn TItem="FilaImport" Property="Linea" Title="Línea" Width="@AnchoColumna.NumeroOrdenable" TextAlign="TextAlign.Center" />
+                <RadzenDataGridColumn TItem="FilaImport" Property="Codigo" Title="Código" Width="@AnchoColumna.CodigoIndice" />
+                <RadzenDataGridColumn TItem="FilaImport" Title="Período" Width="@AnchoColumna.Periodo">
                     <Template Context="f">@(f.Anio > 0 ? $"{Fmt.MesCorto(f.Mes)} {f.Anio}" : "—")</Template>
                 </RadzenDataGridColumn>
-                <RadzenDataGridColumn TItem="FilaImport" Title="Valor" Width="120px" TextAlign="TextAlign.Right">
+                <RadzenDataGridColumn TItem="FilaImport" Title="Valor" Width="@AnchoColumna.Cantidad" TextAlign="TextAlign.Right">
                     <Template Context="f">@(f.Valor is decimal v ? v.ToString("N4") : "—")</Template>
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="FilaImport" Title="Estado" MinWidth="460px">
                     <Template Context="f">
                         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                            <RadzenBadge Text="@EtiquetaEstado(f.Estado)" BadgeStyle="@BadgeEstado(f.Estado)" />
+                            <span class="@ClaseEstado(f.Estado)">@EtiquetaEstado(f.Estado)</span>
                             @if (f.Detalle is not null)
                             {
                                 <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0" style="white-space:normal">@f.Detalle</RadzenText>
@@ -334,7 +334,7 @@
             creado = await DialogService.OpenAsync<IndiceCrearDialog>(
                 "Agregar índice al catálogo",
                 new Dictionary<string, object?> { [nameof(IndiceCrearDialog.CodigoDetectado)] = codigo },
-                new DialogOptions { Width = "min(560px, 92vw)" });
+                new DialogOptions { Width = AnchoDialogo.Medio });
         }
         finally { procesando = false; }
 
@@ -377,10 +377,11 @@
         _ => "Fila inválida"
     };
 
-    private static BadgeStyle BadgeEstado(EstadoFilaImport e) => e switch
+    /// <summary>Color de alerta del estado (convenciones-ui, «Celdas en texto»): lo que se importa va sin color.</summary>
+    private static string? ClaseEstado(EstadoFilaImport e) => e switch
     {
-        EstadoFilaImport.Ok => BadgeStyle.Success,
-        EstadoFilaImport.YaExiste => BadgeStyle.Warning,
-        _ => BadgeStyle.Danger
+        EstadoFilaImport.Ok => null,
+        EstadoFilaImport.YaExiste => "app-texto-aviso",
+        _ => "app-texto-error"
     };
 }

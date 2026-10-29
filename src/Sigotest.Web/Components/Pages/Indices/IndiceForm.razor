@@ -6,11 +6,11 @@
 
 <PageTitle>Nuevo Índice INDEC</PageTitle>
 
-<CabeceraPagina Titulo="Nuevo Índice INDEC" Estilo="TextStyle.H4" Clase="rz-mb-4"
+<CabeceraPagina Titulo="Nuevo Índice INDEC"
                 Migas="@(new CabeceraPagina.Miga[] { new("Índices INDEC", "indices"), new("Nuevo") })" />
 
 <RadzenTemplateForm TItem="IndiceVM" Data="@indice" Submit="@GuardarAsync">
-    <RadzenStack Gap="1rem" style="max-width: 640px;">
+    <RadzenStack Gap="1rem" class="app-form-medio">
         <div>
             <RadzenFormField Text="Código ID (ej: MANO_OBRA) *" Variant="Variant.Outlined" style="width:100%">
                 <RadzenTextBox @bind-Value="indice.CodigoIndice" MaxLength="LargoTexto.CodigoIndice" Name="CodigoIndice" style="width:100%" />

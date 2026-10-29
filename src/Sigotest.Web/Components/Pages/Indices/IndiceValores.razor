@@ -20,7 +20,7 @@ else if (indice is null)
 }
 else
 {
-    <CabeceraPagina Titulo="@indice.FamiliaRecurso" Clase="rz-mb-4">
+    <CabeceraPagina Titulo="@indice.FamiliaRecurso">
         <SubtituloExtra>
             <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
                 <RadzenBadge Text="@indice.CodigoIndice" BadgeStyle="BadgeStyle.Secondary" />
@@ -60,14 +60,14 @@ else
         <GrillaListado Vista="@vista">
             @* Filtra por año: Radzen ordena las opciones alfabéticamente («Abril 2025, Abril
                2026…») y el mes se encuentra con la búsqueda rápida. Ordena por mes y año. *@
-            <RadzenDataGridColumn TItem="ValorIndiceVM" Title="Período" Width="150px"
+            <RadzenDataGridColumn TItem="ValorIndiceVM" Title="Período" Width="@AnchoColumna.Periodo"
                                   Property="Anio" SortProperty="PeriodoOrden" SortOrder="SortOrder.Descending">
                 <Template Context="v">@v.Periodo</Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="ValorIndiceVM" Property="Valor" Title="Valor" Width="130px"
+            <RadzenDataGridColumn TItem="ValorIndiceVM" Property="Valor" Title="Valor" Width="@AnchoColumna.Cantidad"
                                   FormatString="{0:N2}" TextAlign="TextAlign.Right" />
             <RadzenDataGridColumn TItem="ValorIndiceVM" Property="IdPublicacion" Title="Publicación" Width="220px" />
-            <RadzenDataGridColumn TItem="ValorIndiceVM" Title="" Width="60px" Sortable="false" Filterable="false"
+            <RadzenDataGridColumn TItem="ValorIndiceVM" Title="" Width="@AnchoColumna.Acciones(1)" Sortable="false" Filterable="false"
                                   TextAlign="TextAlign.Center">
                 <Template Context="v">
                     @* Ícono delete como todos los "eliminar" de fila (close significa
@@ -125,7 +125,7 @@ else
                     [nameof(ValorAgregarDialog.IndiceId)] = Id,
                     [nameof(ValorAgregarDialog.CodigoIndice)] = indice?.CodigoIndice
                 },
-                new DialogOptions { Width = "min(420px, 92vw)" });
+                new DialogOptions { Width = AnchoDialogo.Corto });
 
             if (resultado is true)
                 await CargarValoresAsync();

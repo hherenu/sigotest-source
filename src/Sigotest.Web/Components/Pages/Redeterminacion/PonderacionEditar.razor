@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = Roles.Certificaciones)]
 @inject PonderacionService Service
 @inject NavigationManager Nav
+@inject RetornoObra Retorno
 @inject DialogService DialogService
 @inject NotificationService Notifications
 
@@ -28,16 +29,17 @@ else
                 <RadzenButton Text="Calcular Redeterminación" Icon="calculate" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
                               Click="@(() => Nav.NavigateTo($"redeterminacion/calcular?obraId={ObraId}"))" />
             }
-            <RadzenButton Text="Volver a Obra" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
-                          Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"obras/{ObraId}"))" />
+            @* Vuelve a donde se entró: la ficha o el listado de Obras (RetornoObra). *@
+            <RadzenButton Text="@Retorno.Volver(ObraId).Texto" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
+                          Variant="Variant.Flat" Click="@(() => Nav.NavigateTo(Retorno.Volver(ObraId).Ruta))" />
         </Acciones>
     </CabeceraPagina>
 
     @if (!vm.TieneTabla)
     {
         @* ── Alta de la tabla (una sola por obra) ── *@
-        <RadzenCard Variant="Variant.Outlined" style="max-width:640px">
-            <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Esta obra no tiene tabla de ponderación</RadzenText>
+        <RadzenCard Variant="Variant.Outlined" class="app-form-medio">
+            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-3">Esta obra no tiene tabla de ponderación</RadzenText>
             <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-3">
                 La tabla define los insumos, sus pesos (deben sumar 100%) y el índice INDEC de cada uno.
                 Es la base del cálculo de redeterminaciones de la obra.
@@ -57,9 +59,9 @@ else
         <RadzenCard Variant="Variant.Outlined" class="rz-mb-4">
             <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
                          AlignItems="AlignItems.Center" class="rz-mb-3">
-                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Insumos y pesos</RadzenText>
-                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-0"
-                            style="@($"font-weight:700;color:{(SumaPesos == 100m ? "var(--rz-success)" : "var(--rz-danger)")}")">
+                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-0">Insumos y pesos</RadzenText>
+                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-0 app-total"
+                            style="@($"color:{(SumaPesos == 100m ? "var(--rz-success)" : "var(--rz-danger)")}")">
                     Σ Pesos: @SumaPesos.ToString("N2")%
                 </RadzenText>
             </RadzenStack>
@@ -82,9 +84,9 @@ else
                 <RadzenDataGrid Data="@vm.Items.OrderBy(i => i.Numero)" TItem="ItemPonderacionVM" AllowPaging="false"
                                 AllowSorting="false" AllowFiltering="false" AllowColumnResize="true" GridLines="DataGridGridLines.Both" Density="Density.Compact">
                     <Columns>
-                        <RadzenDataGridColumn TItem="ItemPonderacionVM" Property="Numero" Title="N°" Width="52px" TextAlign="TextAlign.Center" />
+                        <RadzenDataGridColumn TItem="ItemPonderacionVM" Property="Numero" Title="N°" Width="@AnchoColumna.Numero" TextAlign="TextAlign.Center" />
                         <RadzenDataGridColumn TItem="ItemPonderacionVM" Property="Insumo" Title="Insumo" Width="220px" />
-                        <RadzenDataGridColumn TItem="ItemPonderacionVM" Title="Peso %" Width="100px" TextAlign="TextAlign.Right">
+                        <RadzenDataGridColumn TItem="ItemPonderacionVM" Title="Peso %" Width="@AnchoColumna.Porcentaje" TextAlign="TextAlign.Right">
                             <Template Context="i">@i.PesoPorcentaje.ToString("N2")%</Template>
                             <FooterTemplate>
                                 <b style="@($"color:{(SumaPesos == 100m ? "var(--rz-success)" : "var(--rz-danger)")}")">@SumaPesos.ToString("N2")%</b>
@@ -94,9 +96,9 @@ else
                             <Template Context="i">@i.IndiceNombre</Template>
                         </RadzenDataGridColumn>
                         <RadzenDataGridColumn TItem="ItemPonderacionVM" Property="DescripcionINDEC" Title="Descripción INDEC">
-                            <Template Context="i"><span style="font-size:.8rem">@i.DescripcionINDEC</span></Template>
+                            <Template Context="i"><span class="app-fs-caption">@i.DescripcionINDEC</span></Template>
                         </RadzenDataGridColumn>
-                        <RadzenDataGridColumn TItem="ItemPonderacionVM" Title="Acciones" Width="100px" TextAlign="TextAlign.Center">
+                        <RadzenDataGridColumn TItem="ItemPonderacionVM" Title="Acciones" Width="@AnchoColumna.Acciones(2)" TextAlign="TextAlign.Center">
                             <Template Context="i">
                                 <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
                                               title="Editar" Disabled="@procesando" Click="@(() => EditarItem(i))" />
@@ -111,7 +113,7 @@ else
 
         @* ── Formulario agregar / editar insumo ── *@
         <RadzenCard Variant="Variant.Outlined">
-            <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">
+            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-3">
                 @(editando is null ? "Agregar insumo" : $"Editando insumo N° {editando.Numero} — {editando.Insumo}")
             </RadzenText>
             <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-mb-3">
@@ -147,7 +149,7 @@ else
                                                 TextProperty="FamiliaRecurso" ValueProperty="Id" AllowFiltering="true"
                                                 FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" style="width:100%">
                                     <Template Context="ix">
-                                        @(((IndiceOpcionVM)ix).FamiliaRecurso) <span class="app-muted" style="font-size:.75rem">(@(((IndiceOpcionVM)ix).CodigoIndice))</span>
+                                        @(((IndiceOpcionVM)ix).FamiliaRecurso) <span class="app-muted app-fs-caption">(@(((IndiceOpcionVM)ix).CodigoIndice))</span>
                                     </Template>
                                 </RadzenDropDown>
                             </RadzenFormField>

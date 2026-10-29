@@ -5,10 +5,11 @@
 @inject DialogService DialogService
 @inject NotificationService Notifications
 @inject EstadoGrillas Grillas
+@inject RetornoObra Retorno
 
 <PageTitle>Obras</PageTitle>
 
-<CabeceraPagina Titulo="Obras" Estilo="TextStyle.H4" Clase="rz-mb-4">
+<CabeceraPagina Titulo="Obras" Estilo="TextStyle.H4">
     <Acciones>
         @if (obras is { Count: > 0 })
         {
@@ -16,7 +17,7 @@
         }
         @* Primary: el alta es la acción principal del listado (Success queda para
            transiciones que consolidan estado — regla de color de la app). *@
-        <RadzenButton Text="Nueva Obra" Icon="add" ButtonStyle="ButtonStyle.Primary"
+        <RadzenButton Text="Nueva Obra" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
                       Click="@(() => Nav.NavigateTo("obras/nueva"))" />
     </Acciones>
 </CabeceraPagina>
@@ -43,26 +44,44 @@ else
            sin ancho recibe solo el sobrante y en una notebook con zoom quedaba en «…». *@
         <RadzenDataGridColumn TItem="ObraVM" Property="Nombre" Title="Nombre" Width="240px" />
         <RadzenDataGridColumn TItem="ObraVM" Property="Contratista" Title="Contratista" Width="200px" />
-        @* Fechas en 130px: el título parte en dos líneas («Acta / Inicio») en vez de
-           recortarse, y el badge "PLAZO VENCIDO" entra entero en los 150px de Estado. *@
-        <RadzenDataGridColumn TItem="ObraVM" Property="FechaActaInicio" Title="Acta Inicio" Width="130px"
+        @* Fechas: el título parte en dos líneas («Acta / Inicio») en vez de
+           recortarse, y «Plazo Vencido» entra entero en los 150px de Estado. *@
+        <RadzenDataGridColumn TItem="ObraVM" Property="FechaActaInicio" Title="Acta Inicio" Width="@AnchoColumna.Fecha"
                               FormatString="{0:dd/MM/yyyy}" TextAlign="TextAlign.Center" />
-        <RadzenDataGridColumn TItem="ObraVM" Property="FechaFinalContrato" Title="Fin Contrato" Width="130px"
+        <RadzenDataGridColumn TItem="ObraVM" Property="FechaFinalContrato" Title="Fin Contrato" Width="@AnchoColumna.Fecha"
                               FormatString="{0:dd/MM/yyyy}" TextAlign="TextAlign.Center" />
-        <RadzenDataGridColumn TItem="ObraVM" Property="Estado" Title="Estado" Width="150px" Sortable="false"
+        @* Estado en texto, sin badge (convenciones-ui, «Celdas en texto»). *@
+        <RadzenDataGridColumn TItem="ObraVM" Property="Estado" Title="Estado" Width="@AnchoColumna.Estado" Sortable="false" />
+        @* Accesos a las secciones de la obra, en el orden de su ficha (convenciones-ui, «Íconos de
+           las filas»). Reemplazan la columna «Tablas», que solo contaba las de ponderación. Un solo
+           ícono de ir (la columna dice a qué sección), Primary como Editar; el «Volver» de la
+           sección trae de nuevo acá (RetornoObra). *@
+        <RadzenDataGridColumn TItem="ObraVM" Title="Estructuras" Width="120px" Sortable="false" Filterable="false"
                               TextAlign="TextAlign.Center">
             <Template Context="obra">
-                <RadzenBadge Text="@obra.Estado" IsPill="true" BadgeStyle="@EstadoUi.BadgeObra(obra.Estado)" />
+                <RadzenButton Icon="arrow_forward" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                              Variant="Variant.Text" title="Estructuras de costos"
+                              Click="@(() => IrASeccion(obra, "estructuras"))" />
             </Template>
         </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="ObraVM" Property="CantidadTablas" Title="Tablas" Width="100px" Sortable="false"
+        <RadzenDataGridColumn TItem="ObraVM" Title="Certificados" Width="120px" Sortable="false" Filterable="false"
                               TextAlign="TextAlign.Center">
             <Template Context="obra">
-                <RadzenBadge Text="@obra.CantidadTablas.ToString()" BadgeStyle="BadgeStyle.Secondary" />
+                <RadzenButton Icon="arrow_forward" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                              Variant="Variant.Text" title="Certificados de avance"
+                              Click="@(() => IrASeccion(obra, "certificados"))" />
             </Template>
         </RadzenDataGridColumn>
-        @* 3 íconos de 28px + separación + padding de celda ≈ 124px (tenía 210). *@
-        <RadzenDataGridColumn TItem="ObraVM" Title="" Width="130px" Sortable="false" Filterable="false"
+        <RadzenDataGridColumn TItem="ObraVM" Title="Ponderación" Width="120px" Sortable="false" Filterable="false"
+                              TextAlign="TextAlign.Center">
+            <Template Context="obra">
+                <RadzenButton Icon="arrow_forward" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
+                              Variant="Variant.Text" title="Tabla de ponderación"
+                              Click="@(() => IrASeccion(obra, "ponderacion"))" />
+            </Template>
+        </RadzenDataGridColumn>
+        @* 3 íconos (tenía 210px y le sobraban ~86). *@
+        <RadzenDataGridColumn TItem="ObraVM" Title="" Width="@AnchoColumna.Acciones(3)" Sortable="false" Filterable="false"
                               TextAlign="TextAlign.Center">
             <Template Context="obra">
                 <RadzenStack Orientation="Orientation.Horizontal" Gap="0.25rem" JustifyContent="JustifyContent.Center">
@@ -96,6 +115,13 @@ else
     {
         obras = await ObraService.ListarAsync();
         vista.Cargar(obras);
+    }
+
+    /// <summary>Abre una sección de la obra; su «Volver» trae de nuevo al listado (RetornoObra).</summary>
+    private void IrASeccion(ObraVM obra, string seccion)
+    {
+        Retorno.DesdeListado(obra.Id);
+        Nav.NavigateTo($"obras/{obra.Id}/{seccion}");
     }
 
     private async Task EliminarAsync(ObraVM obra)

@@ -9,10 +9,10 @@
    cambio de tema. Sin esto el toggle no persistía. *@
 @inject CookieThemeService PersistenciaTema
 
-@* La clase tema-claro habilita los overrides de contraste de app-blazor.css
-   (alertas Lighter y toasts, ilegibles con la paleta humanistic sobre fondo
-   claro). Envuelve también a RadzenComponents: los toasts renderizan ahí,
-   FUERA de RadzenLayout, y sin el wrapper no heredarían los tokens. *@
+@* La clase tema-claro ya no tiene estilos: los overrides de contraste de la era humanistic
+   se retiraron al pasar a material (ver la cabecera de app-blazor.css). Queda como gancho
+   por si un toast o una alerta vuelve a necesitar un ajuste solo en el tema claro; el
+   wrapper envuelve también a RadzenComponents, donde renderizan los toasts. *@
 <div class="@(EsTemaClaro ? "tema-claro" : null)">
 @* Skip-link (WCAG 2.4.1): invisible salvo con foco; evita tabular por todo el
    menú lateral en cada página para llegar al contenido. *@
@@ -24,11 +24,11 @@
         <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
             <RadzenSidebarToggle Click="@(() => sidebarExpanded = !sidebarExpanded)" />
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.75rem"
-                         style="margin-left:auto" class="rz-pr-3">
+                         style="margin-left:auto" class="rz-pr-5">
                 <RadzenAppearanceToggle />
                 @if (usuario is not null)
                 {
-                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.35rem"
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem"
                                  title="@usuarioCompleto">
                         <RadzenIcon Icon="account_circle" />
                         @* RadzenText trae su propio color de texto (oscuro en tema claro), ilegible

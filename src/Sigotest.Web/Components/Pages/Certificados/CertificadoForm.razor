@@ -18,13 +18,13 @@ else if (alta is null)
 }
 else
 {
-    <CabeceraPagina Titulo="Nuevo Certificado" Clase="rz-mb-4"
+    <CabeceraPagina Titulo="Nuevo Certificado"
                     Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(alta.ObraNombre, $"obras/{ObraId}"), new("Certificados", $"obras/{ObraId}/certificados"), new("Nuevo") })">
         <Subtitulo>@alta.ObraNombre — @alta.NumeroLicitacion</Subtitulo>
     </CabeceraPagina>
 
     <RadzenTemplateForm TItem="CertificadoNuevoVM" Data="@alta.Form" Submit="@GuardarAsync">
-        <RadzenStack Gap="1rem" style="max-width: 640px;">
+        <RadzenStack Gap="1rem" class="app-form-medio">
             <RadzenRow Gap="1rem" RowGap="1rem">
                 @* Número y año: las reglas de CertificadoValidator que exige el servicio (Alta),
                    evaluadas tal cual y con el mismo mensaje. Sin Min/Max en los numéricos: Radzen

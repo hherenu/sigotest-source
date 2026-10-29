@@ -258,6 +258,55 @@ public static class UiAcciones
 }
 
 /// <summary>
+/// Anchos de columna por tipo de dato (convenciones-ui): había 26 anchos distintos para los
+/// mismos datos (una fecha en 110, 120, 130 o 160px según la grilla). Las columnas de texto
+/// libre (nombre, descripción, observaciones) declaran el suyo, como mínimo de la columna.
+/// </summary>
+public static class AnchoColumna
+{
+    // Los anchos contemplan los íconos de orden y de filtro del encabezado, salvo Numero: un
+    // título corto en una columna angosta no los necesita si la grilla no ordena ni filtra.
+
+    /// <summary>N°, fila, línea u orden en una grilla que no ordena ni filtra.</summary>
+    public const string Numero = "60px";
+    /// <summary>
+    /// N° en una grilla que ordena o filtra: la reserva del ícono de orden, el de filtro y su
+    /// margen suman ~56px (con 80px el encabezado los recortaba y no se veían).
+    /// </summary>
+    public const string NumeroOrdenable = "100px";
+    /// <summary>dd/MM/yyyy, con lugar para el ícono de filtro (el título parte en dos líneas).</summary>
+    public const string Fecha = "130px";
+    /// <summary>«Septiembre 2026».</summary>
+    public const string Periodo = "150px";
+    /// <summary>Código de ítem de una estructura (1.2.3.4).</summary>
+    public const string Codigo = "160px";
+    /// <summary>Código de un índice INDEC (MANO_OBRA_…).</summary>
+    public const string CodigoIndice = "240px";
+    public const string Unidad = "70px";
+    /// <summary>Cantidades y valores de índice (hasta 4 decimales).</summary>
+    public const string Cantidad = "120px";
+    /// <summary>Montos y precios unitarios con «$».</summary>
+    public const string Importe = "150px";
+    public const string Porcentaje = "120px";
+    /// <summary>Badge de estado.</summary>
+    public const string Estado = "150px";
+
+    /// <summary>Columna de botones de ícono: 28px por ícono, su separación y el padding de la celda.</summary>
+    public static string Acciones(int iconos) => $"{32 + 32 * iconos}px";
+}
+
+/// <summary>Anchos de diálogo (eran cinco: 420, 480, 520, 560 y 1100px).</summary>
+public static class AnchoDialogo
+{
+    /// <summary>Hasta unos 5 campos en una columna.</summary>
+    public const string Corto = "min(480px, 92vw)";
+    /// <summary>Campos en dos columnas o con ayudas largas.</summary>
+    public const string Medio = "min(560px, 92vw)";
+    /// <summary>Tablas de revisión (importación de % del certificado).</summary>
+    public const string Ancho = "min(1100px, 92vw)";
+}
+
+/// <summary>
 /// Foto de un formulario para saber si tiene cambios sin guardar (GuardNavegacion): se
 /// compara la serialización JSON del modelo entero, sin listar campo por campo (un campo
 /// nuevo en el VM queda cubierto solo).
@@ -306,6 +355,10 @@ public static class EstadoUi
         EstadoPlanificacion.Aprobada => BadgeStyle.Success,
         _ => BadgeStyle.Secondary
     };
+
+    /// <summary>Texto del estado de una planificación («En revisión», no el nombre del enum).</summary>
+    public static string Texto(EstadoPlanificacion e) =>
+        e == EstadoPlanificacion.EnRevision ? "En revisión" : e.ToString();
 
     public static BadgeStyle Badge(EstadoRedeterminacion e) => e switch
     {

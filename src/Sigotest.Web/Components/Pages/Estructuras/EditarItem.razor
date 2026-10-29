@@ -20,13 +20,13 @@ else
 {
     @* Cabecera estándar con contexto: antes el título era solo "Editar Ítem", sin
        obra, estructura ni código — imposible saber qué se estaba editando. *@
-    <CabeceraPagina Titulo="@($"Editar Ítem{(item.Codigo is { Length: > 0 } c ? $" {c}" : "")}")" Clase="rz-mb-4"
+    <CabeceraPagina Titulo="@($"Editar Ítem{(item.Codigo is { Length: > 0 } c ? $" {c}" : "")}")"
                     Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(obraNombre, $"obras/{obraId}"), new("Estructuras", $"obras/{obraId}/estructuras"), new(estructuraNombre, $"estructuras/{item.EstructuraCostosId}"), new("Editar ítem") })">
         <Subtitulo>@estructuraNombre — @obraNombre</Subtitulo>
     </CabeceraPagina>
 
     <RadzenTemplateForm TItem="ItemEstructuraVM" Data="@item" Submit="@GuardarAsync">
-        <RadzenStack Gap="1rem" style="max-width: 820px;">
+        <RadzenStack Gap="1rem" class="app-form-ancho">
             @if (!item.EsAgrupador)
             {
                 <RadzenRow Gap="1rem" RowGap="1rem">

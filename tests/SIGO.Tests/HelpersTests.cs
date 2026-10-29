@@ -112,6 +112,35 @@ public class HelpersTests
         Assert.Equal("Se conservó lo que tipeaste.", aviso.Detail);
     }
 
+    // ── RetornoObra (a dónde vuelven las secciones de una obra) ─────────────────
+
+    [Fact]
+    public void RetornoObra_SinMarcaVuelveALaFicha()
+    {
+        Assert.Equal(("obras/5", "Volver a Obra"), new RetornoObra().Volver(5));
+    }
+
+    [Fact]
+    public void RetornoObra_DesdeElListadoVuelveAObras_SoloEsaObra()
+    {
+        var retorno = new RetornoObra();
+        retorno.DesdeListado(5);
+
+        Assert.Equal(("obras", "Volver a Obras"), retorno.Volver(5));
+        // La marca es de una obra: otra que se abra sin pasar por el listado vuelve a su ficha.
+        Assert.Equal(("obras/7", "Volver a Obra"), retorno.Volver(7));
+    }
+
+    [Fact]
+    public void RetornoObra_PasarPorLaFichaVuelveALaFicha()
+    {
+        var retorno = new RetornoObra();
+        retorno.DesdeListado(5);
+        retorno.DesdeFicha();
+
+        Assert.Equal(("obras/5", "Volver a Obra"), retorno.Volver(5));
+    }
+
     // ── Instantanea (cambios sin guardar de un formulario) ──────────────────────
 
     private sealed class Formulario

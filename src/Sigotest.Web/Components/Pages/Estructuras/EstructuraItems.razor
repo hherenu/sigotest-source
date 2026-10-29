@@ -34,10 +34,10 @@ else
     <RadzenCard Variant="Variant.Outlined" class="rz-mb-4">
         <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
                      AlignItems="AlignItems.Center" class="rz-mb-3">
-            <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Ítems de la estructura</RadzenText>
+            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-0">Ítems de la estructura</RadzenText>
             @if (montoTotal > 0)
             {
-                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-0" style="font-weight:700">
+                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-0 app-total">
                     Monto Total Contrato: $ @Fmt.N2(montoTotal)
                 </RadzenText>
             }
@@ -54,10 +54,10 @@ else
             <RadzenDataGrid Data="@filas" TItem="Fila" AllowPaging="false" AllowSorting="false" AllowFiltering="false" AllowColumnResize="true"
                             GridLines="DataGridGridLines.Both" Density="Density.Compact" RowRender="@OnRowRender">
                 <Columns>
-                    <RadzenDataGridColumn TItem="Fila" Title="#" Width="46px" TextAlign="TextAlign.Center">
+                    <RadzenDataGridColumn TItem="Fila" Title="#" Width="@AnchoColumna.Numero" TextAlign="TextAlign.Center">
                         <Template Context="f">@f.Item.Orden</Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="Fila" Title="Código" Width="140px">
+                    <RadzenDataGridColumn TItem="Fila" Title="Código" Width="@AnchoColumna.Codigo">
                         <Template Context="f">
                             @if (!f.Item.EsAgrupador)
                             {
@@ -74,16 +74,16 @@ else
                             <span style="padding-left:@(Pad(f))px">@f.Item.Descripcion</span>
                         </Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="Fila" Title="Unidad" Width="70px" TextAlign="TextAlign.Center">
+                    <RadzenDataGridColumn TItem="Fila" Title="Unidad" Width="@AnchoColumna.Unidad" TextAlign="TextAlign.Center">
                         <Template Context="f">@(f.Item.EsAgrupador ? "" : f.Item.Unidad)</Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="Fila" Title="Cantidad" Width="100px" TextAlign="TextAlign.Right">
+                    <RadzenDataGridColumn TItem="Fila" Title="Cantidad" Width="@AnchoColumna.Cantidad" TextAlign="TextAlign.Right">
                         <Template Context="f">@(!f.Item.EsAgrupador && f.Item.Cantidad is decimal cant ? Fmt.HastaN4(cant) : "")</Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="Fila" Title="PU Básico" Width="120px" TextAlign="TextAlign.Right">
+                    <RadzenDataGridColumn TItem="Fila" Title="PU Básico" Width="@AnchoColumna.Importe" TextAlign="TextAlign.Right">
                         <Template Context="f">@(!f.Item.EsAgrupador && f.Item.PUBasico is decimal pu ? "$ " + Fmt.HastaN4(pu) : "")</Template>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="Fila" Title="Monto" Width="130px" TextAlign="TextAlign.Right">
+                    <RadzenDataGridColumn TItem="Fila" Title="Monto" Width="@AnchoColumna.Importe" TextAlign="TextAlign.Right">
                         <Template Context="f">
                             @(f.Monto > 0 ? "$ " + Fmt.N2(f.Monto) : "")
                         </Template>
@@ -94,7 +94,7 @@ else
                             }
                         </FooterTemplate>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="Fila" Title="% Pond." Width="90px" TextAlign="TextAlign.Right">
+                    <RadzenDataGridColumn TItem="Fila" Title="% Pond." Width="@AnchoColumna.Porcentaje" TextAlign="TextAlign.Right">
                         <Template Context="f">
                             @{
                                 var p = Pond(f.Monto);
@@ -108,7 +108,7 @@ else
                             }
                         </FooterTemplate>
                     </RadzenDataGridColumn>
-                    <RadzenDataGridColumn TItem="Fila" Title="Acciones" Width="100px" TextAlign="TextAlign.Center">
+                    <RadzenDataGridColumn TItem="Fila" Title="Acciones" Width="@AnchoColumna.Acciones(2)" TextAlign="TextAlign.Center">
                         <Template Context="f">
                             <RadzenButton Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Variant="Variant.Text"
                                           title="Editar" Click="@(() => Nav.NavigateTo($"estructuras/item/{f.Item.Id}/editar"))" />
@@ -123,7 +123,7 @@ else
 
     @* ── Formulario agregar ítem ── *@
     <RadzenCard Variant="Variant.Outlined">
-        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">Agregar ítem</RadzenText>
+        <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-3">Agregar ítem</RadzenText>
         <RadzenTemplateForm TItem="ItemEstructuraVM" Data="@nuevo" Submit="@AgregarAsync">
             <RadzenStack Gap="1rem">
                 <RadzenCheckBox @bind-Value="nuevo.EsAgrupador" Name="EsAgrupador" TValue="bool" />

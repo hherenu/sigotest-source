@@ -35,7 +35,6 @@ public class ObraService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser
                 Contratista = o.Contratista,
                 FechaActaInicio = o.FechaActaInicio,
                 FechaFinalContrato = o.FechaFinalContrato,
-                CantidadTablas = o.TablasPonderacion.Count,
                 RowVersion = o.RowVersion
             })
             .ToListAsync();

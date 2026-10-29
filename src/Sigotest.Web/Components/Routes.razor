@@ -19,10 +19,10 @@
             @* Link plano (no botón con Click): este fragmento puede renderizarse sin
                interactividad en una carga directa de una URL inexistente. *@
             <RadzenStack AlignItems="AlignItems.Center" class="rz-mt-8">
-                <RadzenCard Variant="Variant.Outlined" style="max-width:560px">
+                <RadzenCard Variant="Variant.Outlined" class="app-form-angosto">
                     <RadzenStack Gap="0.75rem" AlignItems="AlignItems.Center">
                         <RadzenIcon Icon="search_off" style="font-size:3rem;color:var(--rz-warning)" />
-                        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Página no encontrada</RadzenText>
+                        <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-0">Página no encontrada</RadzenText>
                         <RadzenText TextStyle="TextStyle.Body2" class="app-muted rz-text-align-center rz-mb-0">
                             La dirección no existe o fue movida. Revisá la URL o volvé al inicio.
                         </RadzenText>

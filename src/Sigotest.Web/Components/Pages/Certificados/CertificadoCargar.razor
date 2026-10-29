@@ -22,7 +22,7 @@ else
     var cambios = CargaCertificado.CambiosSinGuardar(vm, pct);
     <GuardNavegacion HayCambios="@HayCambiosSinGuardar" />
 
-    <CabeceraPagina Titulo="@($"Certificado N° {vm.Numero} — {Fmt.MesNombre(vm.Mes)} {vm.Anio}")" Clase="rz-mb-2"
+    <CabeceraPagina Titulo="@($"Certificado N° {vm.Numero} — {Fmt.MesNombre(vm.Mes)} {vm.Anio}")"
                     Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(vm.ObraNombre, $"obras/{vm.ObraId}"), new("Certificados", $"obras/{vm.ObraId}/certificados"), new($"N° {vm.Numero} — Carga") })">
         <Badges>
             <RadzenBadge Text="Borrador" IsPill="true" BadgeStyle="BadgeStyle.Secondary" />
@@ -54,7 +54,7 @@ else
     @* ── Agregar bloque ── *@
     @if (disponibles.Count > 0)
     {
-        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.End" Gap="0.5rem" class="rz-mb-3" style="max-width:620px">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.End" Gap="0.5rem" class="rz-mb-3 app-form-medio">
             <RadzenFormField Text="Agregar bloque (estructura)" Variant="Variant.Outlined" style="flex:1">
                 <RadzenDropDown @bind-Value="nuevoBloqueEstructuraId" Data="@disponibles" TextProperty="Nombre" ValueProperty="Id"
                                 TValue="int?" style="width:100%" />
@@ -69,8 +69,8 @@ else
         @* @key: sin esto, al quitar un bloque Blazor puede reutilizar los inputs del bloque equivocado. *@
         <RadzenCard @key="bloque.CertificadoEstructuraId" Variant="Variant.Outlined" class="rz-mb-3">
             <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
-                         AlignItems="AlignItems.Center" class="rz-mb-2">
-                <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-0" style="font-weight:600">@bloque.Titulo</RadzenText>
+                         AlignItems="AlignItems.Center" class="rz-mb-3">
+                <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-0 app-titulo-bloque">@bloque.Titulo</RadzenText>
                 @if (vm.Bloques.Count > 1)
                 {
                     <RadzenButton Text="Quitar bloque" Icon="delete" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger"
@@ -334,7 +334,7 @@ else
             resultado = await DialogService.OpenAsync<CertificadoImportarDialog>(
                 "Importar % del mes desde Excel",
                 new Dictionary<string, object?> { [nameof(CertificadoImportarDialog.Vm)] = vm },
-                new DialogOptions { Width = "min(1100px, 92vw)" });
+                new DialogOptions { Width = AnchoDialogo.Ancho });
         }
         finally { importando = false; }
         if (resultado is not List<AplicacionBloque> aplicaciones) return;

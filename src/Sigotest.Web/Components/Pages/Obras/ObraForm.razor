@@ -22,10 +22,10 @@ else
     @* Unos 20 campos: un clic en el menú los descartaba sin preguntar. *@
     <GuardNavegacion HayCambios="@HayCambiosSinGuardar" />
 
-    <CabeceraPagina Titulo="@Titulo" Estilo="TextStyle.H4" Clase="rz-mb-4" Migas="@Migas" />
+    <CabeceraPagina Titulo="@Titulo" Migas="@Migas" />
 
     <RadzenTemplateForm TItem="ObraVM" Data="@obra" Submit="@GuardarAsync">
-        <RadzenStack Gap="1rem" style="max-width: 960px;">
+        <RadzenStack Gap="1rem" class="app-form-ancho">
 
             <RadzenFieldset Text="Datos Generales">
                 <RadzenRow Gap="1rem" RowGap="1rem">

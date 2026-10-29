@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = Roles.Certificaciones)]
 @inject CertificadoService Service
 @inject NavigationManager Nav
+@inject RetornoObra Retorno
 @inject DialogService DialogService
 @inject NotificationService Notifications
 @inject EstadoGrillas Grillas
@@ -20,7 +21,7 @@ else if (obra is null || certificados is null)
 }
 else
 {
-    <CabeceraPagina Titulo="Certificados de Avance" Clase="rz-mb-4"
+    <CabeceraPagina Titulo="Certificados de Avance"
                     Migas="@(new CabeceraPagina.Miga[] { new("Obras", "obras"), new(obra.Nombre, $"obras/{ObraId}"), new("Certificados") })">
         <Subtitulo>@obra.Nombre — @obra.NumeroLicitacion</Subtitulo>
         <Acciones>
@@ -30,8 +31,9 @@ else
             }
             <RadzenButton Text="Nuevo Certificado" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
                           Click="@(() => Nav.NavigateTo($"obras/{ObraId}/certificados/nuevo"))" />
-            <RadzenButton Text="Volver a Obra" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
-                          Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"obras/{ObraId}"))" />
+            @* Vuelve a donde se entró: la ficha o el listado de Obras (RetornoObra). *@
+            <RadzenButton Text="@Retorno.Volver(ObraId).Texto" Icon="arrow_back" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
+                          Variant="Variant.Flat" Click="@(() => Nav.NavigateTo(Retorno.Volver(ObraId).Ruta))" />
         </Acciones>
     </CabeceraPagina>
 
@@ -48,10 +50,10 @@ else
     else
     {
         <GrillaListado Vista="@vista">
-            <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Numero" Title="N°" Width="60px" TextAlign="TextAlign.Center" />
+            <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Numero" Title="N°" Width="@AnchoColumna.NumeroOrdenable" TextAlign="TextAlign.Center" />
             @* Filtra por año: Radzen ordena las opciones alfabéticamente («Abril 2025, Abril
                2026…») y el mes se encuentra con la búsqueda rápida. *@
-            <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Anio" SortProperty="PeriodoOrden" Title="Período" Width="150px">
+            <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Anio" SortProperty="PeriodoOrden" Title="Período" Width="@AnchoColumna.Periodo">
                 <Template Context="c">@c.Periodo</Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Bloques" Title="Bloques" Width="220px" Sortable="false">
@@ -59,15 +61,12 @@ else
                     <span class="app-muted">@c.Bloques</span>
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Estado" Title="Estado" Width="120px" TextAlign="TextAlign.Center">
-                <Template Context="c">
-                    <RadzenBadge Text="@c.Estado.ToString()" IsPill="true" BadgeStyle="@EstadoUi.Badge(c.Estado)" />
-                </Template>
-            </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="FechaEmision" Title="Emisión" Width="110px"
+            @* En texto, sin badge (convenciones-ui, «Celdas en texto»). *@
+            <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Estado" Title="Estado" Width="@AnchoColumna.Estado" />
+            <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="FechaEmision" Title="Emisión" Width="@AnchoColumna.Fecha"
                                   FormatString="{0:dd/MM/yyyy}" TextAlign="TextAlign.Center" />
             <RadzenDataGridColumn TItem="CertificadoListItemVM" Property="Observaciones" Title="Observaciones" Width="220px" />
-            <RadzenDataGridColumn TItem="CertificadoListItemVM" Title="Acciones" Width="180px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+            <RadzenDataGridColumn TItem="CertificadoListItemVM" Title="Acciones" Width="@AnchoColumna.Acciones(4)" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                 <Template Context="c">
                     <RadzenButton Icon="visibility" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Info" Variant="Variant.Text"
                                   title="Ver" Click="@(() => Nav.NavigateTo($"certificados/{c.Id}"))" />

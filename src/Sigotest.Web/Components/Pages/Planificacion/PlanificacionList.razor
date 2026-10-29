@@ -6,19 +6,17 @@
 
 <PageTitle>Planificación</PageTitle>
 
-<RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
-             AlignItems="AlignItems.End" Wrap="FlexWrap.Wrap" Gap="0.5rem" class="rz-mb-4">
-    <RadzenStack Gap="0.15rem">
-        <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H1" class="rz-mb-0">Planificación de Obras</RadzenText>
-        <RadzenText TextStyle="TextStyle.Caption" class="app-muted rz-mb-0">Curva de inversión prevista por obra</RadzenText>
-    </RadzenStack>
-    @* Dropdown pelado (sin FormField ni label): el recuadro con etiqueta flotante
-       era mucho más alto que los botones chicos y desbalanceaba la fila. *@
-    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+@* CabeceraPagina como el resto (la armaba a mano, con otro gap y alineada abajo) y el
+   mismo nombre que el menú y el PageTitle (decía «Planificación de Obras»). *@
+<CabeceraPagina Titulo="Planificación" Estilo="TextStyle.H4">
+    <Subtitulo>Curva de inversión prevista por obra</Subtitulo>
+    <Acciones>
         @if (obras is { Count: > 0 })
         {
             <FiltrosGrilla Vista="@vista" Placeholder="Buscar obra, licitación o director…" />
         }
+        @* Dropdown pelado (sin FormField ni label): el recuadro con etiqueta flotante
+           era mucho más alto que los botones chicos y desbalanceaba la fila. *@
         <RadzenDropDown Name="ddCorte" TValue="CorteOption" Data="@cortes" TextProperty="Texto" @bind-Value="@corteSel"
                         Change="@(async _ => await CargarCorteAsync())" style="min-width:170px"
                         title="Versión del plan a mostrar" aria-label="Versión del plan a mostrar" />
@@ -26,8 +24,8 @@
                       Click="@(() => Exportar(corteSel.EsVigente ? "vigente" : "corte"))" />
         <RadzenButton Text="Historial completo" Icon="history" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Text"
                       Click="@(() => Exportar("versiones"))" title="Todas las versiones mensuales (equivalente al export completo de Flokzu)" />
-    </RadzenStack>
-</RadzenStack>
+    </Acciones>
+</CabeceraPagina>
 
 @if (obras is null)
 {
@@ -49,37 +47,19 @@ else
            que ofrece su filtro. *@
         @if (corteSel.EsVigente)
         {
-            <RadzenDataGridColumn TItem="PlanObraRowVM" Property="EstadoPlanTexto" Title="Estado del plan" Width="150px" TextAlign="TextAlign.Center" Sortable="false">
+            @* Estados en texto, sin badge (convenciones-ui, «Celdas en texto»). *@
+            <RadzenDataGridColumn TItem="PlanObraRowVM" Property="EstadoPlanTexto" Title="Estado del plan" Width="@AnchoColumna.Estado" Sortable="false" />
+            <RadzenDataGridColumn TItem="PlanObraRowVM" Property="CicloDelMes" Title="Ciclo del mes" Width="230px" Sortable="false">
                 <Template Context="obra">
-                    <RadzenBadge Text="@obra.EstadoPlanTexto" IsPill="true"
-                                 BadgeStyle="@(obra.EstadoPlan is EstadoPlanificacion e ? EstadoUi.Badge(e) : BadgeStyle.Dark)" />
-                </Template>
-            </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="PlanObraRowVM" Property="CicloDelMes" Title="Ciclo del mes" Width="170px" TextAlign="TextAlign.Center" Sortable="false">
-                <Template Context="obra">
-                    @if (obra.CicloDelMes == PlanObraRowVM.SinCiclo)
-                    {
-                        <span class="app-muted">@obra.CicloDelMes</span>
-                    }
-                    else if (obra.ObraFinalizada)
-                    {
-                        <RadzenBadge Text="@obra.CicloDelMes" IsPill="true" BadgeStyle="BadgeStyle.Dark" />
-                    }
-                    else
-                    {
-                        <RadzenBadge Text="@obra.CicloDelMes" IsPill="true" Shade="Shade.Lighter"
-                                     BadgeStyle="@(obra.FechaTomaConocimiento is null ? BadgeStyle.Warning : BadgeStyle.Success)" />
-                    }
+                    <span class="@(obra.CicloDelMes == PlanObraRowVM.SinCiclo ? "app-muted" : null)">@obra.CicloDelMes</span>
                 </Template>
             </RadzenDataGridColumn>
         }
         else
         {
-            <RadzenDataGridColumn TItem="PlanObraRowVM" Property="VersionAlCorte" Title="@($"Versión al corte ({corteSel.Texto})")" Width="220px" TextAlign="TextAlign.Center" Sortable="false">
+            <RadzenDataGridColumn TItem="PlanObraRowVM" Property="VersionAlCorte" Title="@($"Versión al corte ({corteSel.Texto})")" Width="280px" Sortable="false">
                 <Template Context="obra">
-                    <RadzenBadge Text="@obra.VersionAlCorte" IsPill="true"
-                                 BadgeStyle="@(versionesCorte.ContainsKey(obra.Id) ? BadgeStyle.Info : BadgeStyle.Dark)"
-                                 Shade="@(versionesCorte.ContainsKey(obra.Id) ? Shade.Lighter : Shade.Default)" />
+                    <span class="@(versionesCorte.ContainsKey(obra.Id) ? null : "app-muted")">@obra.VersionAlCorte</span>
                 </Template>
             </RadzenDataGridColumn>
         }

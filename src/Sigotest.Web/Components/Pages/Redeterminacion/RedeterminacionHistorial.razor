@@ -18,7 +18,7 @@
 </CabeceraPagina>
 
 <RadzenDropDown @bind-Value="filterObraId" Data="@obras" TextProperty="Etiqueta" ValueProperty="Id" TValue="int?"
-                AllowClear="true" Placeholder="-- Todas las obras --" style="width:100%;max-width:420px" class="rz-mb-3"
+                AllowClear="true" Placeholder="-- Todas las obras --" style="width:100%" class="rz-mb-3 app-form-angosto"
                 title="Filtrar por obra" aria-label="Filtrar por obra"
                 Change="@OnFiltroChanged" />
 
@@ -60,14 +60,14 @@ else
         var verOS = grupo.Any(x => x.FechaAprobacionOS is not null);
         var verLimite = grupo.Any(x => x.FechaLimitePresentacion is not null);
         <RadzenCard @key="grupo.Key" Variant="Variant.Outlined" class="rz-mb-4">
-            <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-3" style="font-weight:600">@obra.ObraNumeroLicitacion — @obra.ObraNombre</RadzenText>
+            <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-3 app-titulo-bloque">@obra.ObraNumeroLicitacion — @obra.ObraNombre</RadzenText>
             <div class="cert-scroll">
                 <table class="cert-grid">
                     <caption class="sr-only">Disparos de redeterminación de @obra.ObraNombre</caption>
                     <thead>
                         <tr>
                             <th scope="col" class="centro">Disparo N°</th>
-                            <th scope="col" class="centro" title="Desde Presentada (expediente VR cargado) el disparo no se recalcula ni se elimina">Estado</th>
+                            <th scope="col" title="Desde Presentada (expediente VR cargado) el disparo no se recalcula ni se elimina">Estado</th>
                             <th scope="col" class="centro">Mes de Disparo</th>
                             <th scope="col" class="num" title="Variación de referencia respecto del mes base (habilita redeterminación desde el @(Redet.SaltoMinimo.ToString("N0"))%)">Variación Ref. %</th>
                             <th scope="col" class="num" title="Coeficiente total Kᵢ/K₀ del salto">Coef. (K/K₀)</th>
@@ -100,21 +100,19 @@ else
                                decimales queden encolumnados (convenciones-ui, tablas cert-grid). *@
                             <tr @key="r.Id" class="@(RedeterminacionValidator.EsVigente(r.Estado) ? null : "app-muted")">
                                 <td class="centro" style="font-weight:700">@r.NroDisparo</td>
-                                <td class="centro">
-                                    <RadzenBadge Text="@RedeterminacionValidator.TextoEstado(r.Estado)" BadgeStyle="@EstadoUi.Badge(r.Estado)"
-                                                 IsPill="true" Shade="Shade.Lighter" />
-                                </td>
+                                @* En texto, sin badge (convenciones-ui, «Celdas en texto»). *@
+                                <td>@RedeterminacionValidator.TextoEstado(r.Estado)</td>
                                 <td class="centro">@Fmt.MesCorto(r.MesSalto)-@(r.AnioSalto % 100)</td>
                                 <td class="num">
                                     @if (r.PorcentajeAumento.HasValue)
                                     {
-                                        @* Badge con texto además del color: el rojo significa "no llega
-                                           al salto mínimo", no "variación negativa", y sin texto se
-                                           malinterpretaba (y era invisible para daltónicos). *@
-                                        <span style="@($"font-weight:700;color:{Redet.ColorSuba(r.PorcentajeAumento)}")">@r.PorcentajeAumento.Value.ToString("N4")%</span>
-                                        <RadzenBadge Text="@(Redet.EsSuba(r.PorcentajeAumento) ? "Habilita" : "No habilita")" IsPill="true"
-                                                     BadgeStyle="@(Redet.EsSuba(r.PorcentajeAumento) ? BadgeStyle.Success : BadgeStyle.Danger)"
-                                                     Shade="Shade.Lighter" class="rz-ml-1" />
+                                        @* Solo la cifra en color, sin el badge «Habilita / No habilita»
+                                           (decisión del usuario, 2026-10-29: recargaba la columna). El
+                                           rojo significa «no llega al salto mínimo», no «variación
+                                           negativa»: el criterio va en el title de la celda y del
+                                           encabezado (excepción documentada en convenciones-ui). *@
+                                        <span style="@($"font-weight:700;color:{Redet.ColorSuba(r.PorcentajeAumento)}")"
+                                              title="@(Redet.EsSuba(r.PorcentajeAumento) ? "Habilita la redeterminación" : $"No habilita: la suba no llega al {Redet.SaltoMinimo:N0} %")">@r.PorcentajeAumento.Value.ToString("N4")%</span>
                                     }
                                     else
                                     {
@@ -236,7 +234,7 @@ else
             var resultado = await DialogService.OpenAsync<RedeterminacionAdminDialog>(
                 $"Disparo N° {vm.NroDisparo} — Datos Administrativos",
                 new Dictionary<string, object?> { [nameof(RedeterminacionAdminDialog.Vm)] = vm },
-                new DialogOptions { Width = "min(480px, 92vw)" });
+                new DialogOptions { Width = AnchoDialogo.Corto });
 
             if (resultado is true)
                 await CargarAsync();

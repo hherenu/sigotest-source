@@ -142,7 +142,7 @@ public class ConvencionesUiTests
                 .Select(c => (Archivo: Path.GetFileName(f), Etiqueta: c.Value)))
             .ToList();
         var sinAncho = columnas
-            .Where(c => !Regex.IsMatch(c.Etiqueta, @"\sWidth=""\d+px"""))
+            .Where(c => !Regex.IsMatch(c.Etiqueta, @"\sWidth=""(\d+px|@AnchoColumna\.\w+(\(\d+\))?)"""))
             .Select(c => $"{c.Archivo}: {Regex.Match(c.Etiqueta, @"\sTitle=""[^""]*""").Value.Trim()}")
             .ToList();
 
@@ -188,6 +188,166 @@ public class ConvencionesUiTests
         Assert.DoesNotMatch(@"\.rz-grid-table td\s*\{[^}]*!important", css);
     }
 
+    private static IEnumerable<(string Archivo, string Texto)> Paginas() =>
+        Directory.EnumerateFiles(Componentes(), "*.razor", SearchOption.AllDirectories)
+            .Select(f => (Path.GetFileName(f), File.ReadAllText(f)));
+
+    // Etiqueta de apertura completa, con valores entre comillas que pueden tener «>» o comillas
+    // internas de una interpolación (@($"…")).
+    private static readonly Regex Etiqueta = new(@"<(?<tag>[A-Za-z][\w.]*)\b(?:[^>""]|""[^""]*"")*>");
+
+    // Páginas que no usan CabeceraPagina: la portada y la pantalla de acceso denegado, centradas.
+    private static readonly string[] SinCabecera = ["Home.razor", "SinAcceso.razor"];
+
+    [Fact]
+    public void Escala_TitulosDePaginaConCabeceraYH4SoloEnLaRaizDelMenu()
+    {
+        // H4 en las entradas del menú; el resto H5 (el default de CabeceraPagina): el título
+        // saltaba de tamaño entre páginas hermanas (Obras H4 → Obra H4 → Certificados H5).
+        string[] raiz = ["ObrasList.razor", "IndicesList.razor", "Calcular.razor",
+                         "RedeterminacionHistorial.razor", "PlanificacionList.razor", "UsuariosList.razor"];
+        var conH4 = Paginas().Where(p => p.Texto.Contains(@"Estilo=""TextStyle.H4""")).Select(p => p.Archivo).ToList();
+        Assert.Equal(raiz.Order(), conH4.Order());
+        // Ningún otro tamaño explícito: H5 es el default.
+        Assert.Empty(Paginas().Where(p => Regex.IsMatch(p.Texto, @"Estilo=""TextStyle\.(?!H4"")")).Select(p => p.Archivo));
+
+        // Toda página con ruta usa CabeceraPagina, que pone el único H1.
+        var sinCabecera = Paginas()
+            .Where(p => Regex.IsMatch(p.Texto, @"^@page\b", RegexOptions.Multiline)
+                        && !p.Texto.Contains("<CabeceraPagina") && !SinCabecera.Contains(p.Archivo))
+            .Select(p => p.Archivo);
+        Assert.Empty(sinCabecera);
+        var h1Propios = Paginas()
+            .Where(p => p.Archivo is not ("CabeceraPagina.razor" or "Home.razor")
+                        && Regex.IsMatch(p.Texto, @"TagName\.H1|<h1\b"))
+            .Select(p => p.Archivo);
+        Assert.Empty(h1Propios);
+
+        // Títulos de tarjeta: H6 con TagName.H2 (sin él quedaban <h6> colgando del <h1>).
+        var h6SinNivel = Paginas()
+            .SelectMany(p => Etiqueta.Matches(p.Texto)
+                .Where(m => m.Groups["tag"].Value == "RadzenText" && m.Value.Contains("TextStyle.H6")
+                            && !m.Value.Contains("TagName.H2"))
+                .Select(_ => p.Archivo));
+        Assert.Empty(h6SinNivel);
+    }
+
+    [Fact]
+    public void Escala_UnaBarraUnTamano_BotonesSmallEnLasAcciones()
+    {
+        // Barras de acciones (cabecera de página, banner de resultado): botones Small. Medium
+        // queda para el envío de formularios y diálogos; ExtraSmall, dentro de celdas.
+        var acciones = new Regex(@"<Acciones>(?<cuerpo>.*?)</Acciones>", RegexOptions.Singleline);
+        var boton = new Regex(@"<RadzenButton\b(?:[^>""]|""[^""]*"")*>");
+        var infractores = Paginas()
+            .SelectMany(p => acciones.Matches(p.Texto)
+                .SelectMany(a => boton.Matches(a.Groups["cuerpo"].Value))
+                .Where(b => !b.Value.Contains(@"Size=""ButtonSize.Small"""))
+                .Select(b => $"{p.Archivo}: {Regex.Match(b.Value, @"Text=""[^""]*""").Value}"))
+            .ToList();
+        Assert.Empty(infractores);
+
+        Assert.Contains(@"Size=""ButtonSize.Small""",
+            File.ReadAllText(Path.Combine(Componentes(), "Shared", "FiltrosGrilla.razor")));
+    }
+
+    // Múltiplo de 4px: rem en cuartos (0.25rem = 4px) o px múltiplos de 4. 1-2px no son
+    // separaciones (bordes, el margin:-1px de .sr-only).
+    private static bool EnLaGrillaDe4px(string valor) =>
+        Regex.Matches(valor, @"(?<n>-?\d*\.?\d+)(?<u>rem|px)").All(m =>
+        {
+            var n = decimal.Parse(m.Groups["n"].Value, System.Globalization.CultureInfo.InvariantCulture);
+            return m.Groups["u"].Value == "rem" ? n * 4 % 1 == 0 : Math.Abs(n) <= 2 || n % 4 == 0;
+        });
+
+    [Fact]
+    public void Escala_SeparacionesEnMultiplosDe4px()
+    {
+        string[] escala = ["0", "0.25rem", "0.5rem", "0.75rem", "1rem", "1.5rem"];
+        var infractores = Paginas()
+            .SelectMany(p => Regex.Matches(p.Texto, @"\b(?:Row)?Gap=""(?<v>[^""]*)""")
+                .Where(m => !escala.Contains(m.Groups["v"].Value))
+                .Select(m => $"{p.Archivo}: {m.Value}")
+                // Separaciones inline (style="padding-left:1.1rem").
+                .Concat(Regex.Matches(p.Texto, @"(?i)\b(?:margin|padding|gap)[\w-]*\s*:\s*(?<v>[^;""]+)")
+                    .Where(m => !EnLaGrillaDe4px(m.Groups["v"].Value))
+                    .Select(m => $"{p.Archivo}: {m.Value}")))
+            .ToList();
+
+        // Y en el CSS propio. Excepción: los paddings de la sidebar en modo íconos (0.8125rem),
+        // calculados para que cada ítem mida lo mismo que el botón de menú de la cabecera.
+        var css = File.ReadAllText(Path.Combine(Componentes(), "..", "wwwroot", "css", "app-blazor.css"));
+        infractores.AddRange(Regex.Matches(css, @"(?m)^\s*(?:--rz-[\w-]*(?:margin|padding|gap|offset)[\w-]*|margin[\w-]*|padding[\w-]*|gap)\s*:\s*(?<v>[^;]+);")
+            .Where(m => !m.Value.Contains("--rz-panel-menu-") && !EnLaGrillaDe4px(m.Groups["v"].Value))
+            .Select(m => $"app-blazor.css: {m.Value.Trim()}"));
+
+        Assert.Empty(infractores);
+    }
+
+    [Fact]
+    public void Escala_SinFuentesNiAnchosSueltos()
+    {
+        var infractores = Paginas().SelectMany(p =>
+        {
+            var hallados = new List<string>();
+            foreach (Match tag in Etiqueta.Matches(p.Texto))
+            {
+                // Tamaños de la escala (app-fs-body2 / app-fs-caption); los íconos grandes de los
+                // estados vacíos llevan el suyo. «style» o «Style» (el parámetro de Radzen).
+                if (tag.Groups["tag"].Value != "RadzenIcon" && Regex.IsMatch(tag.Value, @"(?is)\bstyle\s*=\s*"".*?font-size"))
+                    hallados.Add($"font-size inline en {tag.Groups["tag"].Value}");
+                // Títulos con app-titulo-bloque y totales con app-total, no con font-weight inline.
+                if (tag.Groups["tag"].Value == "RadzenText" && Regex.IsMatch(tag.Value, @"(?is)\bstyle\s*=\s*"".*?font-weight"))
+                    hallados.Add("font-weight en RadzenText");
+            }
+            // Anchos de formulario con app-form-angosto/medio/ancho.
+            if (Regex.IsMatch(p.Texto, @"(?i)max-width\s*:\s*[\d.]+\s*(px|rem|em|ch|%|vw)")) hallados.Add("max-width inline");
+            // Todo diálogo con AnchoDialogo (sin Width, Radzen usa 600px).
+            hallados.AddRange(Regex.Matches(p.Texto, @"new DialogOptions\s*\{[^}]*\}")
+                .Where(m => !m.Value.Contains("AnchoDialogo.")).Select(_ => "diálogo sin AnchoDialogo"));
+            return hallados.Select(h => $"{p.Archivo}: {h}");
+        }).ToList();
+        Assert.Empty(infractores);
+    }
+
+    [Fact]
+    public void Escala_ColumnasDeTiposEstandarConSuAnchoColumna()
+    {
+        // Había 26 anchos distintos para los mismos datos (una fecha en 110, 120, 130 o 160px). Cada
+        // título estándar tiene que usar SU constante (una «Valor» con Fecha también rompía). Las
+        // columnas congeladas (el Período de la planificación, con botones) declaran el suyo.
+        // N° depende de la grilla: si ordena o filtra, sus íconos no entran en 60px (no se veían).
+        string[] numeros = ["N°", "Fila", "#", "Línea"];
+        var esperado = new Dictionary<string, string[]>
+        {
+            ["Acta Inicio"] = ["Fecha"], ["Fin Contrato"] = ["Fecha"], ["Fecha del acto"] = ["Fecha"],
+            ["Fin anterior"] = ["Fecha"], ["Nuevo fin"] = ["Fecha"], ["Emisión"] = ["Fecha"],
+            ["Período"] = ["Periodo"], ["Código"] = ["Codigo", "CodigoIndice"], ["Unidad"] = ["Unidad"],
+            ["Cantidad"] = ["Cantidad"], ["Valor"] = ["Cantidad"], ["Monto"] = ["Importe"], ["PU Básico"] = ["Importe"],
+            ["% Pond."] = ["Porcentaje"], ["% mes"] = ["Porcentaje"], ["Peso %"] = ["Porcentaje"],
+            ["Estado del plan"] = ["Estado"],
+        };
+        var bloque = new Regex(@"<(?<tag>RadzenDataGrid|GrillaListado)\b(?<apertura>(?:[^>""]|""[^""]*"")*)>(?<cuerpo>.*?)</\k<tag>>",
+            RegexOptions.Singleline);
+        var infractores = Paginas()
+            .SelectMany(p => bloque.Matches(p.Texto).SelectMany(b =>
+            {
+                var ordena = b.Groups["tag"].Value == "GrillaListado"
+                             || Regex.IsMatch(b.Groups["apertura"].Value, @"Allow(Sorting|Filtering)=""true""");
+                return Etiqueta.Matches(b.Groups["cuerpo"].Value)
+                    .Where(m => m.Groups["tag"].Value == "RadzenDataGridColumn" && !m.Value.Contains(@"Frozen=""true"""))
+                    .Select(m => (Titulo: Regex.Match(m.Value, @"\sTitle=""(?<t>[^""]*)""").Groups["t"].Value, m.Value))
+                    .Select(c => (c.Titulo, c.Value,
+                        Constantes: numeros.Contains(c.Titulo) ? [ordena ? "NumeroOrdenable" : "Numero"]
+                                  : esperado.GetValueOrDefault(c.Titulo)))
+                    .Where(c => c.Constantes is not null
+                                && !c.Constantes.Any(k => Regex.IsMatch(c.Value, $@"Width=""@AnchoColumna\.{k}""")))
+                    .Select(c => $"{p.Archivo}: {c.Titulo}");
+            }))
+            .ToList();
+        Assert.Empty(infractores);
+    }
+
     [Fact]
     public void Reconexion_AvisoPropioEnCastellanoParaCadaEstado()
     {
@@ -206,21 +366,102 @@ public class ConvencionesUiTests
     }
 
     [Fact]
+    public void Celdas_EnTextoSinBadgesNiColorDeEstado()
+    {
+        // Un badge por fila (fondo y color en cada renglón) era ruido: el estado, el rol, el tipo o
+        // un conteo se escriben. El color de alerta (app-texto-error/aviso) queda para lo que hay
+        // que corregir en una vista previa o una carga; en los listados, ni eso.
+        var grilla = new Regex(@"<(?<tag>RadzenDataGrid|GrillaListado|table)\b(?:[^>""]|""[^""]*"")*>(?<cuerpo>.*?)</\k<tag>>",
+            RegexOptions.Singleline);
+        var infractores = Paginas()
+            .SelectMany(p => grilla.Matches(p.Texto).SelectMany(b =>
+            {
+                var cuerpo = b.Groups["cuerpo"].Value;
+                var hallados = new List<string>();
+                if (cuerpo.Contains("<RadzenBadge")) hallados.Add("badge en una celda");
+                if (cuerpo.Contains("IconColor=")) hallados.Add("ícono en color en una celda");
+                if (b.Groups["tag"].Value == "GrillaListado" && Regex.IsMatch(cuerpo, @"color\s*:|app-texto-"))
+                    hallados.Add("color en un listado");
+                return hallados.Select(h => $"{p.Archivo}: {h}");
+            }))
+            .ToList();
+
+        Assert.Empty(infractores);
+    }
+
+    [Fact]
+    public void Titulos_SinContadores()
+    {
+        // Un badge con la cantidad junto a un título («Prórrogas de plazo 0») era ruido: la lista
+        // está a la vista y, vacía, lo dice su texto («Sin prórrogas…»).
+        var contador = new Regex(@"<RadzenBadge\b[^>]*\sText=""@\(?[\w.]*(Count|Cantidad)\w*(\(\))?\.ToString\(\)\)?""");
+        var infractores = Paginas()
+            .SelectMany(p => contador.Matches(p.Texto).Select(m => $"{p.Archivo}: {m.Value}"))
+            .ToList();
+
+        Assert.Empty(infractores);
+    }
+
+    [Fact]
+    public void SeccionesDeLaObra_VuelvenADondeSeEntro()
+    {
+        // Entrando desde las columnas de acceso del listado, «Volver a Obra» llevaba a la ficha y
+        // no al listado. Las columnas marcan RetornoObra, la ficha lo desmarca y las secciones
+        // leen de ahí destino y texto. Los tres accesos usan el mismo ícono de ir (la columna dice
+        // a qué sección), Primary como Editar.
+        var p = Path.Combine(Componentes(), "Pages");
+        var listado = File.ReadAllText(Path.Combine(p, "Obras", "ObrasList.razor"));
+        var ficha = File.ReadAllText(Path.Combine(p, "Obras", "ObraDetails.razor"));
+
+        Assert.Contains("Retorno.DesdeListado(obra.Id)", listado);
+        Assert.DoesNotMatch(@"NavigateTo\(\$""obras/\{obra\.Id\}/(estructuras|certificados|ponderacion)""", listado);
+        Assert.Equal(3, Regex.Matches(listado, @"<RadzenButton Icon=""arrow_forward""[^>]*ButtonStyle=""ButtonStyle\.Primary""").Count);
+        Assert.Contains("Retorno.DesdeFicha()", ficha);
+        foreach (var seccion in new[] { Path.Combine("Estructuras", "EstructurasList.razor"),
+                                        Path.Combine("Certificados", "CertificadosList.razor"),
+                                        Path.Combine("Redeterminacion", "PonderacionEditar.razor") })
+        {
+            var texto = File.ReadAllText(Path.Combine(p, seccion));
+            Assert.Contains(@"Text=""@Retorno.Volver(ObraId).Texto""", texto);
+            Assert.Contains("Nav.NavigateTo(Retorno.Volver(ObraId).Ruta)", texto);
+            Assert.DoesNotContain(@"Text=""Volver a Obra""", texto);
+        }
+    }
+
+    [Fact]
+    public void Foco_AlNavegarEnElTituloSinRecuadro()
+    {
+        // FocusOnNavigate enfoca el H1 para que el lector de pantalla anuncie la página; sin la
+        // regla del CSS, el navegador lo marcaba con el recuadro del foco al cargar o recargar.
+        var rutas = File.ReadAllText(Path.Combine(Componentes(), "Routes.razor"));
+        var css = File.ReadAllText(Path.Combine(Componentes(), "..", "wwwroot", "css", "app-blazor.css"));
+
+        Assert.Contains(@"<FocusOnNavigate RouteData=""@routeData"" Selector=""h1"" />", rutas);
+        Assert.Matches(@"(?m)^h1:focus\s*\{\s*outline:\s*none;", css);
+    }
+
+    [Fact]
     public void GrillasConFiltro_TodasLasColumnasFiltrables()
     {
         // Las calculadas también: muestran una propiedad del VM (CicloDelMes, RolesTexto…), que
-        // es lo que ofrece su filtro. Solo la columna de acciones (título vacío o «Acciones») no
-        // filtra. Sin FilterProperty: en el filtro de lista, si difiere de Property, Radzen toma
-        // Property como colección (SelectMany) y abrir el filtro rompía la página.
+        // es lo que ofrece su filtro. Solo no filtran las columnas de botones, que no muestran un
+        // dato: la de acciones (título vacío o «Acciones») y las de acceso a otra página (sin
+        // Property, con un botón: Estructuras, Certificados, Ponderación en Obras). Sin
+        // FilterProperty: en el filtro de lista, si difiere de Property, Radzen toma Property como
+        // colección (SelectMany) y abrir el filtro rompía la página.
         var bloque = new Regex(@"<(?<tag>RadzenDataGrid|GrillaListado)\b(?<apertura>(?:[^>""]|""[^""]*"")*)>(?<cuerpo>.*?)</\k<tag>>",
             RegexOptions.Singleline);
-        var columna = new Regex(@"<RadzenDataGridColumn\b(?:[^>""]|""[^""]*"")*>");
+        // La columna entera: la etiqueta de apertura y, si no se cierra sola, su contenido.
+        var columna = new Regex(@"<RadzenDataGridColumn\b(?:[^>""/]|""[^""]*""|/(?!>))*(?:/>|>(?<cuerpo>.*?)</RadzenDataGridColumn>)",
+            RegexOptions.Singleline);
         var columnas = Directory.EnumerateFiles(Componentes(), "*.razor", SearchOption.AllDirectories)
             .SelectMany(f => bloque.Matches(File.ReadAllText(f))
                 .Where(b => b.Groups["tag"].Value == "GrillaListado" || b.Groups["apertura"].Value.Contains(@"AllowFiltering=""true"""))
                 .SelectMany(b => columna.Matches(b.Groups["cuerpo"].Value))
-                .Where(c => !Regex.IsMatch(c.Value, @"\sTitle=""(Acciones)?"""))
-                .Select(c => (Archivo: Path.GetFileName(f), Etiqueta: c.Value)))
+                .Select(c => (Etiqueta: Etiqueta.Match(c.Value).Value, Cuerpo: c.Groups["cuerpo"].Value))
+                .Where(c => !Regex.IsMatch(c.Etiqueta, @"\sTitle=""(Acciones)?""")
+                            && !(c.Cuerpo.Contains("<RadzenButton") && !Regex.IsMatch(c.Etiqueta, @"\sProperty=""")))
+                .Select(c => (Archivo: Path.GetFileName(f), c.Etiqueta)))
             .ToList();
         var infractores = columnas
             .Where(c => !Regex.IsMatch(c.Etiqueta, @"\sProperty=""")

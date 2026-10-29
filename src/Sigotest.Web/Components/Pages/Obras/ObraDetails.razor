@@ -4,6 +4,7 @@
 @inject NavigationManager Nav
 @inject DialogService DialogService
 @inject NotificationService Notifications
+@inject RetornoObra Retorno
 
 <PageTitle>@(obra?.Nombre ?? "Obra")</PageTitle>
 
@@ -19,7 +20,7 @@ else if (obra is null)
 }
 else
 {
-    <CabeceraPagina Titulo="@obra.Nombre" Estilo="TextStyle.H4" Clase="rz-mb-4">
+    <CabeceraPagina Titulo="@obra.Nombre">
         <Acciones>
             @* Sin el botón a Estructuras: duplicaba el "Ver / Gestionar" de la sección
                homónima de abajo y era el tercer botón verde de la cabecera. *@
@@ -33,7 +34,7 @@ else
     <RadzenRow Gap="1rem" RowGap="1rem">
         <RadzenColumn Size="12" SizeMD="6">
             <RadzenCard Variant="Variant.Outlined" style="height:100%">
-                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">Datos del Expediente</RadzenText>
+                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-3">Datos del Expediente</RadzenText>
                 @Dato("Licitación", obra.NumeroLicitacion)
                 @Dato("Antecedentes", obra.Antecedentes)
                 @Dato("Contratista", obra.Contratista)
@@ -56,7 +57,7 @@ else
 
         <RadzenColumn Size="12" SizeMD="6">
             <RadzenCard Variant="Variant.Outlined" style="height:100%">
-                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-3">Fechas</RadzenText>
+                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-3">Fechas</RadzenText>
                 @Dato("Fecha Oferta", obra.FechaOferta?.ToString("dd/MM/yyyy"))
                 @Dato("Oferta Final (IF)", obra.OfertaFinal)
                 @Dato("Fecha Adjudicación", obra.FechaAdjudicacion?.ToString("dd/MM/yyyy"))
@@ -74,8 +75,8 @@ else
                         @* Rojo SOLO con el plazo vencido (misma regla que el badge de estado):
                            antes estaba siempre en rojo, también con años por delante, y el
                            rojo permanente desensibiliza el color de peligro. *@
-                        <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0"
-                                    style="@(obra.Estado?.Contains("Vencido") == true ? "font-weight:600;color:var(--rz-danger)" : "font-weight:600")">
+                        <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-0 app-destacado"
+                                    style="@(obra.Estado?.Contains("Vencido") == true ? "color:var(--rz-danger)" : null)">
                             @obra.FechaFinalContrato?.ToString("dd/MM/yyyy")
                             @if (obra.Prorrogas.Count > 0)
                             {
@@ -91,11 +92,9 @@ else
         <RadzenColumn Size="12">
             <RadzenCard Variant="Variant.Outlined">
                 <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
-                             AlignItems="AlignItems.Center" class="rz-mb-2">
-                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">
-                        Prórrogas de plazo
-                        <RadzenBadge Text="@obra.Prorrogas.Count.ToString()" BadgeStyle="BadgeStyle.Secondary" class="rz-ml-2" />
-                    </RadzenText>
+                             AlignItems="AlignItems.Center" class="rz-mb-3">
+                    @* Sin contador junto al título (convenciones-ui, «Títulos dentro de la página»). *@
+                    <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-0">Prórrogas de plazo</RadzenText>
                     @* Con la regla de negocio en el clic (sin fecha de fin el servicio rechaza y
                        se notifica el motivo), no en un Disabled invisible por teclado. *@
                     <RadzenButton Text="Agregar prórroga" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
@@ -111,13 +110,13 @@ else
                 {
                     <RadzenDataGrid Data="@obra.Prorrogas" TItem="ProrrogaObraVM" Density="Density.Compact" AllowColumnResize="true">
                         <Columns>
-                            <RadzenDataGridColumn TItem="ProrrogaObraVM" Property="Numero" Title="N°" Width="60px" TextAlign="TextAlign.Center" />
-                            <RadzenDataGridColumn TItem="ProrrogaObraVM" Property="FechaFinAnterior" Title="Fin anterior" Width="120px" FormatString="{0:dd/MM/yyyy}" />
-                            <RadzenDataGridColumn TItem="ProrrogaObraVM" Property="FechaFinNueva" Title="Nuevo fin" Width="120px" FormatString="{0:dd/MM/yyyy}" />
-                            <RadzenDataGridColumn TItem="ProrrogaObraVM" Property="FechaActo" Title="Fecha del acto" Width="130px" FormatString="{0:dd/MM/yyyy}" />
+                            <RadzenDataGridColumn TItem="ProrrogaObraVM" Property="Numero" Title="N°" Width="@AnchoColumna.Numero" TextAlign="TextAlign.Center" />
+                            <RadzenDataGridColumn TItem="ProrrogaObraVM" Property="FechaFinAnterior" Title="Fin anterior" Width="@AnchoColumna.Fecha" FormatString="{0:dd/MM/yyyy}" />
+                            <RadzenDataGridColumn TItem="ProrrogaObraVM" Property="FechaFinNueva" Title="Nuevo fin" Width="@AnchoColumna.Fecha" FormatString="{0:dd/MM/yyyy}" />
+                            <RadzenDataGridColumn TItem="ProrrogaObraVM" Property="FechaActo" Title="Fecha del acto" Width="@AnchoColumna.Fecha" FormatString="{0:dd/MM/yyyy}" />
                             <RadzenDataGridColumn TItem="ProrrogaObraVM" Property="IFActo" Title="IF" Width="180px" />
                             <RadzenDataGridColumn TItem="ProrrogaObraVM" Property="Observaciones" Title="Observaciones" />
-                            <RadzenDataGridColumn TItem="ProrrogaObraVM" Title="" Width="70px" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
+                            <RadzenDataGridColumn TItem="ProrrogaObraVM" Title="" Width="@AnchoColumna.Acciones(1)" Sortable="false" Filterable="false" TextAlign="TextAlign.Center">
                                 <Template Context="p">
                                     @* Ícono solo, como las filas del listado de obras. Habilitado en todas: si
                                        no es la última, el servicio rechaza y el clic notifica el motivo
@@ -140,11 +139,8 @@ else
         <RadzenColumn Size="12">
             <RadzenCard Variant="Variant.Outlined">
                 <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
-                             AlignItems="AlignItems.Center" class="rz-mb-2">
-                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">
-                        Estructuras de Costos
-                        <RadzenBadge Text="@obra.EstructurasCostos.Count.ToString()" BadgeStyle="BadgeStyle.Secondary" class="rz-ml-2" />
-                    </RadzenText>
+                             AlignItems="AlignItems.Center" class="rz-mb-3">
+                    <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-0">Estructuras de Costos</RadzenText>
                     @* Navegación de sección: Light/Flat (el verde quedaba con el mismo peso
                        que las acciones reales y la página tenía 5 botones verdes). *@
                     <RadzenButton Text="Ver / Gestionar" Icon="account_tree" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
@@ -156,7 +152,7 @@ else
                 }
                 else
                 {
-                    <ul class="rz-mb-0" style="padding-left:1.1rem;">
+                    <ul class="rz-mb-0" style="padding-left:1rem;">
                         @foreach (var est in obra.EstructurasCostos)
                         {
                             <li>
@@ -173,8 +169,8 @@ else
         <RadzenColumn Size="12">
             <RadzenCard Variant="Variant.Outlined">
                 <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
-                             AlignItems="AlignItems.Center" class="rz-mb-2">
-                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Certificados de Avance</RadzenText>
+                             AlignItems="AlignItems.Center" class="rz-mb-3">
+                    <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-0">Certificados de Avance</RadzenText>
                     <RadzenButton Text="Ver / Gestionar" Icon="receipt_long" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
                                   Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"obras/{obra.Id}/certificados"))" />
                 </RadzenStack>
@@ -190,8 +186,8 @@ else
             <RadzenColumn Size="12">
                 <RadzenCard Variant="Variant.Outlined">
                     <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
-                                 AlignItems="AlignItems.Center" class="rz-mb-2">
-                        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Tabla de Ponderación</RadzenText>
+                                 AlignItems="AlignItems.Center" class="rz-mb-3">
+                        <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-0">Tabla de Ponderación</RadzenText>
                         <RadzenButton Text="Crear tabla" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
                                       Click="@(() => Nav.NavigateTo($"obras/{obra.Id}/ponderacion"))" />
                     </RadzenStack>
@@ -207,7 +203,7 @@ else
                 <RadzenCard Variant="Variant.Outlined">
                     <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
                                  AlignItems="AlignItems.Center" class="rz-mb-3">
-                        <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Tabla de Ponderación: @tabla.Nombre</RadzenText>
+                        <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-0">Tabla de Ponderación: @tabla.Nombre</RadzenText>
                         <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
                             <RadzenButton Text="Editar Tabla" Icon="edit" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Light"
                                           Variant="Variant.Flat" Click="@(() => Nav.NavigateTo($"obras/{obra.Id}/ponderacion"))" />
@@ -221,10 +217,10 @@ else
                                     EmptyText="@GridTextos.SinCoincidencias"
                                     ApplyFilterText="@GridTextos.AplicarFiltro" ClearFilterText="@GridTextos.LimpiarFiltro">
                         <Columns>
-                            <RadzenDataGridColumn TItem="ItemPonderacionObraVM" Property="Numero" Title="N°" Width="60px" TextAlign="TextAlign.Center" />
+                            <RadzenDataGridColumn TItem="ItemPonderacionObraVM" Property="Numero" Title="N°" Width="@AnchoColumna.NumeroOrdenable" TextAlign="TextAlign.Center" />
                             <RadzenDataGridColumn TItem="ItemPonderacionObraVM" Property="Insumo" Title="Insumo" />
-                            <RadzenDataGridColumn TItem="ItemPonderacionObraVM" Property="PesoPorcentaje" Title="Peso %" Width="110px"
-                                                  FormatString="{0:N2}" TextAlign="TextAlign.Center" />
+                            <RadzenDataGridColumn TItem="ItemPonderacionObraVM" Property="PesoPorcentaje" Title="Peso %" Width="@AnchoColumna.Porcentaje"
+                                                  FormatString="{0:N2}" TextAlign="TextAlign.Right" />
                             <RadzenDataGridColumn TItem="ItemPonderacionObraVM" Property="DescripcionINDEC" Title="Índice INDEC" />
                         </Columns>
                     </RadzenDataGrid>
@@ -271,7 +267,7 @@ else
                     [nameof(ProrrogaAgregarDialog.ObraId)] = obra.Id,
                     [nameof(ProrrogaAgregarDialog.FechaFinVigente)] = obra.FechaFinalContrato!.Value
                 },
-                new DialogOptions { Width = "min(520px, 92vw)" });
+                new DialogOptions { Width = AnchoDialogo.Medio });
 
             if (resultado is true)
                 await RecargarAsync();
@@ -299,6 +295,8 @@ else
     // cuando sólo cambia el parámetro de ruta (ej. /obras/1 -> /obras/2).
     protected override async Task OnParametersSetAsync()
     {
+        // Desde la ficha, las secciones de la obra vuelven a ella y no al listado (RetornoObra).
+        Retorno.DesdeFicha();
         if (idCargado == Id) return;
         idCargado = Id;
 

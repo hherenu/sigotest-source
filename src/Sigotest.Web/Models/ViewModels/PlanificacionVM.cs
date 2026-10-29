@@ -270,7 +270,7 @@ public class PlanObraRowVM
     public bool ObraFinalizada { get; set; }
 
     /// <summary>Columna «Estado del plan»: lo que se ve y lo que ofrece su filtro.</summary>
-    public string EstadoPlanTexto => EstadoPlan?.ToString() ?? "Sin iniciar";
+    public string EstadoPlanTexto => EstadoPlan is EstadoPlanificacion e ? Components.Shared.EstadoUi.Texto(e) : "Sin iniciar";
 
     /// <summary>Columna «Ciclo del mes» mientras el plan no está aprobado ni la obra finalizada.</summary>
     public const string SinCiclo = "—";

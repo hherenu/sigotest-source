@@ -6,7 +6,7 @@
 
 <PageTitle>Índices INDEC</PageTitle>
 
-<CabeceraPagina Titulo="Índices INDEC" Estilo="TextStyle.H4" Clase="rz-mb-4">
+<CabeceraPagina Titulo="Índices INDEC" Estilo="TextStyle.H4">
     <Acciones>
         @if (indices is { Count: > 0 })
         {
@@ -14,9 +14,9 @@
         }
         @* Un solo primario: importar es la acción frecuente (mensual); el alta de un
            índice nuevo es rara y baja a secundario. *@
-        <RadzenButton Text="Importar publicación" Icon="upload" ButtonStyle="ButtonStyle.Primary"
+        <RadzenButton Text="Importar publicación" Icon="upload" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary"
                       Click="@(() => Nav.NavigateTo("indices/importar"))" />
-        <RadzenButton Text="Nuevo Índice" Icon="add" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Flat"
+        <RadzenButton Text="Nuevo Índice" Icon="add" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Flat"
                       Click="@(() => Nav.NavigateTo("indices/nuevo"))" />
     </Acciones>
 </CabeceraPagina>
@@ -33,7 +33,7 @@ else
         cálculo); <b>Cuadro</b> e <b>Inciso</b> son informativos y ubican el índice en la revista INDEC.
     </RadzenText>
     <GrillaListado Vista="@vista">
-        <RadzenDataGridColumn TItem="IndiceVM" Property="CodigoIndice" Title="Código" Width="200px" />
+        <RadzenDataGridColumn TItem="IndiceVM" Property="CodigoIndice" Title="Código" Width="@AnchoColumna.CodigoIndice" />
         <RadzenDataGridColumn TItem="IndiceVM" Property="FamiliaRecurso" Title="Familia de Recurso" Width="220px" />
         <RadzenDataGridColumn TItem="IndiceVM" Property="IndiceNormalizado" Title="Índice Normalizado" Width="240px" />
         <RadzenDataGridColumn TItem="IndiceVM" Property="CuadroReferencia" Title="Cuadro" Width="130px" />

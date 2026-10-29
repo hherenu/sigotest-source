@@ -4,10 +4,10 @@
 <PageTitle>Sin acceso</PageTitle>
 
 <RadzenStack AlignItems="AlignItems.Center" class="rz-mt-8">
-    <RadzenCard Variant="Variant.Outlined" style="max-width:560px">
+    <RadzenCard Variant="Variant.Outlined" class="app-form-angosto">
         <RadzenStack Gap="0.75rem" AlignItems="AlignItems.Center">
             <RadzenIcon Icon="lock" style="font-size:3rem;color:var(--rz-warning)" />
-            <RadzenText TextStyle="TextStyle.H6" class="rz-mb-0">Sin permisos para esa sección</RadzenText>
+            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H2" class="rz-mb-0">Sin permisos para esa sección</RadzenText>
 
             @if (!tieneAlgunRol)
             {

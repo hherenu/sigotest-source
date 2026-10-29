@@ -291,6 +291,8 @@ public class GrillasTests
     {
         Assert.Equal("Sin iniciar", new PlanObraRowVM().EstadoPlanTexto);
         Assert.Equal(nameof(EstadoPlanificacion.Aprobada), new PlanObraRowVM { EstadoPlan = EstadoPlanificacion.Aprobada }.EstadoPlanTexto);
+        // En texto plano (sin badge) se leía «EnRevision», el nombre del enum.
+        Assert.Equal("En revisión", new PlanObraRowVM { EstadoPlan = EstadoPlanificacion.EnRevision }.EstadoPlanTexto);
 
         Assert.Equal(PlanObraRowVM.SinCiclo, new PlanObraRowVM { EstadoPlan = EstadoPlanificacion.Pendiente }.CicloDelMes);
         Assert.Equal("Falta toma de conocimiento", new PlanObraRowVM { EstadoPlan = EstadoPlanificacion.Aprobada }.CicloDelMes);
