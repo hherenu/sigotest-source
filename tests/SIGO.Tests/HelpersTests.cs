@@ -112,6 +112,28 @@ public class HelpersTests
         Assert.Equal("Se conservó lo que tipeaste.", aviso.Detail);
     }
 
+    // ── Temas (cookie SIGOTheme) ────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("humanistic")]
+    [InlineData("material-dark\"; x=1")]
+    public void Temas_SinCookieOAdulteradaArrancaEnClaro(string? cookie)
+    {
+        // El oscuro como respaldo hacía que todo usuario sin cookie arrancara en oscuro.
+        Assert.Equal(Temas.Claro, Temas.Normalizar(cookie));
+    }
+
+    [Theory]
+    [InlineData("material", "material")]
+    [InlineData("MATERIAL-DARK", "material-dark")]
+    [InlineData("material-dark", "material-dark")]
+    public void Temas_RespetaLaEleccionGuardada(string cookie, string esperado)
+    {
+        Assert.Equal(esperado, Temas.Normalizar(cookie));
+    }
+
     // ── RetornoObra (a dónde vuelven las secciones de una obra) ─────────────────
 
     [Fact]

@@ -42,7 +42,7 @@
 </RadzenTemplateForm>
 
 @code {
-    [Parameter] public UsuarioVM Usuario { get; set; } = new();
+    [Parameter, EditorRequired] public UsuarioVM Usuario { get; set; } = new();
 
     private bool procesando;
 

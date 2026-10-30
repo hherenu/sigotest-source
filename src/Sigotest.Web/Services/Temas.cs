@@ -11,9 +11,11 @@ public static class Temas
     public const string Oscuro = "material-dark";
     public const string Claro = "material";
 
-    /// <summary>El tema si es válido; si no (cookie ausente o adulterada), el oscuro por defecto.</summary>
+    /// <summary>
+    /// El tema si es válido; si no (cookie ausente o adulterada), el claro por defecto. La cookie
+    /// solo existe si el usuario usó el AppearanceToggle: el SetTheme inicial de RadzenTheme
+    /// ocurre antes de que CookieThemeService se suscriba, así que no la escribe.
+    /// </summary>
     public static string Normalizar(string? tema) =>
-        string.Equals(tema, Claro, StringComparison.OrdinalIgnoreCase) ? Claro
-        : string.Equals(tema, Oscuro, StringComparison.OrdinalIgnoreCase) ? Oscuro
-        : Oscuro;
+        string.Equals(tema, Oscuro, StringComparison.OrdinalIgnoreCase) ? Oscuro : Claro;
 }

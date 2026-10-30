@@ -429,6 +429,34 @@ public class ConvencionesUiTests
     }
 
     [Fact]
+    public void Enlaces_SinAnclaSuelta()
+    {
+        // Con <base href="/">, href="#x" se resuelve contra la base («/#x»): desde cualquier página
+        // que no fuera la portada, «Saltar al contenido» navegaba al inicio. El skip-link apunta a
+        // la página actual con el ancla y mueve el foco al contenido.
+        var sueltas = Paginas().Where(p => p.Texto.Contains(@"href=""#")).Select(p => p.Archivo).ToList();
+        var layout = File.ReadAllText(Path.Combine(Componentes(), "Layout", "MainLayout.razor"));
+
+        Assert.Empty(sueltas);
+        Assert.Contains(@"href=""@HrefContenido""", layout);
+        Assert.Contains("contenido.FocusAsync()", layout);
+    }
+
+    [Fact]
+    public void Estilos_SinColoresFijosPorNombre()
+    {
+        // Los colores salen de tokens --rz-* para que valgan en claro y en oscuro: el «gray» fijo
+        // del borde de la cabecera de las grillas no seguía al tema.
+        var css = Regex.Replace(File.ReadAllText(Path.Combine(Componentes(), "..", "wwwroot", "css", "app-blazor.css")),
+            @"/\*.*?\*/", "", RegexOptions.Singleline);
+        var fijos = Regex.Matches(css, @"(?<![\w-])(gray|grey|silver|black|white)(?![\w-])", RegexOptions.IgnoreCase)
+            .Select(m => m.Value)
+            .ToList();
+
+        Assert.Empty(fijos);
+    }
+
+    [Fact]
     public void Foco_AlNavegarEnElTituloSinRecuadro()
     {
         // FocusOnNavigate enfoca el H1 para que el lector de pantalla anuncie la página; sin la

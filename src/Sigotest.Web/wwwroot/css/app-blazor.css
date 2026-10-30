@@ -372,7 +372,8 @@ html, body {
    =========================================================================== */
 .rz-data-grid table thead th {
     font-weight: bold !important;
-    border-bottom: 2px solid gray !important;
+    /* Neutro derivado del texto del tema (misma intensidad en claro y oscuro), no un gray fijo. */
+    border-bottom: 2px solid color-mix(in srgb, var(--rz-text-color) 45%, transparent) !important;
 }
 
 /* Celdas a 1rem del borde y el título de cada columna a la misma distancia: el

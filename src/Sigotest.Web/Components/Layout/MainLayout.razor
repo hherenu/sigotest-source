@@ -15,8 +15,12 @@
    wrapper envuelve también a RadzenComponents, donde renderizan los toasts. *@
 <div class="@(EsTemaClaro ? "tema-claro" : null)">
 @* Skip-link (WCAG 2.4.1): invisible salvo con foco; evita tabular por todo el
-   menú lateral en cada página para llegar al contenido. *@
-<a href="#contenido" class="skip-link">Saltar al contenido</a>
+   menú lateral en cada página para llegar al contenido. El href es la página actual
+   con el ancla: con <base href="/">, el ancla sola («#contenido») apuntaba a la
+   portada y el salto navegaba al inicio (con cambios sin guardar, pedía confirmar).
+   El clic mueve además el foco: el scroll de Blazor al ancla no lo mueve, y el
+   próximo Tab volvía al menú. *@
+<a href="@HrefContenido" class="skip-link" @onclick="SaltarAlContenidoAsync" @onclick:preventDefault>Saltar al contenido</a>
 <RadzenLayout>
     <RadzenHeader>
         @* Sin padding horizontal en la cabecera (como SAF): el toggle queda en la misma
@@ -73,7 +77,7 @@
     </RadzenSidebar>
 
     <RadzenBody>
-        <div class="app-content" id="contenido" tabindex="-1">
+        <div class="app-content" id="contenido" tabindex="-1" @ref="contenido">
             @* Una excepción no capturada en una página (ej. corte de DB al navegar) se
                contiene acá en vez de tumbar el circuito completo. *@
             <ErrorBoundary @ref="errorBoundary">
@@ -107,6 +111,13 @@
     // Arranca en modo solo-íconos en cualquier pantalla; el toggle manda después.
     private bool sidebarExpanded = false;
     private ErrorBoundary? errorBoundary;
+    private ElementReference contenido;
+
+    // La página actual (sin su ancla) + #contenido: Blazor lo trata como salto dentro de la
+    // misma página. El layout se re-renderiza en cada navegación, así que sigue a la URL.
+    private string HrefContenido => $"{Nav.ToBaseRelativePath(Nav.Uri).Split('#')[0]}#contenido";
+
+    private async Task SaltarAlContenidoAsync() => await contenido.FocusAsync();
 
     private bool EsTemaClaro => Tema.Theme is { Length: > 0 } t && !t.Contains("dark");
 
