@@ -104,6 +104,9 @@ builder.Services.AddRadzenCookieThemeService(options =>
 
 var app = builder.Build();
 
+// Persistencia es estática (la llaman las páginas): su log se fija acá.
+Persistencia.Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(Persistencia));
+
 if (!app.Environment.IsDevelopment())
 {
     // La página de error se sirve como HTML estático, no como componente Blazor: si la app

@@ -79,15 +79,20 @@
     <RadzenBody>
         <div class="app-content" id="contenido" tabindex="-1" @ref="contenido">
             @* Una excepción no capturada en una página (ej. corte de DB al navegar) se
-               contiene acá en vez de tumbar el circuito completo. *@
+               contiene acá en vez de tumbar el circuito completo. El mensaje de la
+               excepción no se muestra (técnico, en inglés y a veces con nombres de tablas):
+               Blazor ya la registra completa en el log del servidor (RemoteErrorBoundaryLogger). *@
             <ErrorBoundary @ref="errorBoundary">
                 <ChildContent>
                     @Body
                 </ChildContent>
-                <ErrorContent Context="ex">
+                <ErrorContent>
                     <RadzenAlert AlertStyle="AlertStyle.Danger" Variant="Variant.Flat" Shade="Shade.Lighter" AllowClose="false" class="rz-my-4">
                         <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-1">Ocurrió un error inesperado en esta página.</RadzenText>
-                        <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-2">@ex.Message</RadzenText>
+                        <RadzenText TextStyle="TextStyle.Body2" class="rz-mb-2">
+                            El detalle quedó registrado en el servidor. Recargá la página; si se repite, avisá a Sistemas
+                            qué estabas haciendo y a qué hora.
+                        </RadzenText>
                         <RadzenButton Text="Recargar página" Icon="refresh" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Danger"
                                       Variant="Variant.Flat" Click="@(() => Nav.NavigateTo(Nav.Uri, forceLoad: true))" />
                     </RadzenAlert>

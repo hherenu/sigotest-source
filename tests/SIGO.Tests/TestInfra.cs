@@ -35,6 +35,19 @@ public sealed class FakeDirectoryEmails(string? email = "tester@ad.test") : IDir
     }
 }
 
+/// <summary>Logger que guarda nivel, excepción y mensaje de cada entrada.</summary>
+public sealed class LogDePrueba : Microsoft.Extensions.Logging.ILogger
+{
+    public List<(Microsoft.Extensions.Logging.LogLevel Nivel, Exception? Excepcion, string Mensaje)> Entradas { get; } = [];
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+    public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId,
+        TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+        Entradas.Add((logLevel, exception, formatter(state, exception)));
+}
+
 /// <summary>Factory mínima sobre opciones fijas (los servicios reciben IDbContextFactory).</summary>
 public sealed class TestDbFactory(DbContextOptions<AppDbContext> options, ICurrentUser? user = null)
     : IDbContextFactory<AppDbContext>

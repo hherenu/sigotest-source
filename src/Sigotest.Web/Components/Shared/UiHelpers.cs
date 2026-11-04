@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Radzen;
 using SIGO.Models.Enums;
 using SIGO.Services;
@@ -11,9 +12,18 @@ namespace SIGO.Components.Shared;
 /// Ejecuta operaciones de escritura de forma segura: traduce los fallos esperables
 /// (conflicto de concurrencia por RowVersion, error de base, regla de negocio de un
 /// servicio) en una notificación al usuario en vez de tumbar el circuito de Blazor.
+/// Todo lo que no es una regla de negocio queda además en el log del servidor.
 /// </summary>
 public static class Persistencia
 {
+    /// <summary>
+    /// Log de los fallos de base y de los conflictos: antes solo los veía el usuario en el
+    /// aviso y un corte o un deadlock no dejaba rastro en el servidor. Es estático porque
+    /// Persistencia lo es (la llaman ~25 páginas); lo fija Program.cs al arrancar y sin
+    /// fijar (tests) no registra nada.
+    /// </summary>
+    public static ILogger Log { get; set; } = NullLogger.Instance;
+
     /// <summary>Devuelve true solo si la operación se completó sin errores.</summary>
     /// <param name="conflicto">
     /// Mensaje propio para un conflicto de concurrencia. Las páginas que tras un fallo
@@ -28,21 +38,22 @@ public static class Persistencia
             return true;
         }
         // DbUpdateConcurrencyException hereda de DbUpdateException: va primero.
-        catch (DbUpdateConcurrencyException)
+        catch (DbUpdateConcurrencyException ex)
         {
+            Log.LogWarning(ex, "Conflicto de concurrencia: otro usuario modificó el registro.");
             notif.Notify(NotificationSeverity.Warning, "Conflicto de concurrencia",
                 conflicto ?? "Otro usuario modificó este registro mientras trabajabas. Recargá la página y volvé a intentar.", 8000);
         }
         catch (DbUpdateException ex)
         {
-            NotificarErrorDeBase(ex, notif);
+            NotificarErrorDeBase(ex, ex, notif);
         }
         // Fallos del proveedor fuera de SaveChanges (SqlException en una query o al
         // abrir la conexión): sin esto, un corte transitorio de la DB dentro de la
         // acción tumbaba el circuito pese al wrapper.
         catch (System.Data.Common.DbException ex)
         {
-            NotificarErrorDeBase(ex, notif);
+            NotificarErrorDeBase(ex, ex, notif);
         }
         // Sin reintentos configurados, EF envuelve los errores transitorios de SQL Server
         // (un deadlock entre transacciones Serializable, un timeout) en una
@@ -50,9 +61,10 @@ public static class Persistencia
         // se traduce como el error de base que lleva adentro.
         catch (InvalidOperationException ex) when (ex.InnerException is DbUpdateException or System.Data.Common.DbException)
         {
-            NotificarErrorDeBase(ex.InnerException, notif);
+            NotificarErrorDeBase(ex.InnerException, ex, notif);
         }
-        // Reglas de negocio de los servicios (ej. "solo se puede cerrar un borrador").
+        // Reglas de negocio de los servicios (ej. "solo se puede cerrar un borrador"): no
+        // se loguean, el aviso ya le dice al usuario qué corregir.
         catch (InvalidOperationException ex)
         {
             notif.Notify(NotificationSeverity.Error, "No se pudo completar", ex.Message, 6000);
@@ -62,10 +74,20 @@ public static class Persistencia
 
     /// <summary>
     /// Mensaje del error de base: los códigos frecuentes de SQL Server se traducen a un
-    /// mensaje entendible en vez del error crudo del proveedor en inglés.
+    /// mensaje entendible en vez del error crudo del proveedor en inglés. En el log va la
+    /// excepción completa (<paramref name="original"/>, con el envoltorio de EF si lo hubo).
     /// </summary>
-    private static void NotificarErrorDeBase(Exception ex, NotificationService notif)
+    private static void NotificarErrorDeBase(Exception ex, Exception original, NotificationService notif)
     {
+        // Los que el aviso explica y el usuario resuelve (registro referenciado, duplicado,
+        // deadlock) son advertencias; el resto (corte, timeout, error no previsto) es una
+        // falla que Sistemas tiene que ver.
+        var numero = (ex as Microsoft.Data.SqlClient.SqlException ?? ex.InnerException as Microsoft.Data.SqlClient.SqlException)?.Number;
+        if (numero is 547 or 2601 or 2627 or 1205)
+            Log.LogWarning(original, "Error de base {Numero} informado al usuario.", numero);
+        else
+            Log.LogError(original, "Error de base de datos en una operación de la interfaz.");
+
         // Las transacciones Serializable (altas con número correlativo, cierres,
         // importación) eligen una víctima cuando dos guardan a la vez sobre las mismas
         // filas: la operación no se hizo y alcanza con repetirla.
