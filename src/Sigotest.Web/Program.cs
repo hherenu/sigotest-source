@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.EntityFrameworkCore;
 using Radzen;
@@ -10,6 +11,14 @@ using SIGO.Services;
 // dominio y consulta del email en AD): se declara para que el analizador de
 // plataformas no exija guards en cada uso de las API de Windows.
 [assembly: System.Runtime.Versioning.SupportedOSPlatform("windows")]
+
+// Cultura es-AR para todo el proceso (requests, circuitos de Blazor y tareas de fondo):
+// sin esto RadzenNumeric, los DatePicker, {0:N2} y los ToString sin cultura tomaban la
+// del usuario del pool de IIS, y en un servidor en inglés se veía 1,234.50 y lo tipeado
+// se leía con el punto como separador decimal.
+var esAr = CultureInfo.GetCultureInfo("es-AR");
+CultureInfo.DefaultThreadCurrentCulture = esAr;
+CultureInfo.DefaultThreadCurrentUICulture = esAr;
 
 var builder = WebApplication.CreateBuilder(args);
 

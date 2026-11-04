@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Encodings.Web;
@@ -73,6 +74,17 @@ public sealed class ContractTests : IClassFixture<SigoWebApplicationFactory>
         using var response = await client.GetAsync(url);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public void Cultura_EsArgentinaEnTodoElProceso()
+    {
+        // Arranca la app si ningún otro test de la clase lo hizo.
+        _ = _factory.Services;
+
+        // Si no, RadzenNumeric, los DatePicker y {0:N2} usan la cultura del pool de IIS.
+        Assert.Equal("es-AR", CultureInfo.DefaultThreadCurrentCulture?.Name);
+        Assert.Equal("es-AR", CultureInfo.DefaultThreadCurrentUICulture?.Name);
     }
 
     private sealed record HealthPayload(string Status, string Application, string Machine, string Framework, DateTimeOffset Utc);

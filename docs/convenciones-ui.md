@@ -389,8 +389,9 @@ Una sola escala para que las páginas hermanas se vean iguales.
 | Fechas | `dd/MM/yyyy` (en grilla, `FormatString="{0:dd/MM/yyyy}"`) |
 | Excel | `ExcelHelpers.FormatoCantidad`, para que cantidad × PU cuadre con el monto |
 
-**Nunca `ToString("N2")` directo**: `Fmt` fija la cultura es-AR y `ToString` depende de la del
-servidor.
+**Nunca `ToString("N2")` directo**: `Fmt` fija la cultura es-AR en cada llamada. `Program.cs`
+también la fija para todo el proceso (Radzen y los `{0:N2}` dependen de ella), pero el formato no
+tiene que depender de esa línea.
 
 ## 10. CSS
 
