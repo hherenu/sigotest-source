@@ -8,8 +8,7 @@ línea, por qué.
 - **Excepción**: si un caso necesita salirse de una regla, dejá el porqué en un comentario al lado.
 - **Código viejo**: si encontrás algo que no cumple una regla, corregilo al tocarlo. Deudas
   conocidas: números con `ToString("N2")` en Redeterminación (ver «Formato de datos»), «Volver a
-  Cerrado» en el certificado, `Data="@….OrderBy(…)"` en la ponderación y el mensaje técnico del
-  `ErrorBoundary`.
+  Cerrado» en el certificado y `Data="@….OrderBy(…)"` en la ponderación.
 - **Ante la duda**, copiá un caso existente que cumpla la regla.
 
 ## 1. Página
@@ -374,7 +373,10 @@ Una sola escala para que las páginas hermanas se vean iguales.
   `App.razor`, estilos por estado en el CSS) y dice qué pasa con lo no guardado. **[T]**
 - **Error no controlado**: `#blazor-error-ui` (MainLayout) aparece cuando la página dejó de
   responder. No es el aviso de conexión. Un error de una página lo contiene el `ErrorBoundary` del
-  layout.
+  layout. **[T]** El `ErrorContent` no muestra el mensaje de la excepción (técnico, en inglés):
+  Blazor la registra completa en el log del servidor.
+- **Log**: `Persistencia` deja en el log del servidor los errores de base (advertencia si el aviso
+  ya lo explica: referencia, duplicado, deadlock) y los conflictos; las reglas de negocio no.
 
 ## 9. Formato de datos
 
@@ -389,8 +391,9 @@ Una sola escala para que las páginas hermanas se vean iguales.
 | Fechas | `dd/MM/yyyy` (en grilla, `FormatString="{0:dd/MM/yyyy}"`) |
 | Excel | `ExcelHelpers.FormatoCantidad`, para que cantidad × PU cuadre con el monto |
 
-**Nunca `ToString("N2")` directo**: `Fmt` fija la cultura es-AR y `ToString` depende de la del
-servidor.
+**Nunca `ToString("N2")` directo**: `Fmt` fija la cultura es-AR en cada llamada. `Program.cs`
+también la fija para todo el proceso (Radzen y los `{0:N2}` dependen de ella), pero el formato no
+tiene que depender de esa línea.
 
 ## 10. CSS
 
@@ -462,6 +465,7 @@ servidor.
 | `Escala_SeparacionesEnMultiplosDe4px` | `Gap`, separaciones inline y del CSS en múltiplos de 4 px |
 | `Escala_SinFuentesNiAnchosSueltos` | Sin `font-size`/`font-weight`/`max-width` inline; diálogos con `AnchoDialogo` |
 | `Reconexion_AvisoPropioEnCastellanoParaCadaEstado` | Aviso de reconexión propio para cada estado |
+| `ErrorBoundary_SinElMensajeDeLaExcepcion` | El `ErrorContent` no muestra el mensaje de la excepción |
 | `Foco_AlNavegarEnElTituloSinRecuadro` | El foco al navegar va al H1, sin recuadro |
 | `Enlaces_SinAnclaSuelta` | Sin `href="#…"`; el skip-link con la ruta actual y foco al contenido |
 | `Estilos_SinColoresFijosPorNombre` | Sin `gray`/`black`/`white`… en `app-blazor.css` |

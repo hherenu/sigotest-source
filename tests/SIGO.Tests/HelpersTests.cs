@@ -112,6 +112,43 @@ public class HelpersTests
         Assert.Equal("Se conservó lo que tipeaste.", aviso.Detail);
     }
 
+    [Fact]
+    public async Task Persistencia_FallasDeBaseYConflictosQuedanEnElLog_LasReglasDeNegocioNo()
+    {
+        // Antes un corte de la base o un deadlock solo lo veía el usuario en el aviso.
+        var log = new LogDePrueba();
+        var anterior = Persistencia.Log;
+        Persistencia.Log = log;
+        try
+        {
+            var corte = new Microsoft.EntityFrameworkCore.DbUpdateException("x", new Exception("detalle del proveedor"));
+            Assert.False(await Persistencia.EjecutarAsync(() => throw corte, new Radzen.NotificationService()));
+            var error = Assert.Single(log.Entradas);
+            Assert.Equal(Microsoft.Extensions.Logging.LogLevel.Error, error.Nivel);
+            Assert.Same(corte, error.Excepcion);
+
+            // Envuelto por EF: va al log con el envoltorio (la excepción completa).
+            log.Entradas.Clear();
+            var envuelto = new InvalidOperationException("transient", corte);
+            Assert.False(await Persistencia.EjecutarAsync(() => throw envuelto, new Radzen.NotificationService()));
+            Assert.Same(envuelto, Assert.Single(log.Entradas).Excepcion);
+
+            log.Entradas.Clear();
+            Assert.False(await Persistencia.EjecutarAsync(
+                () => throw new Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException("x"), new Radzen.NotificationService()));
+            Assert.Equal(Microsoft.Extensions.Logging.LogLevel.Warning, Assert.Single(log.Entradas).Nivel);
+
+            log.Entradas.Clear();
+            Assert.False(await Persistencia.EjecutarAsync(
+                () => throw new InvalidOperationException("Solo se puede cerrar un certificado en borrador."), new Radzen.NotificationService()));
+            Assert.Empty(log.Entradas);
+        }
+        finally
+        {
+            Persistencia.Log = anterior;
+        }
+    }
+
     // ── Temas (cookie SIGOTheme) ────────────────────────────────────────────────
 
     [Theory]

@@ -366,6 +366,20 @@ public class ConvencionesUiTests
     }
 
     [Fact]
+    public void ErrorBoundary_SinElMensajeDeLaExcepcion()
+    {
+        // El mensaje de una excepción es técnico, en inglés y a veces nombra tablas: no se
+        // muestra. Blazor la registra completa en el log del servidor.
+        var bloque = new Regex(@"<ErrorContent\b.*?</ErrorContent>", RegexOptions.Singleline);
+        var contenidos = Directory.EnumerateFiles(Componentes(), "*.razor", SearchOption.AllDirectories)
+            .SelectMany(f => bloque.Matches(File.ReadAllText(f)).Select(m => (Archivo: Path.GetFileName(f), m.Value)))
+            .ToList();
+
+        Assert.NotEmpty(contenidos);
+        Assert.Empty(contenidos.Where(c => c.Value.Contains(".Message")).Select(c => c.Archivo));
+    }
+
+    [Fact]
     public void Celdas_EnTextoSinBadgesNiColorDeEstado()
     {
         // Un badge por fila (fondo y color en cada renglón) era ruido: el estado, el rol, el tipo o

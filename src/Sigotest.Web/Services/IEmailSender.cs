@@ -2,7 +2,7 @@ using Microsoft.Extensions.Options;
 
 namespace SIGO.Services;
 
-/// <summary>Config de la sección "Correo" de appsettings.</summary>
+/// <summary>Config de la sección "Correo" de appsettings. Las reglas están en ValidarCorreoOptions.</summary>
 public class CorreoOptions
 {
     /// <summary>Interruptor general: en false los mails solo se loguean (no se envían).</summary>
@@ -25,15 +25,14 @@ public class CorreoOptions
     public int TimeoutSegundos { get; set; } = 10;
 
     /// <summary>
-    /// Día del mes en que sale el digest de planificación a los directores. Espera al
-    /// rollover del mes: con DiaRollover posterior se demora hasta ese día, y con un
-    /// DiaRollover que el mes no tiene (31 en un mes de 30) ese mes no sale.
+    /// Día del mes (1 a 28) en que sale el digest de planificación a los directores.
+    /// Espera al rollover del mes: con DiaRollover posterior se demora hasta ese día.
     /// </summary>
     public int DiaDigest { get; set; } = 10;
 
     /// <summary>
-    /// Día del mes del rollover del ciclo de planificación (devuelve a Pendiente los
-    /// planes con circuito iniciado, con la grilla intacta). La víspera del digest: el
+    /// Día del mes (1 a 28) del rollover del ciclo de planificación (devuelve a Pendiente
+    /// los planes con circuito iniciado, con la grilla intacta). La víspera del digest: el
     /// mail del día siguiente arranca el ciclo nuevo con los planes ya reiniciados.
     /// </summary>
     public int DiaRollover { get; set; } = 9;

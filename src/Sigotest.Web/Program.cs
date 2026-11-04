@@ -1,5 +1,7 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Radzen;
 using SIGO.Components;
 using SIGO.Components.Shared;
@@ -10,6 +12,14 @@ using SIGO.Services;
 // dominio y consulta del email en AD): se declara para que el analizador de
 // plataformas no exija guards en cada uso de las API de Windows.
 [assembly: System.Runtime.Versioning.SupportedOSPlatform("windows")]
+
+// Cultura es-AR para todo el proceso (requests, circuitos de Blazor y tareas de fondo):
+// sin esto RadzenNumeric, los DatePicker, {0:N2} y los ToString sin cultura tomaban la
+// del usuario del pool de IIS, y en un servidor en inglés se veía 1,234.50 y lo tipeado
+// se leía con el punto como separador decimal.
+var esAr = CultureInfo.GetCultureInfo("es-AR");
+CultureInfo.DefaultThreadCurrentCulture = esAr;
+CultureInfo.DefaultThreadCurrentUICulture = esAr;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -56,7 +66,11 @@ builder.Services.AddScoped<PonderacionService>();
 
 // ── Correo (circuito de Planificación): sender SMTP + destinatarios desde Usuarios.
 // Con Correo:Habilitado=false los mails solo se loguean (transiciones funcionan igual).
-builder.Services.Configure<CorreoOptions>(builder.Configuration.GetSection("Correo"));
+// Un valor imposible (ver ValidarCorreoOptions) frena el arranque con el motivo en el log.
+builder.Services.AddOptions<CorreoOptions>()
+    .Bind(builder.Configuration.GetSection("Correo"))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<CorreoOptions>, ValidarCorreoOptions>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 // Singleton: sin estado; consulta AD por sAMAccountName en el auto-registro.
 builder.Services.AddSingleton<IDirectoryEmailResolver, ActiveDirectoryEmailResolver>();
@@ -94,6 +108,9 @@ builder.Services.AddRadzenCookieThemeService(options =>
 });
 
 var app = builder.Build();
+
+// Persistencia es estática (la llaman las páginas): su log se fija acá.
+Persistencia.Log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(Persistencia));
 
 if (!app.Environment.IsDevelopment())
 {
