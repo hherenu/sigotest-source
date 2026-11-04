@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -85,6 +86,32 @@ public sealed class ContractTests : IClassFixture<SigoWebApplicationFactory>
         // Si no, RadzenNumeric, los DatePicker y {0:N2} usan la cultura del pool de IIS.
         Assert.Equal("es-AR", CultureInfo.DefaultThreadCurrentCulture?.Name);
         Assert.Equal("es-AR", CultureInfo.DefaultThreadCurrentUICulture?.Name);
+    }
+
+    [Fact]
+    public void CorreoConUnValorImposible_LaAppNoArranca()
+    {
+        using var conDiaInexistente = _factory.WithWebHostBuilder(b => b.ConfigureAppConfiguration((_, c) =>
+            c.AddInMemoryCollection(new Dictionary<string, string?> { ["Correo:DiaDigest"] = "31" })));
+
+        var error = Record.Exception(() => conDiaInexistente.CreateClient());
+
+        // El motivo queda en la excepción del arranque (y en el log del servidor).
+        Assert.NotNull(error);
+        var validacion = ExcepcionesDe(error).OfType<OptionsValidationException>().FirstOrDefault();
+        Assert.NotNull(validacion);
+        Assert.Contains(validacion.Failures, f => f.StartsWith("Correo:DiaDigest", StringComparison.Ordinal));
+    }
+
+    private static IEnumerable<Exception> ExcepcionesDe(Exception e)
+    {
+        yield return e;
+        IEnumerable<Exception> internas = e is AggregateException a ? a.InnerExceptions : [];
+        if (e is not AggregateException && e.InnerException is not null)
+            internas = [e.InnerException];
+        foreach (var interna in internas)
+            foreach (var x in ExcepcionesDe(interna))
+                yield return x;
     }
 
     private sealed record HealthPayload(string Status, string Application, string Machine, string Framework, DateTimeOffset Utc);

@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Radzen;
 using SIGO.Components;
 using SIGO.Components.Shared;
@@ -65,7 +66,11 @@ builder.Services.AddScoped<PonderacionService>();
 
 // ── Correo (circuito de Planificación): sender SMTP + destinatarios desde Usuarios.
 // Con Correo:Habilitado=false los mails solo se loguean (transiciones funcionan igual).
-builder.Services.Configure<CorreoOptions>(builder.Configuration.GetSection("Correo"));
+// Un valor imposible (ver ValidarCorreoOptions) frena el arranque con el motivo en el log.
+builder.Services.AddOptions<CorreoOptions>()
+    .Bind(builder.Configuration.GetSection("Correo"))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<CorreoOptions>, ValidarCorreoOptions>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 // Singleton: sin estado; consulta AD por sAMAccountName en el auto-registro.
 builder.Services.AddSingleton<IDirectoryEmailResolver, ActiveDirectoryEmailResolver>();
